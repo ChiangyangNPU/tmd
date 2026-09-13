@@ -897,6 +897,32 @@ img {
   letter-spacing: 0.04em;
 }
 
+/* 副标题行：文案居左、操作按钮居右（如「最近打开」旁的清空） */
+.sidebar-subtitle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subtitle-clear-btn {
+  border: 0;
+  padding: 1px 4px;
+  background: none;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  /* 副标题继承了 uppercase/字距，按钮文案不跟随 */
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.subtitle-clear-btn:hover {
+  color: var(--fg);
+  background: var(--border);
+}
+
 .tool-btn.small {
   padding: 2px 8px;
   font-size: 11px;

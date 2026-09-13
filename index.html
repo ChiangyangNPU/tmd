@@ -500,7 +500,19 @@
               ＋文件夹
             </button>
           </div>
-          <div class="sidebar-subtitle" data-i18n="sidebar.recent">最近打开</div>
+          <div class="sidebar-subtitle sidebar-subtitle-row">
+            <span data-i18n="sidebar.recent">最近打开</span>
+            <button
+              id="clear-recent-btn"
+              type="button"
+              class="subtitle-clear-btn"
+              hidden
+              data-i18n="files.clearRecent"
+              data-i18n-title="files.clearRecentTitle"
+            >
+              清空
+            </button>
+          </div>
           <div id="recent-list" class="file-list"></div>
           <div class="sidebar-subtitle" id="folder-title" data-i18n="sidebar.folder">文件夹</div>
           <div id="folder-tree" class="file-list"></div>

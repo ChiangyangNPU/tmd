@@ -180,11 +180,15 @@ export function removeRecentDocument(path: string) {
 
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
 export function renderFilesSidebar() {
+  const recent = recentList()
+  // 「清空」按钮仅在最近列表非空时显示
+  const clearBtn = document.getElementById('clear-recent-btn')
+  if (clearBtn) clearBtn.hidden = recent.length === 0
   const recentEl = document.getElementById('recent-list')
   if (recentEl)
     renderRecent(
       recentEl,
-      recentList(),
+      recent,
       (p) => void openPath(p),
       (p) => removeRecentDocument(p),
     )

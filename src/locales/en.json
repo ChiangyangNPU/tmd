@@ -48,7 +48,10 @@
   "files": {
     "empty": "No history",
     "openFailed": "The file has been moved or deleted and cannot be opened",
-    "removeRecent": "Remove from Recent Files"
+    "removeRecent": "Remove from Recent Files",
+    "clearRecent": "Clear",
+    "clearRecentTitle": "Clear Recent Files",
+    "clearRecentConfirm": "Clear all recently opened files?"
   },
   "tab": {
     "untitled": "Untitled.md"

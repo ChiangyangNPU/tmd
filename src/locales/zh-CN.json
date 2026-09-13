@@ -48,7 +48,10 @@
   "files": {
     "empty": "暂无记录",
     "openFailed": "文件已被移动或删除，无法打开",
-    "removeRecent": "从最近文件中移除"
+    "removeRecent": "从最近文件中移除",
+    "clearRecent": "清空",
+    "clearRecentTitle": "清空最近文件",
+    "clearRecentConfirm": "确定清空全部最近打开的文件吗？"
   },
   "tab": {
     "untitled": "未命名.md"

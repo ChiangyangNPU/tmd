@@ -208,6 +208,10 @@ async function boot() {
     })
 
     document.getElementById('open-folder-btn')?.addEventListener('click', () => void openFolder())
+    // 清空最近文件：二次确认后清空本地列表与系统最近文档
+    document.getElementById('clear-recent-btn')?.addEventListener('click', () => {
+      if (window.confirm(t('files.clearRecentConfirm'))) clearRecentDocuments()
+    })
     // 双击标签栏空白区新建标签（单击保留给未来的其他交互）
     document.getElementById('tab-bar')?.addEventListener('dblclick', (e) => {
       if (e.target === e.currentTarget) createNewTab()
