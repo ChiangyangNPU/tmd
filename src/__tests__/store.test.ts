@@ -9,6 +9,10 @@ import {
   pushRecent,
   clearRecent,
   removeRecent,
+  folderList,
+  pushFolder,
+  clearFolders,
+  removeFolder,
   getImageStrategy,
   setImageStrategy,
   getAutosaveEnabled,
@@ -83,6 +87,46 @@ describe('store', () => {
     ])
     removeRecent('/not-exist.md')
     expect(recentList()).toHaveLength(2)
+  })
+
+  it('文件夹列表：追加去重、保持打开顺序', () => {
+    pushFolder('/dir-a', 'a')
+    pushFolder('/dir-b', 'b')
+    // 同路径重复追加不改变顺序、不产生重复
+    pushFolder('/dir-a', 'a')
+    expect(folderList()).toEqual([
+      { path: '/dir-a', name: 'a' },
+      { path: '/dir-b', name: 'b' },
+    ])
+  })
+
+  it('损坏的文件夹列表 JSON 返回空数组', () => {
+    localStorage.setItem('tmd:folders', '{broken')
+    expect(folderList()).toEqual([])
+  })
+
+  it('清空文件夹列表（不影响最近文件）', () => {
+    pushFolder('/dir-a', 'a')
+    pushRecent('/a.md', 'a')
+    clearFolders()
+    expect(folderList()).toEqual([])
+    expect(recentList()).toHaveLength(1)
+    // 对空列表再次清空不报错
+    clearFolders()
+    expect(folderList()).toEqual([])
+  })
+
+  it('移除单个文件夹：其余顺序保留，不存在的路径静默忽略', () => {
+    pushFolder('/dir-a', 'a')
+    pushFolder('/dir-b', 'b')
+    pushFolder('/dir-c', 'c')
+    removeFolder('/dir-b')
+    expect(folderList()).toEqual([
+      { path: '/dir-a', name: 'a' },
+      { path: '/dir-c', name: 'c' },
+    ])
+    removeFolder('/not-exist')
+    expect(folderList()).toHaveLength(2)
   })
 
   it('图片策略与自动保存开关', () => {

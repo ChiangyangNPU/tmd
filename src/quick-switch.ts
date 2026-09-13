@@ -15,7 +15,7 @@ import { t } from './i18n'
 import { native } from './native'
 import { findByPath, activateTab, listTabs } from './tabs'
 import { recentList } from './store'
-import { getFolderTree } from './files'
+import { getFolderTrees } from './files'
 import { openPath } from './files'
 
 /** 候选条目：路径唯一标识，展示名 + 所在目录 */
@@ -120,8 +120,7 @@ export function collectEntries(): QuickEntry[] {
       open: true,
     })
   }
-  const tree = getFolderTree()
-  if (tree) {
+  for (const tree of getFolderTrees()) {
     const flattened: QuickEntry[] = []
     flattenTree(tree.children, flattened)
     for (const entry of flattened) if (!byPath.has(entry.path)) byPath.set(entry.path, entry)

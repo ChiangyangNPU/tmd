@@ -47,11 +47,17 @@
   },
   "files": {
     "empty": "暂无记录",
+    "emptyFolder": "暂无打开的文件夹",
     "openFailed": "文件已被移动或删除，无法打开",
+    "folderOpenFailed": "文件夹已被移动或删除，无法打开",
     "removeRecent": "从最近文件中移除",
+    "removeFolder": "从列表中移除文件夹（不删除磁盘文件）",
     "clearRecent": "清空",
     "clearRecentTitle": "清空最近文件",
-    "clearRecentConfirm": "确定清空全部最近打开的文件吗？"
+    "clearRecentConfirm": "确定清空全部最近打开的文件吗？",
+    "clearFolders": "清空",
+    "clearFoldersTitle": "清空文件夹列表",
+    "clearFoldersConfirm": "确定清空全部已打开的文件夹吗？（不会删除磁盘文件）"
   },
   "tab": {
     "untitled": "未命名.md"

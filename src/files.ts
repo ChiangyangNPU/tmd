@@ -16,21 +16,36 @@ import {
   blankTab,
   hasDirty,
 } from './tabs'
-import { pushRecent, recentList, clearRecent, removeRecent, clearDoc } from './store'
-import { renderFileTree, renderRecent } from './filetree'
+import {
+  pushRecent,
+  recentList,
+  clearRecent,
+  removeRecent,
+  clearDoc,
+  folderList,
+  pushFolder,
+  removeFolder,
+  clearFolders,
+} from './store'
+import { renderRecent, renderFolders } from './filetree'
 import { t } from './i18n'
 
-/** 已打开的文件夹树（文件树侧边栏数据） */
-let folderTree: { path: string; name: string; children: import('./filetree').FileEntry[] } | null =
-  null
+/** 已打开文件夹的目录树缓存（绝对路径 → 子节点）；重启后首次展开时懒加载 */
+const folderChildrenCache = new Map<string, import('./filetree').FileEntry[]>()
 
-/** 当前打开的文件夹树（快速切换面板枚举用；未打开文件夹时为 null） */
-export function getFolderTree(): {
+/** 当前展开的文件夹路径集合（仅内存态，重启后全部折叠） */
+const expandedFolders = new Set<string>()
+
+/** 当前已打开且目录树已加载的文件夹（快速切换面板枚举用；未展开加载的不含） */
+export function getFolderTrees(): {
   path: string
   name: string
   children: import('./filetree').FileEntry[]
-} | null {
-  return folderTree
+}[] {
+  return folderList().flatMap((f) => {
+    const children = folderChildrenCache.get(f.path)
+    return children ? [{ path: f.path, name: f.name, children }] : []
+  })
 }
 
 /** 轻量浮层提示（复用 .toast 样式，3 秒后自动消失） */
@@ -139,16 +154,38 @@ export async function saveDocument(saveAs = false) {
   updateTitle()
 }
 
-/** 打开文件夹：读取目录树数据并渲染到文件树侧边栏（仅 Electron） */
+/** 打开文件夹：追加到工作区列表并展开（同路径去重），目录树缓存到内存（仅 Electron） */
 export async function openFolder() {
   if (!native) return
   const dir = await native.openFolder()
   if (!dir) return
   const tree = await native.readDir(dir)
   if (!tree) return
-  folderTree = tree
-  const title = document.getElementById('folder-title')
-  if (title) title.textContent = `文件夹：${tree.name}`
+  pushFolder(tree.path, tree.name)
+  folderChildrenCache.set(tree.path, tree.children)
+  expandedFolders.add(tree.path)
+  renderFilesSidebar()
+}
+
+/** 展开/收起文件夹：重启后恢复的条目首次展开时懒加载目录树，失败提示而不是抛异常 */
+async function toggleFolder(path: string) {
+  if (expandedFolders.has(path)) {
+    expandedFolders.delete(path)
+    renderFilesSidebar()
+    return
+  }
+  if (!folderChildrenCache.has(path)) {
+    if (!native) return
+    try {
+      const tree = await native.readDir(path)
+      if (!tree) throw new Error('readDir returned null')
+      folderChildrenCache.set(path, tree.children)
+    } catch {
+      showToast(t('files.folderOpenFailed'))
+      return
+    }
+  }
+  expandedFolders.add(path)
   renderFilesSidebar()
 }
 
@@ -178,6 +215,22 @@ export function removeRecentDocument(path: string) {
   renderFilesSidebar()
 }
 
+/** 移除单个已打开文件夹：仅从侧边栏列表移除并清缓存，不删除磁盘文件 */
+export function removeFolderEntry(path: string) {
+  removeFolder(path)
+  folderChildrenCache.delete(path)
+  expandedFolders.delete(path)
+  renderFilesSidebar()
+}
+
+/** 清空全部已打开文件夹：仅清空侧边栏列表与缓存，不删除磁盘文件 */
+export function clearFolderEntries() {
+  clearFolders()
+  folderChildrenCache.clear()
+  expandedFolders.clear()
+  renderFilesSidebar()
+}
+
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
 export function renderFilesSidebar() {
   const recent = recentList()
@@ -194,7 +247,20 @@ export function renderFilesSidebar() {
     )
   const treeEl = document.getElementById('folder-tree')
   if (treeEl) {
-    treeEl.textContent = ''
-    if (folderTree) renderFileTree(treeEl, folderTree.children, (p) => void openPath(p))
+    const folders = folderList().map((f) => ({
+      ...f,
+      expanded: expandedFolders.has(f.path),
+      children: folderChildrenCache.get(f.path),
+    }))
+    // 文件夹「清空」按钮仅在列表非空时显示
+    const clearFolderBtn = document.getElementById('clear-folder-btn')
+    if (clearFolderBtn) clearFolderBtn.hidden = folders.length === 0
+    renderFolders(
+      treeEl,
+      folders,
+      (p) => void openPath(p),
+      (p) => void toggleFolder(p),
+      (p) => removeFolderEntry(p),
+    )
   }
 }

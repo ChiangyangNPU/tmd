@@ -1010,6 +1010,16 @@ img {
   background: var(--border);
 }
 
+/* 文件夹根行折叠箭头：固定宽度避免展开/收起时文字跳动 */
+.tree-caret {
+  flex: none;
+  width: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+}
+
 .content {
   flex: 1;
   display: flex;

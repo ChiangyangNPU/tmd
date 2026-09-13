@@ -45,6 +45,7 @@ import {
   saveDocument,
   renderFilesSidebar,
   clearRecentDocuments,
+  clearFolderEntries,
 } from './files'
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
@@ -211,6 +212,10 @@ async function boot() {
     // 清空最近文件：二次确认后清空本地列表与系统最近文档
     document.getElementById('clear-recent-btn')?.addEventListener('click', () => {
       if (window.confirm(t('files.clearRecentConfirm'))) clearRecentDocuments()
+    })
+    // 清空已打开文件夹：二次确认后仅移除侧边栏引用（不删除磁盘文件）
+    document.getElementById('clear-folder-btn')?.addEventListener('click', () => {
+      if (window.confirm(t('files.clearFoldersConfirm'))) clearFolderEntries()
     })
     // 双击标签栏空白区新建标签（单击保留给未来的其他交互）
     document.getElementById('tab-bar')?.addEventListener('dblclick', (e) => {

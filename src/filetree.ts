@@ -1,5 +1,5 @@
 /**
- * 文件树 / 最近文件 渲染（数据来自 Electron IPC）
+ * 文件树 / 最近文件 / 已打开文件夹 渲染（数据来自 Electron IPC）
  *
  * @author chiangyang
  */
@@ -85,5 +85,70 @@ export function renderRecent(
     }
     row.addEventListener('click', () => onOpen(item.path))
     container.appendChild(row)
+  }
+}
+
+/** 已打开文件夹列表行：children 为已懒加载的目录树（未加载时仅可展开触发展加载） */
+export interface FolderRow {
+  name: string
+  path: string
+  children?: FileEntry[]
+  expanded: boolean
+}
+
+/** 渲染已打开文件夹列表（工作区多根）；列表为空时显示占位文案。
+ *  - 点击文件夹行：onToggle 展开/收起（子树懒加载由调用方处理后重渲染）
+ *  - 子树内文件行点击：onOpen
+ *  - onRemove：根行 hover × 单条移除（仅移除侧边栏引用，不删除磁盘文件） */
+export function renderFolders(
+  container: HTMLElement,
+  folders: FolderRow[],
+  onOpen: (path: string) => void,
+  onToggle: (path: string) => void,
+  onRemove?: (path: string) => void,
+) {
+  container.textContent = ''
+  if (!folders.length) {
+    const empty = document.createElement('div')
+    empty.className = 'outline-empty'
+    empty.textContent = t('files.emptyFolder')
+    container.appendChild(empty)
+    return
+  }
+  for (const folder of folders) {
+    const row = document.createElement('div')
+    // 复用 tree-recent 的 flex 布局与 hover × 显隐；tree-folder 提供强调色
+    row.className = 'tree-folder tree-recent'
+    row.title = folder.path
+    const caret = document.createElement('span')
+    caret.className = 'tree-caret'
+    caret.textContent = folder.expanded ? '▾' : '▸'
+    row.appendChild(caret)
+    const label = document.createElement('span')
+    label.className = 'tree-file-name'
+    label.textContent = folder.name
+    row.appendChild(label)
+    if (onRemove) {
+      const removeBtn = document.createElement('button')
+      removeBtn.type = 'button'
+      removeBtn.className = 'tree-file-remove'
+      removeBtn.title = t('files.removeFolder')
+      removeBtn.textContent = '×'
+      // 阻止冒泡到行的展开/收起动作
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        onRemove(folder.path)
+      })
+      row.appendChild(removeBtn)
+    }
+    row.addEventListener('click', () => onToggle(folder.path))
+    container.appendChild(row)
+
+    // 展开子树：children 已加载时渲染（未加载的条目保持折叠，首次展开时懒加载）
+    if (folder.expanded && folder.children) {
+      const sub = document.createElement('div')
+      renderFileTree(sub, folder.children, onOpen, 1)
+      container.appendChild(sub)
+    }
   }
 }

@@ -2,7 +2,7 @@
  * 持久化存储：localStorage 键与读写的统一入口（零运行时依赖）
  *
  * - doc：崩溃恢复副本（每次内容变更写入，与磁盘保存无关）
- * - theme / recent / img / autosave：偏好与开关
+ * - theme / recent / folders / img / autosave：偏好与开关
  */
 import type { ImageStrategy } from './paste-image'
 
@@ -10,6 +10,7 @@ import type { ImageStrategy } from './paste-image'
 export const DOC_KEY = 'tmd:doc:v1'
 export const THEME_KEY = 'tmd:theme'
 export const RECENT_KEY = 'tmd:recent'
+export const FOLDER_KEY = 'tmd:folders'
 export const IMAGE_STRATEGY_KEY = 'tmd:img'
 export const AUTOSAVE_KEY = 'tmd:autosave'
 export const LOCALE_KEY = 'tmd:lang'
@@ -76,6 +77,40 @@ export function clearRecent() {
 export function removeRecent(path: string) {
   const list = recentList().filter((r) => r.path !== path)
   localStorage.setItem(RECENT_KEY, JSON.stringify(list))
+}
+
+export interface FolderEntry {
+  name: string
+  path: string
+}
+
+/** 已打开文件夹列表（工作区，按打开顺序排列，仅存路径引用，不含目录树数据） */
+export function folderList(): FolderEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(FOLDER_KEY) ?? '[]')
+  } catch {
+    return []
+  }
+}
+
+/** 追加一个已打开文件夹（同路径去重，已存在则保持原位）；调用方负责刷新侧边栏 UI */
+export function pushFolder(path: string, name: string) {
+  const list = folderList()
+  if (!list.some((f) => f.path === path)) {
+    list.push({ path, name })
+    localStorage.setItem(FOLDER_KEY, JSON.stringify(list))
+  }
+}
+
+/** 清空已打开文件夹列表（仅移除侧边栏引用，不删除磁盘文件） */
+export function clearFolders() {
+  localStorage.removeItem(FOLDER_KEY)
+}
+
+/** 移除单个已打开文件夹（侧边栏 × 按钮，不删除磁盘文件）；不存在的路径静默忽略 */
+export function removeFolder(path: string) {
+  const list = folderList().filter((f) => f.path !== path)
+  localStorage.setItem(FOLDER_KEY, JSON.stringify(list))
 }
 
 /** 读取图片粘贴策略（'inline' data URL | 'assets' 落盘，默认 inline） */

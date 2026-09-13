@@ -47,11 +47,17 @@
   },
   "files": {
     "empty": "No history",
+    "emptyFolder": "No open folders",
     "openFailed": "The file has been moved or deleted and cannot be opened",
+    "folderOpenFailed": "The folder has been moved or deleted and cannot be opened",
     "removeRecent": "Remove from Recent Files",
+    "removeFolder": "Remove folder from list (files on disk are kept)",
     "clearRecent": "Clear",
     "clearRecentTitle": "Clear Recent Files",
-    "clearRecentConfirm": "Clear all recently opened files?"
+    "clearRecentConfirm": "Clear all recently opened files?",
+    "clearFolders": "Clear",
+    "clearFoldersTitle": "Clear Folder List",
+    "clearFoldersConfirm": "Remove all open folders from the list? (Files on disk are kept)"
   },
   "tab": {
     "untitled": "Untitled.md"
