@@ -16,8 +16,9 @@ import {
   blankTab,
   hasDirty,
 } from './tabs'
-import { pushRecent, recentList, clearDoc } from './store'
+import { pushRecent, recentList, clearRecent, clearDoc } from './store'
 import { renderFileTree, renderRecent } from './filetree'
+import { t } from './i18n'
 
 /** 已打开的文件夹树（文件树侧边栏数据） */
 let folderTree: { path: string; name: string; children: import('./filetree').FileEntry[] } | null =
@@ -32,9 +33,19 @@ export function getFolderTree(): {
   return folderTree
 }
 
-/** 记录一条最近打开文件并刷新侧边栏 */
+/** 轻量浮层提示（复用 .toast 样式，3 秒后自动消失） */
+function showToast(message: string) {
+  const el = document.createElement('div')
+  el.className = 'toast'
+  el.textContent = message
+  document.body.appendChild(el)
+  setTimeout(() => el.remove(), 3000)
+}
+
+/** 记录一条最近打开文件并刷新侧边栏，同时注册到系统最近文档与主进程菜单 */
 function pushRecentWithRender(path: string, name: string) {
   pushRecent(path, name)
+  native?.recentAdd({ path, name })
   renderFilesSidebar()
 }
 
@@ -141,11 +152,23 @@ export async function openFolder() {
   renderFilesSidebar()
 }
 
-/** 按绝对路径打开文件（文件树 / 最近列表点击时） */
+/** 按绝对路径打开文件（文件树 / 最近列表 / 系统最近菜单点击时）；
+ *  文件已被移动或删除时提示而不是抛未捕获异常（最近条目天然可能失效） */
 export async function openPath(path: string) {
   if (!native) return
-  const result = await native.readFile(path)
-  await openFromData(result)
+  try {
+    const result = await native.readFile(path)
+    await openFromData(result)
+  } catch {
+    showToast(t('files.openFailed'))
+  }
+}
+
+/** 清空最近文件：本地列表 + 系统最近文档/主进程菜单 + 侧边栏刷新 */
+export function clearRecentDocuments() {
+  clearRecent()
+  native?.recentClear()
+  renderFilesSidebar()
 }
 
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */

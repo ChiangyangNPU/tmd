@@ -67,6 +67,11 @@ export function pushRecent(path: string, name: string) {
   localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, 8)))
 }
 
+/** 清空最近打开列表（菜单「清空最近文件」）；调用方负责刷新 UI 与同步主进程 */
+export function clearRecent() {
+  localStorage.removeItem(RECENT_KEY)
+}
+
 /** 读取图片粘贴策略（'inline' data URL | 'assets' 落盘，默认 inline） */
 export function getImageStrategy(): ImageStrategy {
   return localStorage.getItem(IMAGE_STRATEGY_KEY) === 'assets' ? 'assets' : 'inline'

@@ -46,7 +46,8 @@
     "untitledHeading": "（空标题）"
   },
   "files": {
-    "empty": "暂无记录"
+    "empty": "暂无记录",
+    "openFailed": "文件已被移动或删除，无法打开"
   },
   "tab": {
     "untitled": "未命名.md"
@@ -64,6 +65,9 @@
     "file": "文件",
     "open": "打开…",
     "openFolder": "打开文件夹…",
+    "openRecent": "打开最近文件",
+    "recentEmpty": "（无最近文件）",
+    "clearRecent": "清空最近文件",
     "save": "保存",
     "saveAs": "另存为",
     "newTab": "新标签页",

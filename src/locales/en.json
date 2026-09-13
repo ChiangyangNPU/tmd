@@ -46,7 +46,8 @@
     "untitledHeading": "(empty heading)"
   },
   "files": {
-    "empty": "No history"
+    "empty": "No history",
+    "openFailed": "The file has been moved or deleted and cannot be opened"
   },
   "tab": {
     "untitled": "Untitled.md"
@@ -64,6 +65,9 @@
     "file": "File",
     "open": "Open",
     "openFolder": "Open Folder",
+    "openRecent": "Open Recent",
+    "recentEmpty": "(No Recent Files)",
+    "clearRecent": "Clear Recent Files",
     "save": "Save",
     "saveAs": "Save As",
     "newTab": "New Tab",

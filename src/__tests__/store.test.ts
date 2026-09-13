@@ -7,6 +7,7 @@ import {
   setTheme,
   recentList,
   pushRecent,
+  clearRecent,
   getImageStrategy,
   setImageStrategy,
   getAutosaveEnabled,
@@ -58,6 +59,15 @@ describe('store', () => {
 
   it('损坏的最近列表 JSON 返回空数组', () => {
     localStorage.setItem('tmd:recent', '{broken')
+    expect(recentList()).toEqual([])
+  })
+
+  it('清空最近列表', () => {
+    pushRecent('/a.md', 'a')
+    clearRecent()
+    expect(recentList()).toEqual([])
+    // 对空列表再次清空不报错
+    clearRecent()
     expect(recentList()).toEqual([])
   })
 

@@ -38,7 +38,14 @@ import {
   updateTitle,
   markDirty,
 } from './tabs'
-import { openDocument, openFolder, openPath, saveDocument, renderFilesSidebar } from './files'
+import {
+  openDocument,
+  openFolder,
+  openPath,
+  saveDocument,
+  renderFilesSidebar,
+  clearRecentDocuments,
+} from './files'
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
@@ -65,7 +72,7 @@ import {
 } from './settings'
 import { applyTypography } from './typography'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
-import { saveDoc, loadDoc, clearDoc, getTheme } from './store'
+import { saveDoc, loadDoc, clearDoc, getTheme, recentList } from './store'
 
 // ---------------------------------------------------------------------------
 // 应用常量
@@ -285,6 +292,7 @@ async function boot() {
         'export-html': () =>
           void exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')),
         'export-pdf': () => void exportPdf(),
+        'clear-recent': () => clearRecentDocuments(),
       }
       handlers[action]?.()
     })
@@ -293,6 +301,8 @@ async function boot() {
     native?.onAutosave((enabled) => setAutosaveOn(enabled))
     // 文件关联：Finder 双击 / 系统打开方式
     native?.onOpenPath((path) => void openPath(path))
+    // 「打开最近文件」菜单：主进程菜单项点击 → 按路径打开
+    native?.onRecentOpen((path) => void openPath(path))
 
     // 拖拽打开：拖 .md 进窗口新标签打开，拖图片按粘贴策略插入
     wireDragDrop()
@@ -304,6 +314,8 @@ async function boot() {
     // 表格工具栏按钮：源码模式下无 PM 视图，忽略
     wireTableToolbar(() => (isSourceMode() ? null : getPmView()))
     renderFilesSidebar()
+    // 最近文件列表全量同步给主进程，构建原生菜单「打开最近文件」子菜单
+    native?.recentSync(recentList())
     // 就绪信号：主进程补发排队中的待打开文件
     native?.ready()
     // 干净退出（无未保存内容）时清除恢复副本并停掉自动保存定时器

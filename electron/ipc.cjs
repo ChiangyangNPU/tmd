@@ -37,6 +37,10 @@ const channels = {
   winMaximizeToggle: 'tmd:win-maximize-toggle',
   winClose: 'tmd:win-close',
   winMaxChanged: 'tmd:win-max-changed',
+  recentSync: 'tmd:recent-sync',
+  recentAdd: 'tmd:recent-add',
+  recentClear: 'tmd:recent-clear',
+  recentOpen: 'tmd:recent-open',
 }
 
 module.exports = channels

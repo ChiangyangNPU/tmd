@@ -5,9 +5,10 @@
  * 渲染层保持纯网页逻辑，所有 Node 能力都经由 preload 暴露的受控 API 访问。
  *
  * 模块结构：
- * - 窗口与菜单生命周期（createWindow / buildMenu）
+ * - 窗口与菜单生命周期（createWindow / buildMenu，「打开最近文件」子菜单由渲染层列表同步）
  * - 文件与目录 IPC（open-file / read-file / read-dir / save-* / export-as / print）
  * - 文件关联（open-file 事件 + 单实例锁，双击 .md 直接在本应用打开）
+ * - 系统最近文档（app.addRecentDocument / clearRecentDocuments：Windows Jump List、macOS Dock 菜单）
  *
  * 类型：本文件为 JS，经 JSDoc 标注参与 tsc checkJs 检查；
  * IPC 通道名统一取自 ./ipc.cjs（与 src/native.ts 的 IpcChannels 对齐）。
@@ -64,6 +65,54 @@ let autosaveMenuItem = null
 let rendererDirty = false
 let autosaveEnabled = false
 
+// ---------- 最近文件（镜像渲染层 localStorage 列表，权威仍在渲染层） ----------
+/** 最近文件（最新在前，与渲染层 tmd:recent 同序同长，渲染层经 IPC 同步） */
+/** @type {import('../src/native.ts').RecentMenuEntry[]} */
+let recentDocs = []
+
+/**
+ * 把任意输入收窄为合法的最近文件条目数组（去重、限量 8）。
+ * IPC 入参不可信：非字符串/空路径一律丢弃。
+ * @param {unknown} raw
+ * @returns {import('../src/native.ts').RecentMenuEntry[]}
+ */
+function normalizeRecent(raw) {
+  if (!Array.isArray(raw)) return []
+  /** @type {import('../src/native.ts').RecentMenuEntry[]} */
+  const out = []
+  const seen = new Set()
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const { path: p, name } = /** @type {{path?: unknown, name?: unknown}} */ (item)
+    if (typeof p !== 'string' || !p || typeof name !== 'string' || !name) continue
+    if (seen.has(p)) continue
+    seen.add(p)
+    out.push({ path: p, name })
+    if (out.length >= 8) break
+  }
+  return out
+}
+
+/** 「打开最近文件」子菜单：有条目则附分隔线与清空项，空列表为禁用占位项
+ * @returns {import('electron').MenuItemConstructorOptions[]} */
+function recentSubmenu() {
+  if (!recentDocs.length) {
+    return [{ label: L('recentEmpty'), enabled: false }]
+  }
+  return [
+    ...recentDocs.map((entry) => ({
+      label: entry.name,
+      click: () => sendToRenderer(IPC.recentOpen, entry.path),
+    })),
+    { type: 'separator' },
+    {
+      label: L('clearRecent'),
+      // 清空动作交给渲染层执行（localStorage 是唯一权威），走统一菜单消息通道
+      click: () => sendToRenderer(IPC.menu, 'clear-recent'),
+    },
+  ]
+}
+
 // ---------- 自动更新状态 ----------
 /** @type {'gitee' | 'github'} */
 let currentUpdateSource = 'gitee'
@@ -78,6 +127,9 @@ const DEFAULT_MENU_LABELS = {
   file: '文件',
   open: '打开',
   openFolder: '打开文件夹',
+  openRecent: '打开最近文件',
+  recentEmpty: '（无最近文件）',
+  clearRecent: '清空最近文件',
   save: '保存',
   saveAs: '另存为',
   newTab: '新标签页',
@@ -176,6 +228,10 @@ function buildMenu() {
           label: L('openFolder'),
           accelerator: 'Shift+CmdOrCtrl+O',
           click: () => sendToRenderer(IPC.menu, 'open-folder'),
+        },
+        {
+          label: L('openRecent'),
+          submenu: recentSubmenu(),
         },
         {
           label: L('save'),
@@ -699,6 +755,35 @@ ipcMain.on(IPC.setLocaleInfo, (_event, labels) => {
     menuLabels = { ...DEFAULT_MENU_LABELS, ...labels }
     buildMenu()
   }
+})
+
+// ---------- IPC：最近文件 ----------
+// 最近文件列表的权威在渲染层 localStorage（侧边栏/快速切换共用），
+// 主进程只保留镜像用于原生菜单，并负责系统级最近文档注册。
+
+// 启动全量同步：仅重建菜单，不触碰系统最近文档（避免启动顺序误清/误加）
+/** @param {unknown} _event @param {unknown} entries */
+ipcMain.on(IPC.recentSync, (_event, entries) => {
+  recentDocs = normalizeRecent(entries)
+  buildMenu()
+})
+
+// 新增/打开：注册到系统最近文档（Windows Jump List / macOS Dock 菜单 / Linux recent），
+// 镜像列表去重置顶（限量 8）后重建菜单
+/** @param {unknown} _event @param {unknown} entry */
+ipcMain.on(IPC.recentAdd, (_event, entry) => {
+  const [first] = normalizeRecent([entry])
+  if (!first) return
+  app.addRecentDocument(first.path)
+  recentDocs = [first, ...recentDocs.filter((r) => r.path !== first.path)].slice(0, 8)
+  buildMenu()
+})
+
+// 清空：系统最近文档与镜像列表一并清空
+ipcMain.on(IPC.recentClear, () => {
+  app.clearRecentDocuments()
+  recentDocs = []
+  buildMenu()
 })
 
 // ---------- IPC：更新 ----------

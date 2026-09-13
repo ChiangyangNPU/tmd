@@ -68,6 +68,20 @@ export interface NativeFileAPI {
   winClose(): void
   /** 订阅窗口最大化状态变化（自绘 □/❐ 图标切换用） */
   onWindowMaximize(callback: (isMax: boolean) => void): void
+  /** 启动时全量同步最近文件列表给主进程构建「打开最近」子菜单 */
+  recentSync(entries: RecentMenuEntry[]): void
+  /** 新增/打开文件后通知主进程注册系统最近文档（Jump List / Dock）并置顶菜单 */
+  recentAdd(entry: RecentMenuEntry): void
+  /** 渲染层清空最近列表后通知主进程清空系统最近文档并重建菜单 */
+  recentClear(): void
+  /** 订阅主进程「打开最近」菜单项点击（参数为文件绝对路径） */
+  onRecentOpen(callback: (filePath: string) => void): void
+}
+
+/** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
+export interface RecentMenuEntry {
+  name: string
+  path: string
 }
 
 /**
@@ -127,4 +141,8 @@ export interface IpcChannels {
   winMaximizeToggle: string
   winClose: string
   winMaxChanged: string
+  recentSync: string
+  recentAdd: string
+  recentClear: string
+  recentOpen: string
 }
