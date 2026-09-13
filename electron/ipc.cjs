@@ -40,6 +40,7 @@ const channels = {
   recentSync: 'tmd:recent-sync',
   recentAdd: 'tmd:recent-add',
   recentClear: 'tmd:recent-clear',
+  recentRemove: 'tmd:recent-remove',
   recentOpen: 'tmd:recent-open',
 }
 

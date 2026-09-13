@@ -786,6 +786,19 @@ ipcMain.on(IPC.recentClear, () => {
   buildMenu()
 })
 
+// 移除单条：Electron 无单条删除系统最近文档的 API，
+// 先清空再按剩余条目从旧到新重新注册（addRecentDocument 每次置顶，最新最后加）
+/** @param {unknown} _event @param {unknown} filePath */
+ipcMain.on(IPC.recentRemove, (_event, filePath) => {
+  if (typeof filePath !== 'string' || !filePath) return
+  const next = recentDocs.filter((r) => r.path !== filePath)
+  if (next.length === recentDocs.length) return
+  app.clearRecentDocuments()
+  for (const entry of [...next].reverse()) app.addRecentDocument(entry.path)
+  recentDocs = next
+  buildMenu()
+})
+
 // ---------- IPC：更新 ----------
 
 // 手动检查更新：重置源为 Gitee

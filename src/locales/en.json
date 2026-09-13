@@ -47,7 +47,8 @@
   },
   "files": {
     "empty": "No history",
-    "openFailed": "The file has been moved or deleted and cannot be opened"
+    "openFailed": "The file has been moved or deleted and cannot be opened",
+    "removeRecent": "Remove from Recent Files"
   },
   "tab": {
     "untitled": "Untitled.md"

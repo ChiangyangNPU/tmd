@@ -74,6 +74,8 @@ export interface NativeFileAPI {
   recentAdd(entry: RecentMenuEntry): void
   /** 渲染层清空最近列表后通知主进程清空系统最近文档并重建菜单 */
   recentClear(): void
+  /** 渲染层移除单条后通知主进程同步菜单与系统最近文档 */
+  recentRemove(path: string): void
   /** 订阅主进程「打开最近」菜单项点击（参数为文件绝对路径） */
   onRecentOpen(callback: (filePath: string) => void): void
 }
@@ -144,5 +146,6 @@ export interface IpcChannels {
   recentSync: string
   recentAdd: string
   recentClear: string
+  recentRemove: string
   recentOpen: string
 }

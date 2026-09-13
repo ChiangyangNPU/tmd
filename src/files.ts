@@ -16,7 +16,7 @@ import {
   blankTab,
   hasDirty,
 } from './tabs'
-import { pushRecent, recentList, clearRecent, clearDoc } from './store'
+import { pushRecent, recentList, clearRecent, removeRecent, clearDoc } from './store'
 import { renderFileTree, renderRecent } from './filetree'
 import { t } from './i18n'
 
@@ -171,10 +171,23 @@ export function clearRecentDocuments() {
   renderFilesSidebar()
 }
 
+/** 移除单条最近文件：本地列表 + 同步主进程菜单与系统最近文档 */
+export function removeRecentDocument(path: string) {
+  removeRecent(path)
+  native?.recentRemove(path)
+  renderFilesSidebar()
+}
+
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
 export function renderFilesSidebar() {
   const recentEl = document.getElementById('recent-list')
-  if (recentEl) renderRecent(recentEl, recentList(), (p) => void openPath(p))
+  if (recentEl)
+    renderRecent(
+      recentEl,
+      recentList(),
+      (p) => void openPath(p),
+      (p) => removeRecentDocument(p),
+    )
   const treeEl = document.getElementById('folder-tree')
   if (treeEl) {
     treeEl.textContent = ''

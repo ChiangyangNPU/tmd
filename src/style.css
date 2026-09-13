@@ -947,6 +947,43 @@ img {
   color: var(--accent);
 }
 
+/* 最近文件行：文件名省略号 + hover 出现单条移除 × */
+.tree-recent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tree-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-file-remove {
+  flex: none;
+  display: none;
+  border: 0;
+  padding: 0 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.tree-recent:hover .tree-file-remove {
+  display: block;
+}
+
+.tree-file-remove:hover {
+  color: var(--fg);
+  background: var(--border);
+}
+
 .content {
   flex: 1;
   display: flex;

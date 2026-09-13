@@ -72,6 +72,12 @@ export function clearRecent() {
   localStorage.removeItem(RECENT_KEY)
 }
 
+/** 移除单条最近打开（侧边栏 × 按钮）；不存在的路径静默忽略 */
+export function removeRecent(path: string) {
+  const list = recentList().filter((r) => r.path !== path)
+  localStorage.setItem(RECENT_KEY, JSON.stringify(list))
+}
+
 /** 读取图片粘贴策略（'inline' data URL | 'assets' 落盘，默认 inline） */
 export function getImageStrategy(): ImageStrategy {
   return localStorage.getItem(IMAGE_STRATEGY_KEY) === 'assets' ? 'assets' : 'inline'

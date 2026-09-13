@@ -47,7 +47,8 @@
   },
   "files": {
     "empty": "暂无记录",
-    "openFailed": "文件已被移动或删除，无法打开"
+    "openFailed": "文件已被移动或删除，无法打开",
+    "removeRecent": "从最近文件中移除"
   },
   "tab": {
     "untitled": "未命名.md"

@@ -8,6 +8,7 @@ import {
   recentList,
   pushRecent,
   clearRecent,
+  removeRecent,
   getImageStrategy,
   setImageStrategy,
   getAutosaveEnabled,
@@ -69,6 +70,19 @@ describe('store', () => {
     // 对空列表再次清空不报错
     clearRecent()
     expect(recentList()).toEqual([])
+  })
+
+  it('移除单条：其余顺序保留，不存在的路径静默忽略', () => {
+    pushRecent('/a.md', 'a')
+    pushRecent('/b.md', 'b')
+    pushRecent('/c.md', 'c')
+    removeRecent('/b.md')
+    expect(recentList()).toEqual([
+      { path: '/c.md', name: 'c' },
+      { path: '/a.md', name: 'a' },
+    ])
+    removeRecent('/not-exist.md')
+    expect(recentList()).toHaveLength(2)
   })
 
   it('图片策略与自动保存开关', () => {

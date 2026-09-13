@@ -46,11 +46,13 @@ export function renderFileTree(
   }
 }
 
-/** 渲染最近打开文件列表；列表为空时显示占位文案 */
+/** 渲染最近打开文件列表；列表为空时显示占位文案。
+ *  onRemove：行内 hover × 单条移除（不传则不渲染按钮） */
 export function renderRecent(
   container: HTMLElement,
   recent: RecentEntry[],
   onOpen: (path: string) => void,
+  onRemove?: (path: string) => void,
 ) {
   container.textContent = ''
   if (!recent.length) {
@@ -62,9 +64,25 @@ export function renderRecent(
   }
   for (const item of recent) {
     const row = document.createElement('div')
-    row.className = 'tree-file'
-    row.textContent = item.name
+    row.className = 'tree-file tree-recent'
     row.title = item.path
+    const label = document.createElement('span')
+    label.className = 'tree-file-name'
+    label.textContent = item.name
+    row.appendChild(label)
+    if (onRemove) {
+      const removeBtn = document.createElement('button')
+      removeBtn.type = 'button'
+      removeBtn.className = 'tree-file-remove'
+      removeBtn.title = t('files.removeRecent')
+      removeBtn.textContent = '×'
+      // 阻止冒泡到行的打开动作
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation()
+        onRemove(item.path)
+      })
+      row.appendChild(removeBtn)
+    }
     row.addEventListener('click', () => onOpen(item.path))
     container.appendChild(row)
   }
