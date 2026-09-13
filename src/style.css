@@ -757,6 +757,107 @@ img {
   max-width: 100%;
 }
 
+/* ---------------- 图片缩放 / 对齐 ---------------- */
+
+/* 图片容器：行内块随文流走；显式对齐/独占段落自动居中时转块级 */
+.pm-image {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0; /* 消除 inline-block 基线空隙 */
+}
+
+.pm-image img {
+  max-width: 100%;
+}
+
+/* 显式对齐（align 类必须写在 solo 之后，覆盖自动居中） */
+.pm-image--solo {
+  display: block;
+  margin-inline: auto;
+}
+
+.pm-image--center {
+  display: block;
+  margin-inline: auto;
+}
+
+.pm-image--left {
+  display: block;
+  margin-right: auto;
+}
+
+.pm-image--right {
+  display: block;
+  margin-left: auto;
+}
+
+/* 对齐浮层：选中时出现在图片上方 */
+.pm-image-toolbar {
+  position: absolute;
+  top: -30px;
+  left: 0;
+  display: none;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--pre-bg);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
+  z-index: 30;
+}
+
+.pm-image--selected .pm-image-toolbar {
+  display: flex;
+}
+
+.pm-image-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.pm-image-btn:hover {
+  background: var(--code-bg);
+}
+
+.pm-image-btn svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 缩放手柄：选中时出现在右下角 */
+.pm-image-handle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  display: none;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--accent);
+  border-radius: 50%;
+  background: var(--bg);
+  cursor: nwse-resize;
+  z-index: 30;
+}
+
+.pm-image--selected .pm-image-handle {
+  display: block;
+}
+
 /* ---------------- 布局：侧边栏 / 标签栏 ---------------- */
 
 .workbench {

@@ -18,6 +18,7 @@ import { $prose } from '@milkdown/kit/utils'
 import { Plugin } from '@milkdown/kit/prose/state'
 import { DOMParser as PmDOMParser } from '@milkdown/kit/prose/model'
 import type { Schema, Slice } from '@milkdown/kit/prose/model'
+import { parseZoom } from './image-attrs'
 
 /** 连同子树一起移除：危险或对 Markdown 无意义 */
 const REMOVE_TAGS = new Set([
@@ -86,7 +87,8 @@ const UNWRAP_TAGS = new Set([
 /** 属性白名单：其余属性（style/class/id/onclick…）一律剥除 */
 const KEEP_ATTRS: Record<string, Set<string>> = {
   a: new Set(['href']),
-  img: new Set(['src', 'alt']),
+  // img 保留缩放/对齐属性（width/align/style zoom），粘贴带尺寸的图片可保留
+  img: new Set(['src', 'alt', 'title', 'width', 'align']),
 }
 
 /** 链接地址白名单：http/https/mailto 或无协议的相对路径 */
@@ -127,6 +129,12 @@ function sanitizeElement(el: Element): void {
   if (tag === 'img' && !isSafeImageSrc(el.getAttribute('src') ?? '')) {
     el.remove()
     return
+  }
+  // img 的 style 提纯：只保留 zoom 声明（Typora 缩放比），其余样式一律丢弃
+  if (tag === 'img' && el.hasAttribute('style')) {
+    const zoom = parseZoom(el.getAttribute('style') ?? '')
+    if (zoom != null) el.setAttribute('style', `zoom:${zoom}%`)
+    else el.removeAttribute('style')
   }
 
   for (const child of [...el.children]) sanitizeElement(child)

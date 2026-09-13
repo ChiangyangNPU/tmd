@@ -185,5 +185,11 @@
     "updateDownloaded": "下载完成，重启以安装",
     "updateError": "更新失败：{message}",
     "updateInstall": "立即重启"
+  },
+  "image": {
+    "alignLeft": "左对齐",
+    "alignCenter": "居中",
+    "alignRight": "右对齐",
+    "alignReset": "重置尺寸与对齐"
   }
 }

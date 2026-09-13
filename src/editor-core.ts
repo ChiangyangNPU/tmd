@@ -22,6 +22,7 @@ import { findPlugin, findClear } from './find'
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
 import { imageSrcResolver } from './image-resolver'
+import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
 import { tableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
@@ -79,40 +80,44 @@ export function updateWordCount(markdown: string) {
  * findPlugin（查找高亮）、taskListClick（任务复选框）、toc（目录块）、
  * imageSrcResolver（相对路径图片）、linkNav（链接点击跳转）、
  * tableToolbar（表格悬浮工具栏）、formatKeymap（格式化快捷键）、
- * focusPlugin（专注模式变暗装饰器）。
+ * focusPlugin（专注模式变暗装饰器）、imageAttrs（图片缩放/对齐）。
  */
 async function createEditor(markdown: string): Promise<Editor> {
-  return Editor.make()
-    .config((ctx) => {
-      ctx.set(rootCtx, document.getElementById('editor'))
-      ctx.set(defaultValueCtx, markdown)
-      // 恢复文本转义：milkdown 的 text handler 早退捷径会漏转义表格单元格里的 `|`
-      patchTextEscaping(ctx)
-      ctx.get(listenerCtx).markdownUpdated((_ctx, md, _prev) => {
-        hooks.onMarkdownChange(md)
+  return (
+    Editor.make()
+      .config((ctx) => {
+        ctx.set(rootCtx, document.getElementById('editor'))
+        ctx.set(defaultValueCtx, markdown)
+        // 恢复文本转义：milkdown 的 text handler 早退捷径会漏转义表格单元格里的 `|`
+        patchTextEscaping(ctx)
+        ctx.get(listenerCtx).markdownUpdated((_ctx, md, _prev) => {
+          hooks.onMarkdownChange(md)
+        })
+        ctx.get(listenerCtx).updated((_ctx, doc) => {
+          hooks.onDocUpdate(doc)
+        })
       })
-      ctx.get(listenerCtx).updated((_ctx, doc) => {
-        hooks.onDocUpdate(doc)
-      })
-    })
-    .use(commonmark)
-    .use(gfm)
-    .use(history)
-    .use(listener)
-    .use(mermaidPlugins)
-    .use(prism)
-    .use(math)
-    .use(pasteImage)
-    .use(pasteHtml)
-    .use(findPlugin)
-    .use(taskListClick)
-    .use(tocPlugins)
-    .use(imageSrcResolver)
-    .use(linkNav)
-    .use(tableToolbar)
-    .use(formatKeymap)
-    .use(focusPlugin)
-    .create()
+      .use(commonmark)
+      .use(gfm)
+      .use(history)
+      .use(listener)
+      .use(mermaidPlugins)
+      .use(prism)
+      .use(math)
+      .use(pasteImage)
+      .use(pasteHtml)
+      .use(findPlugin)
+      .use(taskListClick)
+      .use(tocPlugins)
+      .use(imageSrcResolver)
+      // 图片缩放/对齐：schema 扩展必须晚于 commonmark 注册（同名覆盖）
+      .use(imageAttrsPlugins)
+      .use(linkNav)
+      .use(tableToolbar)
+      .use(formatKeymap)
+      .use(focusPlugin)
+      .create()
+  )
 }
 
 /** 创建编辑器并挂载（启动时用） */

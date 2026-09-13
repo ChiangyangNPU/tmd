@@ -185,5 +185,11 @@
     "updateDownloaded": "Downloaded. Restart to install.",
     "updateError": "Update failed: {message}",
     "updateInstall": "Restart Now"
+  },
+  "image": {
+    "alignLeft": "Align left",
+    "alignCenter": "Center",
+    "alignRight": "Align right",
+    "alignReset": "Reset size & alignment"
   }
 }

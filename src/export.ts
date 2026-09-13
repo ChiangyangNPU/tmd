@@ -4,10 +4,123 @@
  * @author chiangyang
  */
 import MarkdownIt from 'markdown-it'
+import type { Token } from 'markdown-it'
 import { native } from './native'
 import { slugify } from './toc'
+import { parseImgHtml } from './image-attrs'
 
 const mdIt = new MarkdownIt({ html: false, linkify: true })
+
+/** 匹配 text token 中的 <img ...> 标签（html:false 下 markdown-it 把行内 HTML 归为 text） */
+const IMG_TOKEN_RE = /<img\s[^<>]*>/gi
+
+/** 构造 markdown-it image token（markdown-it 15 不导出 Token 类，
+ *  借同流真实 token 的原型挂方法，attrGet/attrIndex 随原型可用） */
+function makeImgToken(m: RegExpExecArray, sample: Token): Token | null {
+  const attrs = parseImgHtml(m[0])
+  if (!attrs) return null
+  const pairs: [string, string][] = [
+    ['src', attrs.src],
+    ['alt', attrs.alt ?? ''],
+  ]
+  if (attrs.title) pairs.push(['title', attrs.title])
+  if (attrs.width != null) pairs.push(['width', String(attrs.width)])
+  if (attrs.align) pairs.push(['align', attrs.align])
+  // children 置 null：真实 image token 的 children 恒为数组，据此识别合成 token
+  // （渲染路径走自定义规则，避免默认规则用 renderInlineAsText(children) 覆盖 alt）
+  return Object.assign(Object.create(Object.getPrototypeOf(sample)), {
+    type: 'image',
+    tag: 'img',
+    nesting: 0,
+    attrs: pairs,
+    children: null,
+    content: '',
+    markup: '',
+    info: '',
+    meta: null,
+    block: false,
+    hidden: false,
+    level: 0,
+    map: null,
+  }) as unknown as Token
+}
+
+/** 克隆 text token 并改写 content（原型链保留 attrGet 等方法供渲染器调用） */
+function cloneTextToken(src: Token, content: string): Token {
+  return Object.assign(Object.create(src), { content }) as Token
+}
+
+/**
+ * 把 inline token children 里 text 形态的 <img ...> 标签转换为 image token
+ * （导出管线 html:false 会把 HTML 转义为可见文本，特此还原为真实图片）。
+ * 非图片文本原样保留；src 不安全或无缩放属性的标签维持原状（安全兜底）。
+ * 导出供单元测试覆盖。
+ */
+export function convertImgTokens(tokens: Token[]): void {
+  for (const token of tokens) {
+    if (token.type !== 'inline' || !token.children) continue
+    const children = token.children
+    const next: Token[] = []
+    for (const child of children) {
+      if (child.type !== 'text' || !/<img\s/i.test(child.content)) {
+        next.push(child)
+        continue
+      }
+      const parts: Token[] = []
+      let last = 0
+      let childChanged = false
+      for (const m of child.content.matchAll(IMG_TOKEN_RE)) {
+        const img = makeImgToken(m, child)
+        if (!img) continue // 解析失败（非安全 src 等）：该标签保持文本
+        if (m.index > last) {
+          parts.push(cloneTextToken(child, child.content.slice(last, m.index)))
+        }
+        parts.push(img)
+        last = m.index + m[0].length
+        childChanged = true
+      }
+      if (!childChanged) {
+        next.push(child)
+        continue
+      }
+      if (last < child.content.length) {
+        parts.push(cloneTextToken(child, child.content.slice(last)))
+      }
+      next.push(...parts)
+    }
+    token.children = next
+  }
+}
+
+// html:false 下 <img> 是 text，渲染前统一还原为真实图片 token
+mdIt.core.ruler.push('tmdConvertImgHtml', (state) => convertImgTokens(state.tokens))
+
+/**
+ * 图片渲染混合规则：convertImgTokens 产出的合成 token 以 children === null 标记
+ * （真实 image token 的 children 恒为数组），按 attrs 直接渲染——markdown-it 15
+ * 默认 image 规则会无条件用 renderInlineAsText(children) 覆盖 alt，不能委托；
+ * 原生 ![alt](src) 的真 Token 委托默认规则保持行为一致。
+ */
+const defaultImageRule =
+  mdIt.renderer.rules.image ??
+  ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
+mdIt.renderer.rules.image = (tokens, idx, options, env, self) => {
+  const token = tokens[idx]
+  if (token.children === null) {
+    // attrGet 的官方类型为 string | number | null（本处 attrs 全为 string），归一后转义
+    const get = (name: string) => {
+      const v = token.attrGet(name)
+      return v == null ? '' : String(v)
+    }
+    const esc = (s: string) => mdIt.utils.escapeHtml(s)
+    let html = `<img src="${esc(get('src'))}" alt="${esc(get('alt'))}"`
+    if (get('title')) html += ` title="${esc(get('title'))}"`
+    if (get('width')) html += ` width="${esc(get('width'))}"`
+    if (get('align')) html += ` align="${esc(get('align'))}"`
+    return `${html}>`
+  }
+  return defaultImageRule(tokens, idx, options, env, self)
+}
 
 /**
  * 导出页消费的主题变量名（与 style.css 内建配色同名）。
@@ -52,6 +165,9 @@ const EXPORT_CSS = `
   th, td { border: 1px solid var(--border, #e2e6ea); padding: 6px 12px; text-align: left; }
   th { background: var(--pre-bg, #f6f8fa); }
   img { max-width: 100%; }
+  img[align='center'] { display: block; margin: 0 auto; }
+  img[align='left'] { display: block; margin-right: auto; }
+  img[align='right'] { display: block; margin-left: auto; }
   .mermaid { display: flex; justify-content: center; }
 `
 
@@ -84,7 +200,8 @@ function inlineText(token: InlineToken): string {
   return (token.children ?? []).map(inlineText).join('')
 }
 
-function renderMarkdown(markdown: string): string {
+/** markdown → 导出页正文 HTML（走内部 mdIt 实例：含图片 token 还原与渲染规则），导出供单测 */
+export function renderMarkdown(markdown: string): string {
   const fence =
     mdIt.renderer.rules.fence ??
     ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
