@@ -45,6 +45,14 @@
     "empty": "暂无标题，目录将在添加标题后自动生成",
     "untitledHeading": "（空标题）"
   },
+  "frontmatter": {
+    "edit": "编辑",
+    "save": "完成",
+    "cancel": "取消",
+    "empty": "暂无元数据，点击添加 YAML 字段",
+    "complex": "含数组或多行文本等复杂字段，请在 YAML 文本中编辑",
+    "invalid": "YAML 格式有误：需以 --- 开头并用 --- 闭合，原文未改动"
+  },
   "files": {
     "empty": "暂无记录",
     "emptyFolder": "暂无打开的文件夹",
@@ -92,6 +100,9 @@
     "italic": "斜体",
     "strike": "删除线",
     "inlineCode": "行内代码",
+    "highlight": "高亮",
+    "superscript": "上标",
+    "subscript": "下标",
     "link": "链接…",
     "h1": "一级标题",
     "h2": "二级标题",

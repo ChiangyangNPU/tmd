@@ -45,6 +45,14 @@
     "empty": "No headings yet. The TOC updates automatically as you add them.",
     "untitledHeading": "(empty heading)"
   },
+  "frontmatter": {
+    "edit": "Edit",
+    "save": "Done",
+    "cancel": "Cancel",
+    "empty": "No metadata. Click to add YAML fields.",
+    "complex": "Contains arrays or multiline values. Edit in YAML text.",
+    "invalid": "Invalid YAML: must start and end with a --- fence. Original text kept."
+  },
   "files": {
     "empty": "No history",
     "emptyFolder": "No open folders",
@@ -92,6 +100,9 @@
     "italic": "Italic",
     "strike": "Strikethrough",
     "inlineCode": "Inline Code",
+    "highlight": "Highlight",
+    "superscript": "Superscript",
+    "subscript": "Subscript",
     "link": "Link…",
     "h1": "Heading 1",
     "h2": "Heading 2",

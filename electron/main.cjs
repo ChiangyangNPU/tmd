@@ -143,6 +143,9 @@ const DEFAULT_MENU_LABELS = {
   italic: '斜体',
   strike: '删除线',
   inlineCode: '行内代码',
+  highlight: '高亮',
+  superscript: '上标',
+  subscript: '下标',
   link: '链接…',
   h1: '一级标题',
   h2: '二级标题',
@@ -308,6 +311,21 @@ function buildMenu() {
         {
           label: L('inlineCode'),
           click: () => sendToRenderer(IPC.menu, 'fmt-code'),
+        },
+        {
+          label: L('highlight'),
+          accelerator: 'CmdOrCtrl+Shift+H',
+          click: () => sendToRenderer(IPC.menu, 'fmt-mark'),
+        },
+        {
+          label: L('superscript'),
+          accelerator: 'CmdOrCtrl+Shift+=',
+          click: () => sendToRenderer(IPC.menu, 'fmt-sup'),
+        },
+        {
+          label: L('subscript'),
+          accelerator: 'CmdOrCtrl+Shift+-',
+          click: () => sendToRenderer(IPC.menu, 'fmt-sub'),
         },
         {
           label: L('link'),

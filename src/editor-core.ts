@@ -21,6 +21,8 @@ import { pasteHtml } from './paste-html'
 import { findPlugin, findClear } from './find'
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
+import { markPlugins } from './mark-ext'
+import { frontmatterInputRule, frontmatterPlugins } from './frontmatter'
 import { imageSrcResolver } from './image-resolver'
 import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
@@ -74,10 +76,13 @@ export function updateWordCount(markdown: string) {
 /**
  * 创建 Milkdown 编辑器实例并挂载到 #editor。
  *
- * 插件清单：commonmark（基础语法）、gfm（表格/任务列表）、history（撤销重做）、
+ * 插件清单：frontmatter 输入规则（单独最先注册：--- 先于水平线规则）、
+ * commonmark（基础语法）、gfm（表格/任务列表/脚注）、history（撤销重做）、
  * listener（内容监听）、mermaid（自研图表插件）、prism（代码高亮）、
  * math（KaTeX 公式）、pasteImage（粘贴图片）、pasteHtml（HTML 粘贴转换）、
  * findPlugin（查找高亮）、taskListClick（任务复选框）、toc（目录块）、
+ * markExt（==高亮==/^上标^/~下标~，须晚于 gfm：单波浪纠正依赖其 delete 解析）、
+ * frontmatter（YAML 元信息块 schema/视图，须晚于 commonmark 注册）、
  * imageSrcResolver（相对路径图片）、linkNav（链接点击跳转）、
  * tableToolbar（表格悬浮工具栏）、formatKeymap（格式化快捷键）、
  * focusPlugin（专注模式变暗装饰器）、imageAttrs（图片缩放/对齐）。
@@ -97,6 +102,10 @@ async function createEditor(markdown: string): Promise<Editor> {
           hooks.onDocUpdate(doc)
         })
       })
+      // 仅输入规则最先注册：文档开头输入 --- 要先于 commonmark 的水平线规则
+      // （二者同匹配 ---，InputRule 按注册顺序首个生效）。schema 等其余部分
+      // 不能提前：frontmatter 是 block 节点，先注册会被空文档自动补块误选
+      .use(frontmatterInputRule)
       .use(commonmark)
       .use(gfm)
       .use(history)
@@ -109,6 +118,10 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(findPlugin)
       .use(taskListClick)
       .use(tocPlugins)
+      // 扩展行内标记：晚于 gfm（~x~ 纠正依赖 remark-gfm 的 delete 词法解析）
+      .use(markPlugins)
+      // front matter 的 schema/remark/view（其输入规则已在最前面单独注册）
+      .use(frontmatterPlugins)
       .use(imageSrcResolver)
       // 图片缩放/对齐：schema 扩展必须晚于 commonmark 注册（同名覆盖）
       .use(imageAttrsPlugins)

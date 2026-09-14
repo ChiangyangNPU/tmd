@@ -41,6 +41,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - Drag & drop: drop a .md file onto the window to open it (new tab); drop images to insert them per the paste strategy
 - Formatting shortcuts & Format menu: headings 1–6 (Ctrl/Cmd+1–6), bold/italic (Ctrl/Cmd+B/I), link (Ctrl/Cmd+K), blockquote, lists, code block — all undoable
+- Syntax extensions: footnotes `[^1]`, highlight `==text==`, superscript/subscript (both `^x^`/`~x~` and `^{x}`/`_{x}` are recognized; saving normalizes to the Pandoc single-symbol style), YAML front matter (a leading `---` fence renders as a key-value property table, click to edit the YAML source, written back byte-for-byte on save, stripped automatically from HTML/PDF export). Shortcuts: highlight Ctrl/Cmd+Shift+H, superscript Ctrl/Cmd+Shift+=, subscript Ctrl/Cmd+Shift+-
 - Right-click context menu in the editor: cut/copy/paste plus selection-aware format items (including remove link)
 - Link following: Ctrl/Cmd+click opens external URLs in the browser; relative-path links resolve against the document directory and open with the system app (hold Mod while hovering for a pointer hint)
 - Dual paste-image strategy: inline data URL / save to `assets/` next to the document (falls back to inline on failure; images >5MB ignored)
@@ -79,6 +80,8 @@ src/mermaid.ts            Mermaid real-time rendering plugin (core)
 src/theme-presets.ts      Theme presets & custom CSS injection
 src/find.ts               Find & replace (decorator-based)
 src/toc.ts                Table-of-contents (TOC) block
+src/mark-ext.ts           Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)
+src/frontmatter.ts        YAML front matter (property table ⇄ source dual-mode editing)
 src/paste-image.ts        Pasted-image plugin (inline / assets dual strategy)
 src/style.css             All styles (CSS variables for dark/light themes + highlight colors)
 docs/                     Requirements / architecture / detailed design / packaging docs (Chinese)

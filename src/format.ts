@@ -164,6 +164,10 @@ export const MENU_COMMANDS: Record<string, (view: EditorView) => Command> = {
   'fmt-italic': (v) => toggleMark(v.state.schema.marks.emphasis),
   'fmt-strike': (v) => toggleMark(v.state.schema.marks.strike_through),
   'fmt-code': (v) => toggleMark(v.state.schema.marks.code),
+  // 语法扩展（mark-ext.ts）：==高亮==、^上标^、~下标~
+  'fmt-mark': (v) => toggleMark(v.state.schema.marks.highlight),
+  'fmt-sup': (v) => toggleMark(v.state.schema.marks.superscript),
+  'fmt-sub': (v) => toggleMark(v.state.schema.marks.subscript),
   'fmt-h1': (v) => setBlockType(v.state.schema.nodes.heading, { level: 1 }),
   'fmt-h2': (v) => setBlockType(v.state.schema.nodes.heading, { level: 2 }),
   'fmt-h3': (v) => setBlockType(v.state.schema.nodes.heading, { level: 3 }),
@@ -217,5 +221,9 @@ export const formatKeymap = $prose(() =>
     'Mod-Shift-k': (state, dispatch) =>
       setBlockType(state.schema.nodes.code_block)(state, dispatch),
     'Mod-k': (_state, _dispatch, view) => (view ? toggleLink(view) : false),
+    // 语法扩展：高亮 Cmd/Ctrl+Shift+H，上标 +Shift+=，下标 +Shift+-
+    'Mod-Shift-h': (state, dispatch) => toggleMark(state.schema.marks.highlight)(state, dispatch),
+    'Mod-Shift-=': (state, dispatch) => toggleMark(state.schema.marks.superscript)(state, dispatch),
+    'Mod-Shift--': (state, dispatch) => toggleMark(state.schema.marks.subscript)(state, dispatch),
   }),
 )

@@ -5,11 +5,21 @@
  */
 import MarkdownIt from 'markdown-it'
 import type { Token } from 'markdown-it'
+import footnote from 'markdown-it-footnote'
+import markPlugin from 'markdown-it-mark'
+import subPlugin from 'markdown-it-sub'
+import supPlugin from 'markdown-it-sup'
 import { native } from './native'
 import { slugify } from './toc'
 import { parseImgHtml } from './image-attrs'
 
 const mdIt = new MarkdownIt({ html: false, linkify: true })
+  // 扩展行内/块语法（与编辑器 mark-ext.ts + gfm 脚注对齐）：
+  // 脚注 [^1]、==高亮==、~下标~、^上标^
+  .use(footnote)
+  .use(markPlugin)
+  .use(subPlugin)
+  .use(supPlugin)
 
 /** 匹配 text token 中的 <img ...> 标签（html:false 下 markdown-it 把行内 HTML 归为 text） */
 const IMG_TOKEN_RE = /<img\s[^<>]*>/gi
@@ -169,6 +179,14 @@ const EXPORT_CSS = `
   img[align='left'] { display: block; margin-right: auto; }
   img[align='right'] { display: block; margin-left: auto; }
   .mermaid { display: flex; justify-content: center; }
+  mark { background: rgba(255, 213, 0, .35); border-radius: 3px; padding: 0 2px; }
+  sub, sup { font-size: 0.75em; }
+  .footnotes-sep { margin: 2.5em 0 1em; border: 0;
+    border-top: 1px solid var(--border, #e2e6ea); }
+  .footnotes { font-size: 0.9em; color: var(--muted, #6a737d); }
+  .footnotes-list { padding-left: 1.6em; }
+  .footnote-ref a, .footnote-backref { text-decoration: none; }
+  .footnote-item p { margin: 0.3em 0; }
 `
 
 /**
@@ -200,6 +218,16 @@ function inlineText(token: InlineToken): string {
   return (token.children ?? []).map(inlineText).join('')
 }
 
+/**
+ * 剥离文档起始的 YAML front matter（--- 围栏块）。
+ * 元数据不进入导出成稿（与 .md 源文件保留无关，编辑器保存时原样写回）；
+ * 只认文档第一行起的围栏，正文中间的 --- 仍是分隔线/Setext 下划线，不动。
+ * 导出供单元测试覆盖。
+ */
+export function stripFrontMatter(markdown: string): string {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')
+}
+
 /** markdown → 导出页正文 HTML（走内部 mdIt 实例：含图片 token 还原与渲染规则），导出供单测 */
 export function renderMarkdown(markdown: string): string {
   const fence =
@@ -227,8 +255,9 @@ export function renderMarkdown(markdown: string): string {
   }
 
   // html:false 时注释会被转义成可见文本，直接移除 TOC 标记行（列表保留）；
-  // 兼容行首可能存在的转义反斜杠（remark-stringify 防 HTML 转义产物）
-  const cleaned = markdown.replace(/^[ \t]*\\?<!--\s*\/?TOC\s*-->[ \t]*$/gm, '')
+  // 兼容行首可能存在的转义反斜杠（remark-stringify 防 HTML 转义产物）。
+  // front matter 属元数据，导出成稿中剥离（源文件保存不受影响）。
+  const cleaned = stripFrontMatter(markdown).replace(/^[ \t]*\\?<!--\s*\/?TOC\s*-->[ \t]*$/gm, '')
   return mdIt.render(cleaned)
 }
 

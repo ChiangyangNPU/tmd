@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildThemeVarsBlock, buildExportHtml } from '../export'
+import { buildThemeVarsBlock, buildExportHtml, renderMarkdown, stripFrontMatter } from '../export'
 
 const LIGHT_VARS = {
   '--bg': '#ffffff',
@@ -75,5 +75,56 @@ describe('buildExportHtml', () => {
     expect(html).toContain('mermaid@11/dist/mermaid.min.js')
     expect(html).toContain("securityLevel: 'strict'")
     expect(html).toContain('katex@0.16.11/dist/katex.min.js')
+  })
+})
+
+describe('stripFrontMatter', () => {
+  it('剥离文档开头的 YAML front matter，正文保留', () => {
+    expect(stripFrontMatter('---\ntitle: 标题\n---\n\n正文内容')).toBe('\n正文内容')
+  })
+
+  it('正文中间的 --- 分隔线不动', () => {
+    const md = '前文\n\n---\n\n后文'
+    expect(stripFrontMatter(md)).toBe(md)
+  })
+
+  it('无 front matter 时原样返回', () => {
+    expect(stripFrontMatter('# 标题\n\n正文')).toBe('# 标题\n\n正文')
+  })
+
+  it('仅 front matter 无正文时剥为空串', () => {
+    expect(stripFrontMatter('---\ntitle: a\n---\n')).toBe('')
+  })
+})
+
+describe('renderMarkdown 扩展语法', () => {
+  it('==高亮== 渲染为 <mark>', () => {
+    expect(renderMarkdown('这是 ==高亮== 文本')).toContain('这是 <mark>高亮</mark> 文本')
+  })
+
+  it('^上标^ 与 ~下标~ 渲染，~~删除线~~ 与单波浪互不干扰', () => {
+    const html = renderMarkdown('x^2^、H~2~O、~~删除~~ 与 ~下标~')
+    expect(html).toContain('x<sup>2</sup>')
+    expect(html).toContain('H<sub>2</sub>O')
+    expect(html).toContain('<s>删除</s>')
+    expect(html).toContain('<sub>下标</sub>')
+  })
+
+  it('脚注渲染引用与文末定义区（锚点互链）', () => {
+    const html = renderMarkdown('正文[^1]\n\n[^1]: 脚注内容')
+    expect(html).toContain('class="footnote-ref"')
+    expect(html).toContain('href="#fn1"')
+    expect(html).toContain('class="footnotes"')
+    expect(html).toContain('脚注内容')
+  })
+
+  it('front matter 不出现在导出 HTML 中', () => {
+    const html = renderMarkdown('---\ntitle: 标题\n---\n\n正文')
+    expect(html).not.toContain('title')
+    expect(html).toContain('<p>正文</p>')
+  })
+
+  it('行内代码中的分隔符不被解析', () => {
+    expect(renderMarkdown('`a^b^ c==d==`')).toContain('<code>a^b^ c==d==</code>')
   })
 })

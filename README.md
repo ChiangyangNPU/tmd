@@ -41,6 +41,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 文件侧边栏：可同时挂载多个文件夹（独立展开、重启恢复、展开懒加载）与最近打开列表；两者均支持行内 hover × 单条移除与一键清空（二次确认；文件夹只取消挂载，不删除磁盘文件）
 - 拖拽打开：拖 .md 文件进窗口即打开（新标签），拖图片进文档按粘贴策略插入
 - 格式化快捷键与「格式」菜单：标题 1~6（Ctrl/Cmd+1~6）、加粗/斜体（Ctrl/Cmd+B/I）、链接（Ctrl/Cmd+K）、引用、有序/无序列表、代码块，全部可撤销
+- 语法扩展：脚注 `[^1]`、高亮 `==文本==`、上/下标（`^x^`/`~x~` 与 `^{x}`/`_{x}` 两种写法均识别，保存统一为 Pandoc 单符号风格）、YAML front matter（文档开头 `---` 围栏渲染为键值属性表，点击进 YAML 源码编辑，保存字节级原样写回，导出 HTML/PDF 自动剥离）；快捷键：高亮 Ctrl/Cmd+Shift+H、上标 Ctrl/Cmd+Shift+=、下标 Ctrl/Cmd+Shift+-
 - 编辑区右键上下文菜单：剪切/复制/粘贴 + 按选区显隐的格式化项（含移除链接）
 - 链接点击跳转：Ctrl/Cmd+点击外部链接跳浏览器、相对路径链接按文档目录解析后用系统应用打开（悬停按住 Mod 键提示可点）
 - 粘贴图片双策略：内联 data URL / 文档同目录 `assets/` 落盘（落盘失败自动降级内联，>5MB 忽略）
@@ -79,6 +80,8 @@ src/mermaid.ts        Mermaid 实时渲染插件（核心）
 src/theme-presets.ts  主题预设与自定义 CSS 注入
 src/find.ts           查找替换（装饰器实现）
 src/toc.ts            目录（TOC）块
+src/mark-ext.ts       语法扩展（高亮 / 上下标：解析、序列化、输入规则）
+src/frontmatter.ts    YAML front matter（属性表 ⇄ 源码双态编辑）
 src/paste-image.ts    粘贴图片插件（inline / assets 双策略）
 src/style.css         全部样式（CSS 变量实现深浅主题 + 高亮配色）
 docs/                 需求说明 / 架构设计 / 详细设计 / 打包发布等文档

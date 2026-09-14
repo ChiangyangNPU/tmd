@@ -19,7 +19,7 @@ const schema = new Schema({
     list_item: { content: 'block+' },
     text: { group: 'inline' },
   },
-  marks: { strong: {} },
+  marks: { strong: {}, highlight: {}, superscript: {}, subscript: {} },
 })
 
 const doc = (...blocks: Node[]) => schema.node('doc', null, blocks)
@@ -84,5 +84,31 @@ describe('块级格式切换命令', () => {
     expect(ok).toBe(true)
     expect(tr?.doc.firstChild?.type.name).toBe('heading')
     expect(tr?.doc.firstChild?.attrs.level).toBe(2)
+  })
+
+  it.each([
+    ['fmt-mark', 'highlight'],
+    ['fmt-sup', 'superscript'],
+    ['fmt-sub', 'subscript'],
+  ] as const)('%s 给选区加标记，再执行一次移除', (action, markName) => {
+    const node = p('abc')
+    let state = EditorState.create({
+      doc: doc(node),
+      selection: TextSelection.create(doc(node), 1, 3),
+    })
+    const cmd = () => MENU_COMMANDS[action]({ state } as unknown as EditorView)
+    const first = run(cmd(), state)
+    expect(first.ok).toBe(true)
+    expect(first.tr?.doc.textBetween(0, 5)).toBe('abc')
+    const marked = first.tr!.doc.firstChild!.firstChild!
+    expect(marked.marks.map((m) => m.type.name)).toContain(markName)
+
+    // 同一选区再执行一次：标记移除
+    state = state.apply(first.tr!)
+    const second = run(cmd(), state)
+    expect(second.ok).toBe(true)
+    expect(second.tr!.doc.firstChild!.firstChild!.marks.map((m) => m.type.name)).not.toContain(
+      markName,
+    )
   })
 })
