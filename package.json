@@ -57,12 +57,15 @@
     "directories": {
       "output": "release"
     },
+    "compression": "maximum",
     "electronDownload": {
       "mirror": "https://npmmirror.com/mirrors/electron/"
     },
+    "afterPack": "./scripts/trim-runtime.cjs",
     "files": [
       "dist/**",
-      "electron/**"
+      "electron/**",
+      "!**/*.map"
     ],
     "fileAssociations": [
       {
