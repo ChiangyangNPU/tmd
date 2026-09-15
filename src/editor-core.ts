@@ -28,7 +28,7 @@ import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
 import { tableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
-import { patchTextEscaping } from './text-escaping'
+import { patchTextEscaping, pipeBreakEscapingRemark } from './text-escaping'
 import { formatKeymap } from './format'
 import { focusPlugin } from './writing-modes'
 import { collectOutline, renderOutline } from './outline'
@@ -77,7 +77,9 @@ export function updateWordCount(markdown: string) {
  * 创建 Milkdown 编辑器实例并挂载到 #editor。
  *
  * 插件清单：frontmatter 输入规则（单独最先注册：--- 先于水平线规则）、
- * commonmark（基础语法）、gfm（表格/任务列表/脚注）、history（撤销重做）、
+ * commonmark（基础语法）、gfm（表格/任务列表/脚注）、
+ * pipeBreakEscaping（取消段落行首 | 的保守转义，须晚于 gfm）、
+ * history（撤销重做）、
  * listener（内容监听）、mermaid（自研图表插件）、prism（代码高亮）、
  * math（KaTeX 公式）、pasteImage（粘贴图片）、pasteHtml（HTML 粘贴转换）、
  * findPlugin（查找高亮）、taskListClick（任务复选框）、toc（目录块）、
@@ -108,6 +110,9 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(frontmatterInputRule)
       .use(commonmark)
       .use(gfm)
+      // 取消普通段落行首「| 」的保守反斜杠转义（须晚于 gfm：过滤其注册的
+      // unsafe 规则，详见 text-escaping.ts 修复二）
+      .use(pipeBreakEscapingRemark)
       .use(history)
       .use(listener)
       .use(mermaidPlugins)
