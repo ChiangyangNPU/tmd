@@ -178,6 +178,32 @@
       >
         右
       </button>
+      <div class="menu-sep"></div>
+      <!-- 图标按钮：无 data-i18n（会覆盖 textContent 清掉 SVG），仅用 title 提示 -->
+      <button
+        class="tt-btn tt-danger"
+        data-tt-action="table-delete"
+        data-i18n-title="tt.tableDelTitle"
+        aria-label="删除表格"
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+      </button>
     </div>
 
     <div id="settings-overlay" class="settings-overlay" hidden>

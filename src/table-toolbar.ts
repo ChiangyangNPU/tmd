@@ -1,10 +1,12 @@
 /**
- * 表格悬浮工具栏：光标进入表格时在表格上方弹出（行/列增删、当前列对齐）。
+ * 表格悬浮工具栏：光标进入表格时在表格上方弹出（行/列增删、当前列对齐、删除整表）。
  *
  * - 命令直接复用 prosemirror-tables（@milkdown/prose/tables）：加行/加列基于
  *   光标 selection 即可；删行/删列与对齐基于「选中整行/列」的 CellSelection，
  *   选区与删除合并为一次 dispatch（单步撤销）
  * - 删到最后一行/列时 prosemirror-tables 自动删除整个表格
+ * - 删除整表（table-delete）：工具栏最右侧垃圾桶图标，整体移除 table 节点，
+ *   删除后文档为空时补一个空段落承接光标（doc 内容要求 block+）
  * - 列宽拖拽由 gfm 预设内置的 columnResizing 插件提供（colwidth 存入 cell
  *   attrs；GFM 纯文本不含宽度，重新打开后恢复默认——格式限制）
  * - 显隐与定位：PluginView 每次 transaction 更新；监听滚动重定位；
@@ -13,7 +15,8 @@
  * @author chiangyang
  */
 import { $prose } from '@milkdown/kit/utils'
-import { Plugin } from '@milkdown/kit/prose/state'
+import { Plugin, TextSelection } from '@milkdown/kit/prose/state'
+import { closeHistory } from '@milkdown/kit/prose/history'
 import {
   CellSelection,
   TableMap,
@@ -106,6 +109,25 @@ function alignColumn(view: EditorView, alignment: 'left' | 'center' | 'right'): 
   return runOnLineSelection(view.state, view.dispatch, 'col', setCellAttr('alignment', alignment))
 }
 
+/**
+ * 删除整个表格：在当前事务内整体移除 table 节点（单步撤销），
+ * 光标落到表格原位置后的最近文本位置（表格在文档末尾时回落到上一块）。
+ */
+function deleteTable(state: Parameters<Command>[0], dispatch: Parameters<Command>[1]): boolean {
+  const ctx = findTableContext(state)
+  if (!ctx) return false
+  if (!dispatch) return true
+  const { tablePos, table } = ctx
+  // 删除范围与建表/上次输入的范围完全重合，不打断历史会与上一步并成一组，
+  // 一次 Cmd+Z 直接退回建表前的原文（表格无法单独撤销回来）
+  let tr = closeHistory(state.tr.delete(tablePos, tablePos + table.nodeSize))
+  // doc 内容要求 block+：表格是唯一块时删除后文档为空，补一个空段落承接光标
+  if (tr.doc.childCount === 0) tr = tr.insert(0, state.schema.nodes.paragraph.create())
+  const $pos = tr.doc.resolve(Math.min(tablePos, tr.doc.content.size))
+  dispatch(tr.setSelection(TextSelection.near($pos, 1)).scrollIntoView())
+  return true
+}
+
 /** 工具栏动作表（data-tt-action → 命令） */
 export const TABLE_ACTIONS: Record<string, TableAction> = {
   'row-before': (v) => addRowBefore(v.state, v.dispatch),
@@ -117,6 +139,7 @@ export const TABLE_ACTIONS: Record<string, TableAction> = {
   'align-left': (v) => alignColumn(v, 'left'),
   'align-center': (v) => alignColumn(v, 'center'),
   'align-right': (v) => alignColumn(v, 'right'),
+  'table-delete': (v) => deleteTable(v.state, v.dispatch),
 }
 
 /** 执行工具栏动作（main.ts 绑定按钮时调用；源码模式无 PM 视图，忽略） */

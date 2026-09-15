@@ -2,11 +2,15 @@ import { describe, it, expect } from 'vitest'
 import { Schema } from '@milkdown/kit/prose/model'
 import type { Node } from '@milkdown/kit/prose/model'
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
+import type { Transaction } from '@milkdown/kit/prose/state'
 import { CellSelection, TableMap } from '@milkdown/kit/prose/tables'
+import { history, undo } from '@milkdown/kit/prose/history'
 import { findTableContext, runTableAction } from '../table-toolbar'
+import { tableFromPipeRow } from '../table-input'
 import type { EditorView } from '@milkdown/kit/prose/view'
 
 // 与 Milkdown gfm 同名、带 tableRole 的最小表格 schema（prosemirror-tables 依赖 role）
+// 单元格内容与真实 gfm 一致为 'paragraph'（tableNodes({ cellContent: 'paragraph' })）
 const schema = new Schema({
   nodes: {
     doc: { content: 'block+' },
@@ -20,7 +24,7 @@ const schema = new Schema({
     table_header_row: { content: 'table_header*', tableRole: 'row' },
     table_row: { content: 'table_cell*', tableRole: 'row' },
     table_header: {
-      content: 'paragraph*',
+      content: 'paragraph',
       tableRole: 'header_cell',
       attrs: {
         alignment: { default: null },
@@ -30,7 +34,7 @@ const schema = new Schema({
       },
     },
     table_cell: {
-      content: 'paragraph*',
+      content: 'paragraph',
       tableRole: 'cell',
       attrs: {
         alignment: { default: null },
@@ -80,6 +84,29 @@ const stubView = (state: EditorState): EditorView =>
     dispatch: () => {},
     focus: () => {},
   }) as unknown as EditorView
+
+/** 带真实 dispatch 的视图桩：把事务应用到 state 并交给 onChange */
+const viewWith = (state: EditorState, onChange: (next: EditorState) => void): EditorView =>
+  ({
+    state,
+    dispatch: (tr: Transaction) => onChange(state.apply(tr)),
+    focus: () => {},
+  }) as unknown as EditorView
+
+/** 执行命令并把其事务应用到当前 state，返回新 state（命令返回 false 则原样返回） */
+const applyCommand = (
+  state: EditorState,
+  run: (s: EditorState, view: EditorView) => boolean,
+): EditorState => {
+  let result = state
+  run(
+    state,
+    viewWith(state, (next) => {
+      result = next
+    }),
+  )
+  return result
+}
 
 describe('findTableContext', () => {
   it('解析光标所在表格与行列下标', () => {
@@ -167,5 +194,77 @@ describe('表格动作', () => {
     const sel = CellSelection.create(state.doc, positions[0], positions[2])
     expect(sel.$anchorCell.pos).toBe(positions[0])
     expect(sel.$headCell.pos).toBe(positions[2])
+  })
+
+  it('table-delete 整体移除表格', () => {
+    const table = makeTable(2, 3)
+    const state = stateIn(table, 1, 1)
+    const result: { doc: Node | null } = { doc: null }
+    const view = {
+      state,
+      focus: () => {},
+      dispatch: (tr: { doc: Node }) => {
+        result.doc = tr.doc
+      },
+    } as unknown as EditorView
+    expect(runTableAction(view, 'table-delete')).toBe(true)
+    expect(result.doc?.childCount).toBe(1) // 表格删除后补一个空段落
+    expect(result.doc?.firstChild?.type.name).toBe('paragraph')
+    expect(result.doc?.firstChild?.textContent).toBe('')
+  })
+
+  it('table-delete 光标落到表格后的段落', () => {
+    const table = makeTable(2, 2)
+    const doc = schema.node('doc', null, [
+      table,
+      schema.node('paragraph', null, [schema.text('后面的段落')]),
+    ])
+    const map = TableMap.get(table)
+    const $pos = doc.resolve(map.positionAt(0, 0, table) + 1)
+    const state = EditorState.create({ doc, selection: TextSelection.near($pos) })
+    const result: { doc: Node | null; from: number | null } = { doc: null, from: null }
+    const view = {
+      state,
+      focus: () => {},
+      dispatch: (tr: { doc: Node; selection: { from: number } }) => {
+        result.doc = tr.doc
+        result.from = tr.selection.from
+      },
+    } as unknown as EditorView
+    expect(runTableAction(view, 'table-delete')).toBe(true)
+    expect(result.doc?.childCount).toBe(1)
+    // 表格被删除，剩余段落开头（位置 1）
+    expect(result.from).toBe(1)
+    expect(result.doc?.firstChild?.textContent).toBe('后面的段落')
+  })
+
+  it('光标在表格外 table-delete 返回 false', () => {
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, [schema.text('plain')])])
+    const state = EditorState.create({ doc, selection: TextSelection.create(doc, 1) })
+    expect(runTableAction(stubView(state), 'table-delete')).toBe(false)
+  })
+
+  it('table-delete 可单独撤销（一次 undo 恢复表格）', () => {
+    // 复现真实编辑序列：输入管道文本 → 回车建表 → 点删除整表 → 撤销
+    const text = '| a | b |'
+    const doc = schema.node('doc', null, [schema.node('paragraph', null, [schema.text(text)])])
+    let state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 1 + text.length),
+      plugins: [history()],
+    })
+
+    // 1) 建表（table-input 的 closeHistory 已将其断为独立撤销组）
+    state = applyCommand(state, (s, v) => tableFromPipeRow(s, v.dispatch))
+    expect(state.doc.firstChild?.type.name).toBe('table')
+
+    // 2) 光标在表格内删除整表
+    state = applyCommand(state, (_s, v) => runTableAction(v, 'table-delete'))
+    expect(state.doc.firstChild?.type.name).toBe('paragraph')
+
+    // 3) 一次撤销应回到「表格」。若删除事务未 closeHistory，会与建表事务
+    //    并成一组，撤销直接退回建表前的管道文本
+    state = applyCommand(state, (s, v) => undo(s, v.dispatch))
+    expect(state.doc.firstChild?.type.name).toBe('table')
   })
 })

@@ -150,7 +150,8 @@
     "alignCenter": "C",
     "alignCenterTitle": "Align current column center",
     "alignRight": "R",
-    "alignRightTitle": "Align current column right"
+    "alignRightTitle": "Align current column right",
+    "tableDelTitle": "Delete the whole table"
   },
   "settings": {
     "title": "Settings",

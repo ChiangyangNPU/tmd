@@ -150,7 +150,8 @@
     "alignCenter": "中",
     "alignCenterTitle": "当前列居中对齐",
     "alignRight": "右",
-    "alignRightTitle": "当前列右对齐"
+    "alignRightTitle": "当前列右对齐",
+    "tableDelTitle": "删除整个表格"
   },
   "settings": {
     "title": "设置",

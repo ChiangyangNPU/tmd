@@ -76,8 +76,8 @@ const schema = new Schema({
     table_header_row: { content: 'table_header*', tableRole: 'row' },
     table_row: { content: 'table_cell*', tableRole: 'row' },
     table_header: {
-      // 与真实 gfm schema 一致为 paragraph+：createAndFill 才会自动补空段落
-      content: 'paragraph+',
+      // 与真实 gfm schema 一致：tableNodes({ cellContent: 'paragraph' })
+      content: 'paragraph',
       tableRole: 'header_cell',
       attrs: {
         alignment: { default: null },
@@ -87,7 +87,7 @@ const schema = new Schema({
       },
     },
     table_cell: {
-      content: 'paragraph+',
+      content: 'paragraph',
       tableRole: 'cell',
       attrs: {
         alignment: { default: null },

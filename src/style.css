@@ -831,6 +831,25 @@ dl[data-type='footnote_definition'] dd {
   background: var(--code-bg);
 }
 
+/* 横向工具栏内的分隔线：menu-sep 默认是竖向菜单用的横线（1px 高），
+   在 flex 行里不可见，此处改造成竖直分隔条 */
+.table-toolbar .menu-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 4px;
+}
+
+/* 图标按钮：display:block 消除行内基线的额外间隙 */
+.tt-btn svg {
+  display: block;
+}
+
+/* 删除整表：危险操作，hover 用警示红（SVG 描边走 currentColor） */
+.tt-danger:hover {
+  background: rgba(220, 53, 53, 0.12);
+  color: #d64545;
+}
+
 blockquote {
   margin: 0;
   padding: 4px 16px;
