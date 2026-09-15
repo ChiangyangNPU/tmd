@@ -85,7 +85,9 @@
       "icon": "build/icon.ico"
     },
     "nsis": {
-      "artifactName": "${productName}-${version}-${arch}-Setup.${ext}"
+      "artifactName": "${productName}-${version}-${arch}-Setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "publish": [
       {
