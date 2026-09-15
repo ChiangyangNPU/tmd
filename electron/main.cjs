@@ -738,13 +738,13 @@ ipcMain.handle(IPC.saveImage, async (_event, options) => {
 
 // ---------- IPC：链接跳转 ----------
 
-// 外部链接：仅放行 http/https，防任意协议（file:/javascript: 等）注入系统打开器
+// 外部链接：仅放行 http/https/mailto，防任意协议（file:/javascript: 等）注入系统打开器
 /** @param {unknown} _event @param {unknown} url */
 ipcMain.handle(IPC.openExternal, (_event, url) => {
   if (typeof url !== 'string') return false
   try {
     const parsed = new URL(url)
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return false
   } catch {
     return false
   }
