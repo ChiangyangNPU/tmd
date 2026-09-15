@@ -301,6 +301,40 @@ html.win .win-controls {
   margin-top: 6px;
 }
 
+/* 关于面板：键值行布局 */
+.about-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.about-key {
+  flex-shrink: 0;
+  width: 48px;
+  color: var(--muted);
+}
+
+.about-val {
+  color: var(--fg);
+}
+
+.about-links {
+  display: flex;
+  gap: 12px;
+}
+
+.about-link {
+  color: var(--accent, #4a90d9);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}
+
 /* 排版区小节标题：弱于 settings-label 一级 */
 .settings-sub {
   font-size: 12px;

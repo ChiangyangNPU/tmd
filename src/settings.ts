@@ -26,6 +26,7 @@ import { setFocusMode, setTypewriterMode } from './writing-modes'
 import { renderTabs, updateTitle } from './tabs'
 import { currentMarkdown, updateWordCount } from './editor-core'
 import type { ImageStrategy } from './paste-image'
+import pkg from '../package.json'
 
 /** 粘贴图片存储策略（设置面板配置） */
 let imageStrategy: ImageStrategy = getImageStrategy()
@@ -79,6 +80,10 @@ export function openSettings() {
   if (typewriterBox) typewriterBox.checked = getTypewriterMode()
   // 排版设置反射（typography 模块自持）
   reflectTypography()
+
+  // 关于面板：版本号从 package.json 读取，避免手动同步遗漏
+  const versionEl = document.getElementById('about-version')
+  if (versionEl) versionEl.textContent = pkg.version
 
   overlay.hidden = false
 }
@@ -218,4 +223,12 @@ export function wireSettings() {
   // 启动时把"启动时自动检查更新"开关同步给主进程
   // （主进程据此决定是否在 app 启动后 5 秒自动检查）
   native?.setAutoCheckUpdate(getAutoCheckUpdate())
+
+  // 关于面板：外部链接交由主进程用系统默认浏览器打开（避免 file:// 内嵌跳转）
+  document.querySelectorAll<HTMLAnchorElement>('a[data-external]').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault()
+      void native?.openExternal(link.href)
+    })
+  })
 }

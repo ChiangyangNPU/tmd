@@ -210,7 +210,14 @@
     "updateDownloading": "Downloading {percent}%",
     "updateDownloaded": "Downloaded. Restart to install.",
     "updateError": "Update failed: {message}",
-    "updateInstall": "Restart Now"
+    "updateInstall": "Restart Now",
+    "about": "About",
+    "aboutName": "App",
+    "aboutVersion": "Version",
+    "aboutCopyright": "Copyright",
+    "aboutEmail": "Email",
+    "aboutHomepage": "Homepage",
+    "aboutLicense": "License"
   },
   "image": {
     "alignLeft": "Align left",

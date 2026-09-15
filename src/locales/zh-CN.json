@@ -210,7 +210,14 @@
     "updateDownloading": "下载中 {percent}%",
     "updateDownloaded": "下载完成，重启以安装",
     "updateError": "更新失败：{message}",
-    "updateInstall": "立即重启"
+    "updateInstall": "立即重启",
+    "about": "关于",
+    "aboutName": "软件",
+    "aboutVersion": "版本",
+    "aboutCopyright": "版权",
+    "aboutEmail": "邮箱",
+    "aboutHomepage": "主页",
+    "aboutLicense": "许可"
   },
   "image": {
     "alignLeft": "左对齐",
