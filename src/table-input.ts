@@ -1,30 +1,31 @@
 /**
- * Typora 式表格输入：所见即所得里用「表头行 + 分隔行 + 回车」即时建表。
+ * Typora 式表格输入：所见即所得里用「管道行 + 回车」即时建表。
  *
  * 背景：milkdown gfm 预设只提供 `|3x4| ` 快速建表规则与 InsertTable 命令，
- * 不存在「敲管道线文本自动成表」的输入规则——在段落里逐行输入
- * `| a | b |` / `| -- | -- |` 永远只是两个段落，GFM 语法上也成不了表。
- * 本插件补齐 Typora/Obsidian 的核心输入路径：
+ * 不存在「敲管道线文本自动成表」的输入规则——在段落里输入
+ * `| a | b |` 永远只是普通段落。本插件补齐 Typora 的核心输入路径：
  *
- *   | 姓名 | 年龄 |      ← 普通段落输入表头，回车
- *   | -- | -- |        ← 输入分隔行，再按回车
- *   ⏎                  → 两行即时转为真表格（表头 + 一行空数据行），
+ *   | 姓名 | 年龄 |      ← 普通段落输入表头，按回车
+ *   ⏎                  → 即时转为真表格（表头 + 一行空数据行），
  *                        光标进入第一个数据单元格
  *
- * 为什么用 Enter 键规则而非文本 InputRule：分隔行在输入过程中的每一帧
- * 几乎都是「合法前缀」（如刚敲完 `| -- | --` 尚未打第 3 列时），文本规则
- * 会在用户继续输入途中提前成表；Typora/Obsidian 均以回车作为完成信号。
+ * 与 Typora 一致：不需要手动输入分隔行 `| -- | -- |`，表头行回车即成表，
+ * 分隔行在序列化时由 mdast 自动生成。
  *
- * 解析规则与 GFM 对齐：
- * - 首尾管道符可省略；按未转义的 | 分列；单元格空白允许（表头格可为空）；
- * - 分隔单元格为 :?-+:? 形态，冒号位置映射 left/center/right 对齐；
- * - 整行必须含至少一个 |，避免把 `---`（水平线）误判成单列分隔行；
- * - 表头行数与分隔行列数一致才转换。
+ * 为什么用 Enter 键规则而非文本 InputRule：管道行在输入过程中的每一帧
+ * 几乎都是「合法前缀」（如刚敲完 `| a` 尚未打第 2 列时），文本规则
+ * 会在用户继续输入途中提前成表；Typora 均以回车作为完成信号。
+ *
+ * 触发条件：
+ * - 当前段落含至少一个未转义 |（排除普通文本与水平线 `---`）；
+ * - 当前段落不是分隔行格式（`| -- | -- |` 不作为表头触发）；
+ * - 仅文档顶层段落（引用块 / 列表项内不触发，depth≠1 直接放行）；
+ * - 光标在段尾（段中回车走正常分段，不触发）；
+ * - 段落不含硬换行（一段多物理行时不转换）。
  *
  * 首版限制：
- * - 仅支持文档顶层段落（引用块 / 列表项内不触发，depth≠1 直接放行）；
  * - 表头按纯文本入格（行内标记如 **粗体** 保留字面，成表后可再加标记）；
- * - 表头段落含硬换行（一段多物理行）时不转换。
+ * - 对齐方式默认为 null（左对齐），成表后可用表格工具栏设置 :-- / :-: / --:。
  *
  * @author chiangyang
  */
@@ -57,8 +58,8 @@ export function splitPipeRow(line: string): string[] {
 }
 
 /**
- * 解析分隔行为每列对齐方式；不合法返回 null。
- * 例：`| :-- | :-: | --: |` → ['left', 'center', 'right']
+ * 判断一行是否为分隔行（:-- / :-: / --: / --）。
+ * 用于排除分隔行格式作为表头触发；不合法返回 null。
  */
 export function parseDelimiterRow(line: string): CellAlign[] | null {
   // 必须含至少一个管道符：否则 `---` 水平线、`-` 列表会被误判成单列分隔
@@ -75,18 +76,8 @@ export function parseDelimiterRow(line: string): CellAlign[] | null {
   return aligns
 }
 
-/**
- * 解析表头行；列数与分隔行不一致（或含物理换行）时返回 null。
- * 单元格允许空文本（空表头列）。
- */
-export function parseHeaderRow(line: string, cols: number): string[] | null {
-  if (line.includes('\n')) return null
-  const cells = splitPipeRow(line)
-  return cells.length === cols ? cells : null
-}
-
 // ---------------------------------------------------------------------------
-// Enter 键规则：分隔行段末回车 → 与上一段表头合并转真表格
+// Enter 键规则：管道行段末回车 → 当前段落即时转真表格
 // ---------------------------------------------------------------------------
 
 /** gfm 预设的表格相关节点名（@milkdown/preset-gfm schema 注册名） */
@@ -120,8 +111,13 @@ function buildTableNode(state: EditorState, headers: string[], aligns: CellAlign
   return schema.nodes[N.table].create(null, [headerRow, dataRow])
 }
 
-/** 分隔行段末回车：命中则把「上一段表头 + 当前分隔行」替换为表格（导出供单测） */
-export function tableFromDelimiter(
+/**
+ * 管道行段末回车：当前段落含管道符且非分隔行时，替换为表格（导出供单测）。
+ *
+ * 与之前版本的区别：不再需要「上一段表头 + 当前分隔行」两行才触发，
+ * 只要当前段落是管道行（如 `| a | b |`）按回车即成表，对齐默认 null。
+ */
+export function tableFromPipeRow(
   state: EditorState,
   dispatch?: (tr: Transaction) => void,
 ): boolean {
@@ -133,28 +129,28 @@ export function tableFromDelimiter(
   // 光标须在段落末尾——段中回车是正常分段，不触发
   if ($from.parentOffset !== $from.parent.content.size) return false
 
-  const aligns = parseDelimiterRow($from.parent.textContent)
-  if (!aligns) return false
+  const text = $from.parent.textContent
+  // 必须含至少一个未转义管道符（排除普通文本段落和水平线 ---）
+  if (!/(?<!\\)\|/.test(text)) return false
+  // 分隔行格式不作为表头触发（| -- | -- | 不成表）
+  if (parseDelimiterRow(text)) return false
 
-  // 取当前段落的前一个兄弟块作为表头；分隔行位于文档首行时无表头
-  const paraStart = $from.before(1)
-  if (paraStart === 0) return false
-  const headerNode = state.doc.resolve(paraStart).nodeBefore
-  if (!headerNode || headerNode.type.name !== N.paragraph) return false
-  const headers = parseHeaderRow(headerNode.textContent, aligns.length)
-  if (!headers) return false
+  const headers = splitPipeRow(text)
+  if (headers.length < 1) return false
 
   if (!dispatch) return true
 
+  // 对齐全为 null（默认左对齐），成表后可用表格工具栏设置
+  const aligns: CellAlign[] = headers.map(() => null)
   const table = buildTableNode(state, headers, aligns)
   if (!table) return false
 
-  // 替换范围：表头段落起点 → 分隔段落终点（顶层兄弟紧邻，起点直接相减）
-  const rangeStart = paraStart - headerNode.nodeSize
+  // 替换当前段落为表格
+  const rangeStart = $from.before(1)
   const rangeEnd = $from.after(1)
   // closeHistory：成表事务强制成为独立撤销组。否则替换范围与上一步
-  // 输入范围相交（分隔行尾部在替换区间内），prosemirror-history 会把
-  // 连续输入与成表并成一组，一次 Cmd+Z 把敲好的两行文本一起撤没
+  // 输入范围相交（段落尾部在替换区间内），prosemirror-history 会把
+  // 连续输入与成表并成一组，一次 Cmd+Z 把敲好的表头文本一起撤没
   const tr = closeHistory(state.tr.replaceWith(rangeStart, rangeEnd, table))
 
   // 光标进入第一行数据单元格的空段落（row=1：0 是表头行）
@@ -171,4 +167,4 @@ export function tableFromDelimiter(
 }
 
 /** 表格输入插件（晚于 gfm 注册；只在顶层段落生效，不影响表格内 Enter） */
-export const tableInputPlugin = $prose(() => keymap({ Enter: tableFromDelimiter }))
+export const tableInputPlugin = $prose(() => keymap({ Enter: tableFromPipeRow }))

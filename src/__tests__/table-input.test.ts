@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Schema } from '@milkdown/kit/prose/model'
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
-import { splitPipeRow, parseDelimiterRow, parseHeaderRow, tableFromDelimiter } from '../table-input'
+import { splitPipeRow, parseDelimiterRow, tableFromPipeRow } from '../table-input'
 
 // ---------------------------------------------------------------------------
 // 纯函数：管道行解析
@@ -58,28 +58,8 @@ describe('parseDelimiterRow', () => {
   })
 })
 
-describe('parseHeaderRow', () => {
-  it('列数一致返回单元格文本', () => {
-    expect(parseHeaderRow('| 姓名 | 年龄 |', 2)).toEqual(['姓名', '年龄'])
-    expect(parseHeaderRow('a | b', 2)).toEqual(['a', 'b'])
-  })
-
-  it('允许空表头格', () => {
-    expect(parseHeaderRow('|  | b |', 2)).toEqual(['', 'b'])
-  })
-
-  it('列数不一致返回 null', () => {
-    expect(parseHeaderRow('| a | b | c |', 2)).toBeNull()
-    expect(parseHeaderRow('| a |', 2)).toBeNull()
-  })
-
-  it('含物理换行（硬换行段落）返回 null', () => {
-    expect(parseHeaderRow('a | b\nc | d', 2)).toBeNull()
-  })
-})
-
 // ---------------------------------------------------------------------------
-// Enter 行为：两段转表格（最小 gfm 同构 schema，参照 table-toolbar.test.ts）
+// Enter 行为：管道行回车即成表（最小 gfm 同构 schema，参照 table-toolbar.test.ts）
 // ---------------------------------------------------------------------------
 
 const schema = new Schema({
@@ -132,16 +112,16 @@ function stateAtParaEnd(nodes: ReturnType<typeof p>[], paraIndex: number) {
 
 const run = (state: EditorState) => {
   let dispatched = false
-  const result = tableFromDelimiter(state, (tr) => {
+  const result = tableFromPipeRow(state, (tr) => {
     dispatched = true
     state = state.apply(tr)
   })
   return { result, dispatched, state }
 }
 
-describe('tableFromDelimiter', () => {
-  it('表头段+分隔行段末回车：两段替换为表格，表头文本入格', () => {
-    const before = stateAtParaEnd([p('| a | b |'), p('| -- | -- |')], 1)
+describe('tableFromPipeRow', () => {
+  it('管道行段末回车：当前段落替换为表格，表头文本入格', () => {
+    const before = stateAtParaEnd([p('| a | b |')], 0)
     const { result, dispatched, state } = run(before)
     expect(result).toBe(true)
     expect(dispatched).toBe(true)
@@ -163,71 +143,78 @@ describe('tableFromDelimiter', () => {
     expect(dataRow.child(1).textContent).toBe('')
   })
 
-  it('分隔行冒号对齐写入单元格 alignment', () => {
-    const { state } = run(stateAtParaEnd([p('a | b | c'), p(':-- | :-: | --:')], 1))
+  it('对齐默认 null（成表后可用工具栏设置）', () => {
+    const { state } = run(stateAtParaEnd([p('a | b | c')], 0))
     const headerCells = state.doc.firstChild!.child(0)
     const dataCells = state.doc.firstChild!.child(1)
-    expect(headerCells.child(0).attrs.alignment).toBe('left')
-    expect(headerCells.child(1).attrs.alignment).toBe('center')
-    expect(dataCells.child(2).attrs.alignment).toBe('right')
+    expect(headerCells.child(0).attrs.alignment).toBeNull()
+    expect(headerCells.child(1).attrs.alignment).toBeNull()
+    expect(dataCells.child(2).attrs.alignment).toBeNull()
   })
 
   it('转换后选区落在第一行数据单元格内', () => {
-    const { state } = run(stateAtParaEnd([p('| a | b |'), p('| -- | -- |')], 1))
+    const { state } = run(stateAtParaEnd([p('| a | b |')], 0))
     const { $from } = state.selection
     expect($from.node($from.depth - 1).type.name).toBe('table_cell')
   })
 
-  it('空表头格可正常成表', () => {
-    const { result, state } = run(stateAtParaEnd([p('|  | b |'), p('| -- | -- |')], 1))
+  it('省略首尾管道也可成表', () => {
+    const { result, state } = run(stateAtParaEnd([p('左列 | 右列')], 0))
     expect(result).toBe(true)
-    expect(state.doc.firstChild!.child(0).child(0).textContent).toBe('')
+    expect(state.doc.firstChild!.child(0).child(0).textContent).toBe('左列')
+    expect(state.doc.firstChild!.child(0).child(1).textContent).toBe('右列')
   })
 
-  it('分隔行位于文档首行（无表头）不触发', () => {
+  it('空表头格可正常成表', () => {
+    const { result, state } = run(stateAtParaEnd([p('|  | b |')], 0))
+    expect(result).toBe(true)
+    expect(state.doc.firstChild!.child(0).child(0).textContent).toBe('')
+    expect(state.doc.firstChild!.child(0).child(1).textContent).toBe('b')
+  })
+
+  it('三列表头可成表', () => {
+    const { result, state } = run(stateAtParaEnd([p('| a | b | c |')], 0))
+    expect(result).toBe(true)
+    expect(state.doc.firstChild!.child(0).childCount).toBe(3)
+  })
+
+  it('分隔行格式不触发（| -- | -- | 不作为表头）', () => {
     const before = stateAtParaEnd([p('| -- | -- |')], 0)
     const { result, dispatched } = run(before)
     expect(result).toBe(false)
     expect(dispatched).toBe(false)
   })
 
-  it('表头与分隔行列数不一致不触发', () => {
-    const before = stateAtParaEnd([p('| a | b | c |'), p('| -- | -- |')], 1)
-    const { result, state } = run(before)
+  it('无管道符不触发（普通文本回车分段）', () => {
+    const before = stateAtParaEnd([p('普通文本')], 0)
+    const { result } = run(before)
     expect(result).toBe(false)
-    expect(state.doc).toBe(before.doc)
   })
 
-  it('当前段落不是分隔行不触发（普通回车分段）', () => {
-    const before = stateAtParaEnd([p('| a | b |'), p('普通段落')], 1)
+  it('水平线 --- 不触发', () => {
+    const before = stateAtParaEnd([p('---')], 0)
     const { result } = run(before)
     expect(result).toBe(false)
   })
 
   it('光标不在段尾不触发', () => {
-    const doc = schema.node('doc', null, [p('| a | b |'), p('| -- | -- |')])
-    // 第二段段首
-    const state = EditorState.create({
-      doc,
-      selection: TextSelection.create(doc, p('| a | b |').nodeSize + 1),
-    })
-    expect(tableFromDelimiter(state)).toBe(false)
+    const doc = schema.node('doc', null, [p('| a | b |')])
+    // 段首位置
+    const state = EditorState.create({ doc, selection: TextSelection.create(doc, 1) })
+    expect(tableFromPipeRow(state)).toBe(false)
   })
 
   it('引用块内（depth≠1）不触发', () => {
-    const quote = schema.node('blockquote', null, [p('| a | b |'), p('| -- | -- |')])
+    const quote = schema.node('blockquote', null, [p('| a | b |')])
     const doc = schema.node('doc', null, [quote])
     const innerStart = 2 // doc>quote>paragraph
-    const delimPos = innerStart + p('| a | b |').nodeSize + p('| -- | -- |').content.size
-    const state = EditorState.create({
-      doc,
-      selection: TextSelection.create(doc, delimPos),
-    })
-    expect(tableFromDelimiter(state)).toBe(false)
+    const paraEnd = innerStart + p('| a | b |').content.size
+    const state = EditorState.create({ doc, selection: TextSelection.create(doc, paraEnd) })
+    expect(tableFromPipeRow(state)).toBe(false)
   })
 
   it('无 dispatch 时仅查询：返回 true 且文档不变', () => {
-    const before = stateAtParaEnd([p('| a | b |'), p('| -- | -- |')], 1)
-    expect(tableFromDelimiter(before)).toBe(true)
+    const before = stateAtParaEnd([p('| a | b |')], 0)
+    expect(tableFromPipeRow(before)).toBe(true)
   })
 })
