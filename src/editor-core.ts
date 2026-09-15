@@ -27,6 +27,7 @@ import { imageSrcResolver } from './image-resolver'
 import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
 import { tableToolbar } from './table-toolbar'
+import { tableInputPlugin } from './table-input'
 import { normalizeEmptyTableCells } from './table-markdown'
 import { patchTextEscaping, pipeBreakEscapingRemark } from './text-escaping'
 import { formatKeymap } from './format'
@@ -86,7 +87,9 @@ export function updateWordCount(markdown: string) {
  * markExt（==高亮==/^上标^/~下标~，须晚于 gfm：单波浪纠正依赖其 delete 解析）、
  * frontmatter（YAML 元信息块 schema/视图，须晚于 commonmark 注册）、
  * imageSrcResolver（相对路径图片）、linkNav（链接点击跳转）、
- * tableToolbar（表格悬浮工具栏）、formatKeymap（格式化快捷键）、
+ * tableToolbar（表格悬浮工具栏）、
+ * tableInput（Typora 式「表头行+分隔行」回车自动成表，晚于 gfm）、
+ * formatKeymap（格式化快捷键）、
  * focusPlugin（专注模式变暗装饰器）、imageAttrs（图片缩放/对齐）。
  */
 async function createEditor(markdown: string): Promise<Editor> {
@@ -132,6 +135,8 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(imageAttrsPlugins)
       .use(linkNav)
       .use(tableToolbar)
+      // Typora 式输入：段落里敲完表头行与 | -- | 分隔行后回车即转真表格
+      .use(tableInputPlugin)
       .use(formatKeymap)
       .use(focusPlugin)
       .create()
