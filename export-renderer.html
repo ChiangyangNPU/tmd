@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>TMD 导出</title>
+    <style>
+      /* 离屏导出页的“页面外壳”样式：只负责消除默认边距与铺满底色。
+         正文版式（字体/间距/颜色）由 src/export-doc.ts 的 EXPORT_CSS 与主题变量快照
+         在运行时注入（与独立 HTML 导出完全同源），此页不重复定义。 */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        background: var(--bg, #ffffff);
+      }
+      /* 长图导出会按需给 body 加 zoom 归一清晰度，此处不设固定宽高以免干扰测量 */
+    </style>
+    <!-- 模块脚本置于 head：默认 defer，保证 body 被正文整体替换时脚本已就绪。
+         离屏页结构（正文即 body 内容）与独立 HTML 导出保持一致。 -->
+    <script type="module" src="/src/export-renderer.ts"></script>
+  </head>
+  <body></body>
+</html>

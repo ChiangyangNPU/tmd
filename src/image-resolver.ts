@@ -12,6 +12,7 @@
 import { $prose } from '@milkdown/kit/utils'
 import { Plugin } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet } from '@milkdown/kit/prose/view'
+import { toFileUrl } from './fs-path'
 
 let baseDir: string | null = null
 
@@ -23,19 +24,6 @@ export function setImageBaseDir(dir: string | null) {
 /** 是否为需要解析的相对路径（排除 data:/http(s):/file:/根相对） */
 function isRelativeSrc(src: unknown): boolean {
   return typeof src === 'string' && src !== '' && !/^(data:|https?:|file:|\/)/i.test(src)
-}
-
-/**
- * 把文档目录与相对路径拼成可直接用于 img.src 的 file:// URL。
- * 反斜杠统一为正斜杠（Windows 路径）；非根路径补前导斜杠；
- * '#' 需转义为 %23，否则会被浏览器当作 URL 片段截断文件名。
- * @param dir - 文档所在目录的绝对路径
- * @param src - 文档内保存的相对路径（如 assets/xxx.png）
- * @returns file:// 开头的绝对地址
- */
-function toFileUrl(dir: string, src: string): string {
-  const normalized = `${dir.replaceAll('\\', '/')}/${src.replaceAll('\\', '/')}`
-  return `file://${normalized.startsWith('/') ? '' : '/'}${encodeURI(normalized).replaceAll('#', '%23')}`
 }
 
 /** 图片路径解析插件：显示时把相对路径 src 解析为 file:// 绝对地址（节点装饰，文档数据不变） */

@@ -54,12 +54,30 @@ export function normalizeFsPath(p: string): string {
 /**
  * 取路径的目录部分（兼容 `/` 与 `\`；无分隔符时返回空串）。
  * 仅截断到最后一个分隔符，不做补全，故不依赖 path 模块。
- * @param p - 文件路径
+ * @param p - 路径
  * @returns 目录部分
  */
 export function dirOf(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
   return i > 0 ? p.slice(0, i) : ''
+}
+
+/**
+ * 把文档目录与相对路径拼成可直接用于 img.src 的 file:// URL。
+ * 反斜杠统一为正斜杠（Windows 路径）；POSIX 与盘符路径补对应前导斜杠；
+ * '#' 需转义为 %23，否则会被浏览器当作 URL 片段截断文件名。
+ *
+ * 编辑器显示解析（image-resolver）与导出图片本地化（export-doc）共用，
+ * 保证两处对同一路径的 file:// 结果完全一致。
+ *
+ * @param dir - 文档所在目录的绝对路径
+ * @param src - 文档内保存的相对路径（如 assets/xxx.png）
+ * @returns file:// 开头的绝对地址
+ */
+export function toFileUrl(dir: string, src: string): string {
+  const normalized = `${dir.replaceAll('\\', '/')}/${src.replaceAll('\\', '/')}`
+  const prefix = normalized.startsWith('/') ? 'file://' : 'file:///'
+  return `${prefix}${encodeURI(normalized).replaceAll('#', '%23')}`
 }
 
 /**

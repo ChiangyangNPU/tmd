@@ -83,6 +83,13 @@
       <button id="menu-export-html-btn" class="menu-item" data-i18n="menu.exportHtml">
         导出 HTML
       </button>
+      <!-- Word / 长图需离屏渲染（仅 Electron 环境可用），浏览器下由 main.ts 隐藏 -->
+      <button id="menu-export-word-btn" class="menu-item" data-i18n="menu.exportWord">
+        导出 Word
+      </button>
+      <button id="menu-export-longimage-btn" class="menu-item" data-i18n="menu.exportLongimage">
+        导出长图
+      </button>
       <button id="menu-insert-toc-btn" class="menu-item" data-i18n="menu.insertToc">
         插入目录
       </button>
@@ -659,6 +666,11 @@
                   href="https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/LICENSE"
                   data-external
                   >electron-updater</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a href="https://github.com/floodtide/dom-docx/blob/main/LICENSE" data-external
+                  >dom-docx</a
                 ><span class="license-type">MIT</span>
               </div>
             </div>

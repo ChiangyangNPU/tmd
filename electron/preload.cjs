@@ -126,6 +126,8 @@ const api = {
   readTheme: (name) => ipcRenderer.invoke(IPC.themesRead, name),
   /** 文件式主题：在系统文件管理器中打开主题目录（空目录时创建并写入示例） */
   openThemesDir: () => ipcRenderer.invoke(IPC.themesOpenDir),
+  /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
+  exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
 }
 
 contextBridge.exposeInMainWorld('tmdAPI', api)

@@ -40,6 +40,7 @@ const {
   readThemeFile,
   ensureThemesDirWithSample,
 } = require('./themes.cjs')
+const { createExporter } = require('./exporter.cjs')
 const os = require('node:os')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -153,6 +154,8 @@ const DEFAULT_MENU_LABELS = {
   export: '导出',
   exportHtml: '导出 HTML',
   exportPdf: '打印 / 导出 PDF',
+  exportWord: '导出 Word',
+  exportLongimage: '导出长图',
   format: '格式',
   bold: '加粗',
   italic: '斜体',
@@ -255,6 +258,17 @@ function dialogParent() {
   )
 }
 
+// 离屏导出服务（Word / 长图）：隐藏窗口单例 + 串行队列，编排逻辑在离屏页
+const exporter = createExporter({
+  BrowserWindow,
+  session,
+  ipcMain,
+  dialog,
+  IPC,
+  rendererUrl: DEV_SERVER_URL,
+  getParentWindow: () => mainWindow,
+})
+
 /**
  * 构建（并设置）应用菜单。
  *
@@ -335,6 +349,17 @@ function buildMenu() {
           // Ctrl/Cmd+P 已让位给快速切换面板（高频优先），PDF 改 Shift+Mod+P
           accelerator: acc('export-pdf', 'CmdOrCtrl+Shift+P'),
           click: () => sendToRenderer(IPC.menu, 'export-pdf'),
+        },
+        { type: 'separator' },
+        // Word / 长图走离屏渲染，耗时明显长于 HTML/PDF，故不绑定快捷键
+        // （避免误触触发重任务），仅从菜单与工具栏 ⋯ 菜单进入
+        {
+          label: L('exportWord'),
+          click: () => sendToRenderer(IPC.menu, 'export-word'),
+        },
+        {
+          label: L('exportLongimage'),
+          click: () => sendToRenderer(IPC.menu, 'export-longimage'),
         },
       ],
     },
@@ -1126,6 +1151,8 @@ app.whenReady().then(() => {
   }
   buildMenu()
   createWindow()
+  // 离屏导出服务：注册隐藏窗口的分区 CSP 与 4 条服务通道（窗口按需懒创建）
+  exporter.register()
   // 装配自动更新事件监听（autoCheckUpdateEnabled 由渲染层经 IPC 同步）
   setupAutoUpdater()
 
@@ -1156,3 +1183,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+// 退出前释放离屏导出窗口（无持久状态，仅为干净退出）
+app.on('will-quit', () => exporter.destroyWindow())

@@ -104,6 +104,15 @@ export interface NativeFileAPI {
   readTheme(name: string): Promise<string | null>
   /** 文件式主题：系统文件管理器打开主题目录（空目录时创建并写入示例主题） */
   openThemesDir(): Promise<boolean>
+  /**
+   * Word / 长图离屏导出：主进程先弹保存框（取消返回 null），
+   * 再把任务下发给隐藏导出窗口执行并写入目标文件。
+   */
+  exportRun(options: {
+    task: import('./export-bridge').ExportTask
+    defaultName: string
+    filters: { name: string; extensions: string[] }[]
+  }): Promise<{ path: string; name: string } | null>
 }
 
 /** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
@@ -238,4 +247,14 @@ export interface IpcChannels {
   themesList: string
   themesRead: string
   themesOpenDir: string
+  /** 主窗口发起离屏导出任务（弹保存框 + 隐藏窗口执行 + 写文件） */
+  exportRun: string
+  /** 主进程向离屏导出页下发任务 */
+  exporterTask: string
+  /** 离屏导出页回传任务结果（字节或错误） */
+  exporterDone: string
+  /** 离屏导出页原语：设置视口并截图 */
+  exporterCapture: string
+  /** 离屏导出页原语：白名单读取本地图片为 data URI */
+  exporterReadImage: string
 }

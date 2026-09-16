@@ -49,12 +49,12 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Triple paste-image strategy: inline data URL / save to `assets/` next to the document / upload to an image host (built-in PicGo-Core supporting SM.MS, GitHub, Qiniu, Upyun, Tencent COS, Aliyun OSS and Imgur — 7 providers; falls back to inline on failure; images >5MB ignored)
 - HTML paste conversion: rich text copied from web pages / Word is converted to Markdown automatically (whitelist sanitizing + protocol filtering; headings / lists / tables / code blocks preserved)
 - Relative-path images resolved against the document directory for display (document data keeps relative paths)
-- Export: HTML (standalone file, Mermaid/KaTeX via CDN) and PDF (via the system print dialog)
+- Export to four formats: HTML (standalone file, Mermaid/KaTeX via CDN), PDF (via the system print dialog), **Word** (native editable .docx: headings, lists, tables, inline formatting and hyperlinks all become native Word elements; display formulas and Mermaid diagrams are embedded as 2x bitmaps) and **long image** (a single PNG at no less than 2x physical resolution; long documents are captured and stitched in segments automatically)
 - Autosave (writes back every 5 seconds; one shared switch for the settings panel and the menu)
 - Dark/light theme switching (diagrams re-rendered in place — the editor is never rebuilt, preserving undo history / focus / scroll position)
 - Theme presets (Default / Dark / Sepia / Green), file-based themes (`~/.tmd/themes/*.css` — the file name is the theme name; open the folder / reload from the settings panel) and custom CSS injection (takes effect immediately)
 - Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
-- Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 10 third-party components
+- Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 11 third-party components
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
 - **Electron desktop shell** (`electron/`):
   - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
@@ -67,16 +67,18 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 
 ## Tech Stack
 
-Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core.
+Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core + dom-docx.
 
 ## Directory Structure
 
 ```
 index.html                Page entry
+export-renderer.html      Offscreen export page entry (Word / long image, loaded by a hidden window)
 public/boot.js            First-frame bootstrap script (theme/platform classes, prevents white flash)
 electron/main.cjs         Electron main process (window, menu, IPC file read/write, image hosting, auto-update)
 electron/search.cjs       Full-text search scanning & matching (pure Node, independently verifiable)
 electron/themes.cjs       File-based theme folder scanning & safety checks (pure Node, independently verifiable)
+electron/exporter.cjs     Offscreen export service (hidden window / serial task queue / capture & read-image primitives)
 electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
 electron/preload.cjs      Controlled API exposure (contextBridge)
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
@@ -88,6 +90,10 @@ src/theme-presets.ts      Theme presets, file-based themes & custom CSS injectio
 src/shortcuts.ts          Shortcut configuration (definitions / read-write / validation / display formatting)
 src/search.ts             Cross-file search panel (debounce / grouped rendering / jump & locate)
 src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)
+src/export-doc.ts         Export document core (render pipeline / styles / image-ref classification, shared by all four formats)
+src/export-word.ts        Word export adapter (region capture rasterization + OOXML conversion)
+src/export-image.ts       Long-image export (segment planning + canvas stitching)
+src/export-renderer.ts    Offscreen export page bootstrap (render pipeline + task dispatch)
 src/find.ts               Find & replace (decorator-based)
 src/toc.ts                Table-of-contents (TOC) block
 src/mark-ext.ts           Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)

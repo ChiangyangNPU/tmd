@@ -49,12 +49,12 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 粘贴图片三策略：内联 data URL / 文档同目录 `assets/` 落盘 / 上传到图床（内建 PicGo-Core，支持 SM.MS、GitHub、七牛云、又拍云、腾讯云 COS、阿里云 OSS、Imgur 共 7 种；落盘或上传失败自动降级内联，>5MB 忽略）
 - HTML 粘贴转换：从网页/Word 复制的富文本自动转 Markdown（白名单清洗 + 协议过滤，标题/列表/表格/代码块等结构保留）
 - 相对路径图片按文档所在目录解析显示（文档数据保持相对路径）
-- 导出：HTML（独立文件，Mermaid/KaTeX 走 CDN）、PDF（经系统打印对话框）
+- 导出四种格式：HTML（独立文件，Mermaid/KaTeX 走 CDN）、PDF（经系统打印对话框）、**Word**（原生可编辑 .docx：标题/列表/表格/行内格式/超链接均为 Word 原生元素，独占公式与 Mermaid 图以 2x 位图嵌入）、**长图**（单张 PNG，物理清晰度不低于 2x，超长文档自动分段拼接）
 - 自动保存（5 秒周期写回，设置面板与菜单共用开关）
 - 深色/浅色主题切换（图表原地重渲，不重建编辑器，保住撤销历史/焦点/滚动位置）
 - 主题预设（简约白 / 深色 / 羊皮纸 / 护眼绿）、文件式主题（`~/.tmd/themes/*.css`，文件名即主题名，设置面板一键打开目录/刷新加载）与自定义 CSS 注入（即时生效）
 - 多语言界面（简体中文 / 繁體中文（台港用词）/ English，跟随系统，设置面板可切换）
-- 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 10 个第三方组件的许可证声明与直达链接
+- 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 11 个第三方组件的许可证声明与直达链接
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
 - **Electron 桌面壳**（`electron/`）：
   - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
@@ -67,16 +67,18 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 
 ## 技术栈
 
-Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core。
+Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core + dom-docx。
 
 ## 目录结构
 
 ```
 index.html            页面入口
+export-renderer.html  离屏导出页入口（Word / 长图，隐藏窗口加载）
 public/boot.js        首帧引导脚本（主题/平台类，防启动白闪）
 electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、图床上传、自动更新）
 electron/search.cjs   全文搜索的扫描与匹配（纯 Node，可独立验证）
 electron/themes.cjs   文件式主题目录扫描与安全校验（纯 Node，可独立验证）
+electron/exporter.cjs 离屏导出服务（隐藏窗口 / 串行队列 / 截图与读图原语）
 electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
 electron/preload.cjs  受控 API 暴露（contextBridge）
 scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
@@ -88,6 +90,10 @@ src/theme-presets.ts  主题预设、文件式主题与自定义 CSS 注入
 src/shortcuts.ts      快捷键配置（定义 / 读写 / 校验 / 显示格式化）
 src/search.ts         跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
 src/fs-path.ts        文件系统路径工具（规范化 / 取目录 / 同一性判断）
+src/export-doc.ts     导出文档核心（渲染管线 / 样式 / 图片引用分类，四载体共用）
+src/export-word.ts    Word 导出适配（区域截帧栅格化 + OOXML 转换）
+src/export-image.ts   长图导出（分段计划 + canvas 拼接）
+src/export-renderer.ts 离屏导出页引导（渲染管线 + 任务分派）
 src/find.ts           查找替换（装饰器实现）
 src/toc.ts            目录（TOC）块
 src/mark-ext.ts       语法扩展（高亮 / 上下标：解析、序列化、输入规则）

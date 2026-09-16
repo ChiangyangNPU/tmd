@@ -128,3 +128,45 @@ describe('renderMarkdown 扩展语法', () => {
     expect(renderMarkdown('`a^b^ c==d==`')).toContain('<code>a^b^ c==d==</code>')
   })
 })
+
+describe('renderMarkdown 公式保护', () => {
+  it('行内公式原文完整保留（^ _ 不被上/下标插件改写）', () => {
+    const html = renderMarkdown('行内 $E = mc^2$ 与 $x_{1}^{2}$ 结束')
+    expect(html).toContain('$E = mc^2$')
+    expect(html).toContain('$x_{1}^{2}$')
+    expect(html).not.toContain('<sup>')
+    expect(html).not.toContain('<sub>')
+  })
+
+  it('LaTeX 转义命令不被 markdown-it 转义规则吞掉（\\, \\{ \\}）', () => {
+    const html = renderMarkdown('$a \\, b \\{c\\}$')
+    expect(html).toContain('\\,')
+    expect(html).toContain('\\{c\\}')
+  })
+
+  it('独占公式跨行保留原文（供 KaTeX display 模式渲染）', () => {
+    const html = renderMarkdown('$$\n\\int_{0}^{1} \\frac{x^{2}}{1+x^{2}} \\, dx\n$$')
+    expect(html).toContain('\\int_{0}^{1}')
+    expect(html).toContain('\\frac{x^{2}}{1+x^{2}}')
+    expect(html).toContain('\\, dx')
+    expect(html).toContain('$$')
+  })
+
+  it('货币写法不误判为公式（开闭 $ 之间有空白边界）', () => {
+    const html = renderMarkdown('价格 $5 与 $6 的差异')
+    expect(html).toContain('$5')
+    expect(html).toContain('$6')
+  })
+
+  it('行内代码与代码块中的 $ 不受影响', () => {
+    expect(renderMarkdown('`$a^2$`')).toContain('<code>$a^2$</code>')
+    expect(renderMarkdown('```\n$$x$$\n```')).toContain('$$x$$')
+  })
+
+  it('其他扩展语法仍在公式之外正常工作', () => {
+    const html = renderMarkdown('==高亮== 与 $a^2$ 与 H~2~O')
+    expect(html).toContain('<mark>高亮</mark>')
+    expect(html).toContain('H<sub>2</sub>O')
+    expect(html).toContain('$a^2$')
+  })
+})

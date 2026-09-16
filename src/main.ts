@@ -18,7 +18,7 @@ import { setMermaidTheme } from './mermaid'
 import { insertToc } from './toc'
 import { openFindBar, wireFindBar } from './findbar'
 import { collectOutline, renderOutline } from './outline'
-import { exportHtml, exportPdf } from './export'
+import { exportHtml, exportLongimage, exportPdf, exportWord } from './export'
 import { native } from './native'
 import { t, applyDomTexts, menuLabels, getLocale } from './i18n'
 import { setImagePasteContext } from './paste-image'
@@ -194,6 +194,26 @@ async function boot() {
       void exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))
       closeMoreMenu()
     })
+    // Word / 长图：离屏渲染导出（仅 Electron 环境可用）
+    document.getElementById('menu-export-word-btn')?.addEventListener('click', () => {
+      void exportWord(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'), getActiveBaseDir())
+      closeMoreMenu()
+    })
+    document.getElementById('menu-export-longimage-btn')?.addEventListener('click', () => {
+      void exportLongimage(
+        currentMarkdown(),
+        activeTab()?.name ?? t('tab.untitled'),
+        getActiveBaseDir(),
+      )
+      closeMoreMenu()
+    })
+    // 浏览器环境没有离屏渲染能力，隐藏这两项（HTML / PDF 导出仍可用）
+    if (!native) {
+      for (const id of ['menu-export-word-btn', 'menu-export-longimage-btn']) {
+        const btn = document.getElementById(id)
+        if (btn) btn.hidden = true
+      }
+    }
     document.getElementById('menu-insert-toc-btn')?.addEventListener('click', () => {
       const view = getPmView()
       if (view && !isSourceMode()) insertToc(view)
@@ -314,6 +334,18 @@ async function boot() {
         'export-html': () =>
           void exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')),
         'export-pdf': () => void exportPdf(),
+        'export-word': () =>
+          void exportWord(
+            currentMarkdown(),
+            activeTab()?.name ?? t('tab.untitled'),
+            getActiveBaseDir(),
+          ),
+        'export-longimage': () =>
+          void exportLongimage(
+            currentMarkdown(),
+            activeTab()?.name ?? t('tab.untitled'),
+            getActiveBaseDir(),
+          ),
         'clear-recent': () => clearRecentDocuments(),
       }
       handlers[action]?.()

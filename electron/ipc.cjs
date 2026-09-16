@@ -54,6 +54,12 @@ const channels = {
   themesList: 'tmd:themes-list',
   themesRead: 'tmd:themes-read',
   themesOpenDir: 'tmd:themes-open-dir',
+  // 离屏导出（Word / 长图）：主窗口发起 → 隐藏窗口执行 → 原语回传
+  exportRun: 'tmd:export-run',
+  exporterTask: 'tmd:exporter-task',
+  exporterDone: 'tmd:exporter-done',
+  exporterCapture: 'tmd:exporter-capture',
+  exporterReadImage: 'tmd:exporter-read-image',
 }
 
 module.exports = channels
