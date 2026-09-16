@@ -171,6 +171,14 @@ let replaceSeq = 0
 
 /** 串行化：快速连续切换标签/打开文件时避免并发重建互相踩踏（产生多个编辑器实例） */
 let replaceQueue: Promise<void> = Promise.resolve()
+
+/**
+ * 重建编辑器：销毁旧实例并用新文档挂载。
+ * 入队串行执行，避免并发重建踩踏；失败仅记录日志，不中断队列。
+ * @param markdown - 新文档内容
+ * @param options - 滚动位置保持/恢复选项
+ * @returns 本次重建完成的 Promise
+ */
 export function replaceEditor(markdown: string, options: ReplaceOptions = {}): Promise<void> {
   replaceQueue = replaceQueue
     .then(() => doReplaceEditor(markdown, options))

@@ -53,6 +53,16 @@ export interface ImgAttrs {
 const MIN_WIDTH = 32
 const MAX_WIDTH = 99999
 
+/**
+ * 宽度裁剪：先四舍五入取整，再夹到 [MIN_WIDTH, MAX_WIDTH] 区间
+ *
+ * 边界取自模块常量：下限 MIN_WIDTH（32px）保证缩放手柄仍可点中，
+ * 上限 MAX_WIDTH（99999px）防止宽度溢出；拖拽时调用方还会再叠加一次
+ * 编辑器可用宽度的限制。
+ *
+ * @param w - 待裁剪的宽度（像素）
+ * @returns 取整并夹在上下限之内的宽度
+ */
 export function clampWidth(w: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(w)))
 }
@@ -325,6 +335,17 @@ class ImageView implements NodeView {
 
   private cleanupDrag: (() => void) | null = null
 
+  /**
+   * 构造图片节点视图：依次创建 img、对齐/重置工具栏与缩放手柄，装入 span 容器，
+   * 绑定工具栏按压（阻止失选）、按钮点击与手柄拖拽，最后按节点属性同步一次 DOM
+   *
+   * 本视图承担「图片 + 对齐/重置操作 + 拖拽缩放」的展示与交互；拖拽过程中只做
+   * DOM 预览，抬起鼠标才一次性提交文档事务。
+   *
+   * @param node - 对应的 ProseMirror image 节点
+   * @param view - 所属编辑器视图
+   * @param getPos - 获取本节点在文档中位置的函数（节点已被移除时返回 undefined）
+   */
   constructor(node: ProseNode, view: EditorView, getPos: () => number | undefined) {
     this.node = node
     this.view = view
@@ -445,6 +466,16 @@ class ImageView implements NodeView {
     this.cleanupDrag = cleanup
   }
 
+  /**
+   * ProseMirror 在节点更新时调用
+   *
+   * 节点类型不符时返回 false 让 ProseMirror 重建视图；否则刷新节点引用，并按新
+   * attrs 与本次装饰（image-resolver 在节点装饰上放了解析后的 src）同步 DOM。
+   *
+   * @param node - 更新后的节点
+   * @param decorations - 本次生效的装饰集（用于读取解析后的图片 src）
+   * @returns true 表示更新已由本视图自行处理（无需重建）；false 表示需要重建视图
+   */
   update(node: ProseNode, decorations: readonly Decoration[]): boolean {
     if (node.type.name !== 'image') return false
     this.node = node
@@ -452,25 +483,41 @@ class ImageView implements NodeView {
     return true
   }
 
+  /** 节点被选中：给容器加上选中样式，从而显示对齐工具栏与缩放手柄 */
   selectNode() {
     this.dom.classList.add('pm-image--selected')
   }
 
+  /** 节点取消选中：移除容器上的选中样式，隐藏对齐工具栏与缩放手柄 */
   deselectNode() {
     this.dom.classList.remove('pm-image--selected')
   }
 
-  // 手柄与浮层的事件自行处理；img 本身的点击/拖拽交给 ProseMirror（选中/移动节点）
+  /**
+   * 阻止特定 DOM 事件冒泡给 ProseMirror
+   *
+   * 手柄与浮层的事件自行处理；img 本身的点击/拖拽交给 ProseMirror（选中/移动节点）。
+   *
+   * @param event - 待判定的事件
+   * @returns true 表示事件由本视图消费（发生在工具栏或手柄内），不再交给 ProseMirror
+   */
   stopEvent(event: Event): boolean {
     const target = event.target as Node
     return this.toolbar.contains(target) || this.handle.contains(target)
   }
 
-  // 纯 atom 展示视图，内部变化全部来自自己的 DOM 操作
+  /**
+   * 告诉 ProseMirror 哪些 DOM 变更应被忽略，避免内部渲染被误判为用户编辑
+   *
+   * 纯 atom 展示视图，内部变化全部来自自己的 DOM 操作，故一律忽略。
+   *
+   * @returns true 表示忽略该变更（不当作编辑处理）
+   */
   ignoreMutation(): boolean {
     return true
   }
 
+  /** 视图销毁：清理未结束的拖拽（移除 document 上的 mousemove/mouseup 监听） */
   destroy() {
     this.cleanupDrag?.()
   }

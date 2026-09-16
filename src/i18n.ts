@@ -41,6 +41,11 @@ export function setLocale(locale: string) {
   localStorage.setItem(LOCALE_KEY, locale)
 }
 
+/**
+ * 按点分路径从当前语言包中取值。
+ * @param path - 点分路径（如 'settings.shortcuts'）
+ * @returns 命中的字符串；路径不存在或值非字符串时返回 undefined
+ */
 function resolve(path: string): string | undefined {
   const value = path
     .split('.')

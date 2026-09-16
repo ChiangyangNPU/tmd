@@ -233,6 +233,13 @@ function dialogParent() {
   )
 }
 
+/**
+ * 构建（并设置）应用菜单。
+ *
+ * 菜单文案取自渲染层下发的语言包（menuLabels），渲染层未就绪时用中文兜底；
+ * 各菜单项的 accelerator 优先使用用户自定义快捷键（customShortcuts），
+ * 未自定义时回落到内置默认值。渲染层切换语言或改动快捷键后会再次调用本函数重建。
+ */
 function buildMenu() {
   const isMac = process.platform === 'darwin'
   /** @type {import('electron').MenuItemConstructorOptions[]} */
@@ -394,6 +401,14 @@ function buildMenu() {
   autosaveMenuItem = Menu.getApplicationMenu()?.getMenuItemById('autosave') ?? null
 }
 
+/**
+ * 创建主窗口。
+ *
+ * 流程：先注入 CSP 响应头（阻断渲染层加载非预期外部资源，防 XSS），
+ * 再按当前主题设置窗口底色（深色启动首帧即深色，杜绝白闪），
+ * 并按平台选择标题栏样式——macOS 红绿灯沉浸、Windows/Linux 完全自绘，
+ * 最后加载渲染层入口。
+ */
 function createWindow() {
   // CSP：注入到所有响应头，阻断渲染层加载非预期外部资源（防 XSS）。
   // script-src 'self'：禁止 eval/内联脚本；style-src 含 'unsafe-inline'

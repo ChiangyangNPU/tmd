@@ -43,8 +43,12 @@ export function findMatches(doc: ProseNode, query: string): MatchRange[] {
   return results
 }
 
+/**
+ * 触发一次无变更事务，让查找装饰器重新计算高亮。
+ * 装饰器只在事务中重算，故查询词或当前项变化后需借此刷新视图。
+ * @param view - 编辑器视图
+ */
 function sync(view: EditorView) {
-  // 触发一次无变更事务，让装饰器重新计算
   view.dispatch(view.state.tr.setMeta('find-update', true))
 }
 

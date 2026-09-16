@@ -41,10 +41,11 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 文件侧边栏：可同时挂载多个文件夹（独立展开、重启恢复、展开懒加载）与最近打开列表；两者均支持行内 hover × 单条移除与一键清空（二次确认；文件夹只取消挂载，不删除磁盘文件）
 - 拖拽打开：拖 .md 文件进窗口即打开（新标签），拖图片进文档按粘贴策略插入
 - 格式化快捷键与「格式」菜单：标题 1~6（Ctrl/Cmd+1~6）、加粗/斜体（Ctrl/Cmd+B/I）、链接（Ctrl/Cmd+K）、引用、有序/无序列表、代码块，全部可撤销
+- **快捷键自定义**：设置面板按「文件 / 导出 / 格式 / 编辑器」四组罗列 28 项快捷键，点击按键框后按下新组合键即可改键；带冲突检测与就地错误提示，支持一键恢复默认（Windows 显示 `Ctrl+Shift+O`，macOS 按苹果规范显示 `⇧⌘O`）
 - 语法扩展：脚注 `[^1]`、高亮 `==文本==`、上/下标（`^x^`/`~x~` 与 `^{x}`/`_{x}` 两种写法均识别，保存统一为 Pandoc 单符号风格）、YAML front matter（文档开头 `---` 围栏渲染为键值属性表，点击进 YAML 源码编辑，保存字节级原样写回，导出 HTML/PDF 自动剥离）；快捷键：高亮 Ctrl/Cmd+Shift+H、上标 Ctrl/Cmd+Shift+=、下标 Ctrl/Cmd+Shift+-
 - 编辑区右键上下文菜单：剪切/复制/粘贴 + 按选区显隐的格式化项（含移除链接）
 - 链接点击跳转：Ctrl/Cmd+点击外部链接跳浏览器、相对路径链接按文档目录解析后用系统应用打开（悬停按住 Mod 键提示可点）
-- 粘贴图片双策略：内联 data URL / 文档同目录 `assets/` 落盘（落盘失败自动降级内联，>5MB 忽略）
+- 粘贴图片三策略：内联 data URL / 文档同目录 `assets/` 落盘 / 上传到图床（内建 PicGo-Core，支持 SM.MS、GitHub、七牛云、又拍云、腾讯云 COS、阿里云 OSS、Imgur 共 7 种；落盘或上传失败自动降级内联，>5MB 忽略）
 - HTML 粘贴转换：从网页/Word 复制的富文本自动转 Markdown（白名单清洗 + 协议过滤，标题/列表/表格/代码块等结构保留）
 - 相对路径图片按文档所在目录解析显示（文档数据保持相对路径）
 - 导出：HTML（独立文件，Mermaid/KaTeX 走 CDN）、PDF（经系统打印对话框）
@@ -52,6 +53,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 深色/浅色主题切换（图表原地重渲，不重建编辑器，保住撤销历史/焦点/滚动位置）
 - 主题预设（简约白 / 深色 / 羊皮纸 / 护眼绿）与自定义 CSS 注入（设置面板文本域，即时生效）
 - 多语言界面（简体中文 / English，跟随系统，设置面板可切换）
+- 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 10 个第三方组件的许可证声明与直达链接
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
 - **Electron 桌面壳**（`electron/`）：
   - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
@@ -60,29 +62,32 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
   - 崩溃恢复（文档内容每次变更即写 localStorage 恢复副本）
   - 渲染层保持纯网页逻辑，Node 能力经 preload 受控暴露（contextIsolation）
   - 浏览器模式自动降级：文件选择用 `<input type=file>`，保存为下载
+  - 安装包瘦身：打包时经 afterPack 钩子裁剪 Electron 的非中英文语言包与 WebGL/Vulkan 渲染组件，Windows 安装包约 93MB
 
 ## 技术栈
 
-Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor。
+Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core。
 
 ## 目录结构
 
 ```
 index.html            页面入口
 public/boot.js        首帧引导脚本（主题/平台类，防启动白闪）
-electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、自动更新）
+electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、图床上传、自动更新）
 electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
 electron/preload.cjs  受控 API 暴露（contextBridge）
+scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
 src/main.ts           应用启动与全局装配（boot / hooks 注入 / 快捷键 / 菜单回调）
 src/editor-core.ts    编辑器枢纽（创建/重建/源码模式/内容取回）
 src/tabs.ts           多标签页状态机
 src/mermaid.ts        Mermaid 实时渲染插件（核心）
 src/theme-presets.ts  主题预设与自定义 CSS 注入
+src/shortcuts.ts      快捷键配置（定义 / 读写 / 校验 / 显示格式化）
 src/find.ts           查找替换（装饰器实现）
 src/toc.ts            目录（TOC）块
 src/mark-ext.ts       语法扩展（高亮 / 上下标：解析、序列化、输入规则）
 src/frontmatter.ts    YAML front matter（属性表 ⇄ 源码双态编辑）
-src/paste-image.ts    粘贴图片插件（inline / assets 双策略）
+src/paste-image.ts    粘贴图片插件（inline / assets / 图床 三策略）
 src/style.css         全部样式（CSS 变量实现深浅主题 + 高亮配色）
 docs/                 需求说明 / 架构设计 / 详细设计 / 打包发布等文档
 ```

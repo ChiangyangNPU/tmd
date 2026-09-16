@@ -173,6 +173,12 @@ class TableToolbarView {
   #el: HTMLElement
   #reposition = () => this.#render()
 
+  /**
+   * 构造悬浮工具栏视图：缓存编辑器视图与工具栏 DOM，
+   * 并监听窗口滚动/缩放以便工具栏跟随表格重新定位
+   *
+   * @param view - 所属编辑器视图
+   */
   constructor(view: EditorView) {
     this.#view = view
     this.#el = document.getElementById('table-toolbar') as HTMLElement
@@ -180,6 +186,11 @@ class TableToolbarView {
     window.addEventListener('resize', this.#reposition)
   }
 
+  /**
+   * ProseMirror 每次事务后调用：更新缓存的编辑器视图，并重算工具栏的显隐与位置
+   *
+   * @param view - 当前编辑器视图（编辑器重建时可能是新实例）
+   */
   update(view: EditorView): void {
     this.#view = view
     this.#render()
@@ -206,6 +217,7 @@ class TableToolbarView {
     this.#el.style.top = `${Math.max(VIEWPORT_MARGIN, top)}px`
   }
 
+  /** 视图销毁：移除滚动/缩放监听，并隐藏工具栏（切源码模式、换标签页时避免残留） */
   destroy(): void {
     window.removeEventListener('scroll', this.#reposition, true)
     window.removeEventListener('resize', this.#reposition)

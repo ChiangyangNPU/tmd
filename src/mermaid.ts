@@ -37,6 +37,14 @@ export function setMermaidTheme(theme: 'default' | 'dark') {
 
 type MdNode = { type: string; lang?: string | null; value?: string | null; children?: MdNode[] }
 
+/**
+ * 递归遍历 mdast，把 lang 为 mermaid 的 code 节点就地替换为内部 mermaid 节点
+ *
+ * 作为 mermaidRemark 的转换步骤，在 markdown 解析进编辑器时执行：命中即替换为
+ * `{ type: 'mermaid', value }`，未命中的节点继续向下递归；无子节点的叶子直接跳过。
+ *
+ * @param node - 待处理的 mdast 节点（含 children 时递归其子节点，就地修改）
+ */
 function convertMermaidBlocks(node: MdNode): void {
   if (!node.children) return
   const children = node.children
@@ -119,6 +127,14 @@ class MermaidView implements NodeView {
   private renderSeq = 0
   private timer: number | undefined
 
+  /**
+   * 构造 mermaid 节点视图：创建渲染区、错误提示、占位提示与源码区 DOM，
+   * 绑定渲染区点击进入源码编辑，注册到全局视图集合，并按节点源码首次调度渲染
+   *
+   * @param node - 对应的 ProseMirror mermaid 节点
+   * @param view - 所属编辑器视图
+   * @param getPos - 获取本节点在文档中位置的函数（节点已被移除时返回 undefined）
+   */
   constructor(node: ProseNode, view: EditorView, getPos: () => number | undefined) {
     this.view = view
     this.getPos = getPos
@@ -165,6 +181,10 @@ class MermaidView implements NodeView {
     this.dom.classList.toggle('editing', editing)
   }
 
+  /**
+   * 进入源码编辑（点击渲染区触发）：把选区移到本块内容起点并聚焦编辑器；
+   * 编辑态装饰检测到光标落在本块内后，视图即切到源码显示
+   */
   private enterEdit() {
     const pos = this.getPos()
     if (pos == null) return
@@ -173,11 +193,28 @@ class MermaidView implements NodeView {
     this.view.focus()
   }
 
+  /**
+   * 防抖调度渲染：先清掉未触发的定时器，RENDER_DEBOUNCE_MS 后再真正渲染，
+   * 用于合并连续输入产生的多次渲染请求
+   *
+   * @param code - 待渲染的 mermaid 源码
+   */
   private scheduleRender(code: string) {
     window.clearTimeout(this.timer)
     this.timer = window.setTimeout(() => void this.renderNow(code), RENDER_DEBOUNCE_MS)
   }
 
+  /**
+   * 立即渲染：把 mermaid 源码画成 SVG 挂到渲染区（防抖到期或主题切换时调用）
+   *
+   * 每次渲染前递增 renderSeq 并记录源码，异步返回后序号不匹配即丢弃结果，
+   * 避免过期的渲染覆盖新图；源码为空白时清空图表并显示占位提示。
+   * mermaid 图表类型按需懒加载导致的 "No diagram type detected" 会在
+   * retry < 3 且源码未被改动时延时重试，其他错误则清空旧图并展示错误信息。
+   *
+   * @param code - 待渲染的 mermaid 源码
+   * @param retry - 当前重试次数，首次调用为 0
+   */
   private async renderNow(code: string, retry = 0) {
     this.lastCode = code
     const seq = ++this.renderSeq
@@ -219,6 +256,16 @@ class MermaidView implements NodeView {
     }
   }
 
+  /**
+   * ProseMirror 在节点（或装饰）更新时调用
+   *
+   * 节点类型不符时返回 false 让 ProseMirror 重建视图；否则同步一次编辑态，
+   * 并在源码文本变化时防抖重渲。
+   *
+   * @param node - 更新后的节点
+   * @param _decorations - 本次生效的装饰集（本视图不依赖，未使用）
+   * @returns true 表示更新已由本视图自行处理（无需重建）；false 表示需要重建视图
+   */
   update(node: ProseNode, _decorations: readonly Decoration[]): boolean {
     if (node.type.name !== 'mermaid') return false
     this.syncEditing(node)
@@ -226,17 +273,33 @@ class MermaidView implements NodeView {
     return true
   }
 
-  // 自己改动的 SVG 区域不需要交给 ProseMirror 处理；源码区的文本变更必须交还
+  /**
+   * 告诉 ProseMirror 哪些 DOM 变更应被忽略，避免内部渲染操作被误判为用户编辑
+   *
+   * 自己改动的 SVG 区域不需要交给 ProseMirror 处理；源码区的文本变更必须交还，
+   * 选区变化一律交还。
+   *
+   * @param mutation - ProseMirror 观察到的 DOM 变更记录
+   * @returns true 表示忽略该变更（不当作编辑处理）
+   */
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === 'selection') return false
     return !this.contentDOM.contains(mutation.target)
   }
 
-  // 图表区域的鼠标事件自行处理（点击进入编辑），源码区交给编辑器
+  /**
+   * 阻止特定 DOM 事件冒泡给 ProseMirror
+   *
+   * 图表区域的鼠标事件自行处理（点击进入编辑），源码区的事件照常交给编辑器。
+   *
+   * @param event - 待判定的事件
+   * @returns true 表示事件由本视图消费，不再交给 ProseMirror
+   */
   stopEvent(event: Event): boolean {
     return this.renderArea.contains(event.target as Node)
   }
 
+  /** 视图销毁：清理未触发的渲染定时器，并从全局视图集合移除自身 */
   destroy() {
     window.clearTimeout(this.timer)
     mermaidViews.delete(this)

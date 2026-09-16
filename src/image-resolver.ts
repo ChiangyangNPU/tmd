@@ -25,6 +25,14 @@ function isRelativeSrc(src: unknown): boolean {
   return typeof src === 'string' && src !== '' && !/^(data:|https?:|file:|\/)/i.test(src)
 }
 
+/**
+ * 把文档目录与相对路径拼成可直接用于 img.src 的 file:// URL。
+ * 反斜杠统一为正斜杠（Windows 路径）；非根路径补前导斜杠；
+ * '#' 需转义为 %23，否则会被浏览器当作 URL 片段截断文件名。
+ * @param dir - 文档所在目录的绝对路径
+ * @param src - 文档内保存的相对路径（如 assets/xxx.png）
+ * @returns file:// 开头的绝对地址
+ */
 function toFileUrl(dir: string, src: string): string {
   const normalized = `${dir.replaceAll('\\', '/')}/${src.replaceAll('\\', '/')}`
   return `file://${normalized.startsWith('/') ? '' : '/'}${encodeURI(normalized).replaceAll('#', '%23')}`

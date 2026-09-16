@@ -11,6 +11,12 @@ import { native } from './native'
 /** 串行化：快速连续切换时避免渲染互相踩踏 */
 let themeApplying: Promise<void> = Promise.resolve()
 
+/**
+ * 切换深浅主题。
+ * 入队串行执行，快速连续切换时不会互相踩踏；失败仅记录日志，不中断队列。
+ * @param isDark - true 切深色，false 切浅色
+ * @returns 本次切换完成的 Promise
+ */
 export function applyTheme(isDark: boolean): Promise<void> {
   themeApplying = themeApplying
     .then(() => doApplyTheme(isDark))
@@ -18,9 +24,13 @@ export function applyTheme(isDark: boolean): Promise<void> {
   return themeApplying
 }
 
+/**
+ * 实际执行主题切换。
+ * 先切壳层（原生标题栏/窗口底色），等 IPC 返回后渲染层再翻页面——
+ * 两者落在同一视觉瞬间，避免"页面已变、标题栏慢半拍"的差异感。
+ * @param isDark - true 切深色，false 切浅色
+ */
 async function doApplyTheme(isDark: boolean) {
-  // 先切壳层（原生标题栏/窗口底色），等 IPC 返回后渲染层再翻页面——
-  // 两者落在同一视觉瞬间，避免"页面已变、标题栏慢半拍"的差异感
   await native?.setThemeSource(isDark)
   // 深色类挂在 <html> 上（而非 body）：与 index.html 首帧防闪内联脚本同挂载点
   document.documentElement.classList.toggle('dark', isDark)

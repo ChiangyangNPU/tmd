@@ -265,6 +265,17 @@ class FrontMatterView implements NodeView {
   private getPos: () => number | undefined
   private editing: boolean
 
+  /**
+   * 构造 front matter 节点视图：记录节点、编辑器视图与位置获取函数，按
+   * attrs.fresh 决定初始状态，并渲染出内部 DOM
+   *
+   * 本视图承担「键值属性表 ⇄ YAML 源码」双态切换：属性表态解析 value 展示
+   * 键值行，编辑态提供 textarea 直接编辑围栏原文。
+   *
+   * @param node - 对应的 ProseMirror frontmatter 节点（attrs.value 存围栏原文）
+   * @param view - 所属编辑器视图
+   * @param getPos - 获取本节点在文档中位置的函数（节点已被移除时返回 undefined）
+   */
   constructor(node: ProseNode, view: EditorView, getPos: () => number | undefined) {
     this.node = node
     this.view = view
@@ -284,6 +295,12 @@ class FrontMatterView implements NodeView {
     this.dom.appendChild(this.editing ? this.buildEditor() : this.buildProps())
   }
 
+  /**
+   * 构建属性表与编辑态共用的头部：左侧为 YAML 标识徽章，右侧为按钮容器
+   *
+   * @param actions - 依次放入头部右侧的按钮元素
+   * @returns 头部 DOM 元素（.fm-head）
+   */
   private buildHead(actions: HTMLElement[]): HTMLElement {
     const head = document.createElement('div')
     head.className = 'fm-head'
@@ -298,6 +315,14 @@ class FrontMatterView implements NodeView {
     return head
   }
 
+  /**
+   * 创建块内操作按钮，点击事件在内部消化（阻止冒泡，避免触发编辑器的选区/节点行为）
+   *
+   * @param text - 按钮文案
+   * @param primary - 是否主按钮（附加 primary 样式类）
+   * @param onClick - 点击回调
+   * @returns 按钮元素（.fm-btn）
+   */
   private makeButton(text: string, primary: boolean, onClick: () => void): HTMLButtonElement {
     const btn = document.createElement('button')
     btn.type = 'button'
@@ -351,6 +376,13 @@ class FrontMatterView implements NodeView {
     return wrap
   }
 
+  /**
+   * 创建提示行元素（属性区底部的空块/复杂结构/非法 YAML 提示）
+   *
+   * @param className - 提示行的样式类名
+   * @param text - 提示文案
+   * @returns 提示 DOM 元素
+   */
   private hint(className: string, text: string): HTMLElement {
     const el = document.createElement('div')
     el.className = className
@@ -400,6 +432,7 @@ class FrontMatterView implements NodeView {
     return wrap
   }
 
+  /** 进入 YAML 源码编辑态：重建内部 DOM 并聚焦输入框（已在编辑态则直接返回） */
   private enterEditing() {
     if (this.editing) return
     this.editing = true
@@ -407,6 +440,13 @@ class FrontMatterView implements NodeView {
     this.dom.querySelector('textarea')?.focus()
   }
 
+  /**
+   * 提交编辑：去掉输入末尾的空行后校验围栏是否成对合法，通过则退出编辑态并把
+   * 新原文写回节点属性（触发一次文档事务）
+   *
+   * 校验失败时显示错误提示并保持焦点停留在输入框，不写回节点、不退出编辑态，
+   * 原输入内容原样保留。
+   */
   private commit() {
     const textarea = this.dom.querySelector('textarea')
     const raw = (textarea?.value ?? '').replace(/(\r?\n)+$/, '')
@@ -423,12 +463,22 @@ class FrontMatterView implements NodeView {
     this.view.focus()
   }
 
+  /** 取消编辑：丢弃输入内容，回到属性表展示并让编辑器重获焦点 */
   private cancel() {
     this.editing = false
     this.render()
     this.view.focus()
   }
 
+  /**
+   * ProseMirror 在节点更新时调用
+   *
+   * 节点类型不符时返回 false 让 ProseMirror 重建视图；类型正确时刷新节点引用，
+   * 编辑态中不重渲染以免外部事务（协同/撤销）打断输入，其余情况刷新属性表。
+   *
+   * @param node - 更新后的节点
+   * @returns true 表示更新已由本视图自行处理（无需重建）；false 表示需要重建视图
+   */
   update(node: ProseNode): boolean {
     if (node.type.name !== 'frontmatter') return false
     this.node = node
@@ -437,14 +487,28 @@ class FrontMatterView implements NodeView {
     return true
   }
 
-  // 内部 DOM 全部自行管理，不交给 ProseMirror
+  /**
+   * 告诉 ProseMirror 哪些 DOM 变更应被忽略，避免内部渲染被误判为用户编辑
+   *
+   * 内部 DOM 全部自行管理，不交给 ProseMirror；仅选区变化交还处理。
+   *
+   * @param mutation - ProseMirror 观察到的 DOM 变更记录
+   * @returns true 表示忽略该变更（不当作编辑处理）
+   */
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === 'selection') return false
     return true
   }
 
-  // 编辑态拦截全部事件（textarea 输入、按钮、快捷键均不落入编辑器）；
-  // 属性表态仅拦截键值区点击（进编辑）与头部按钮，头部空白放行以点选删除节点
+  /**
+   * 阻止特定 DOM 事件冒泡给 ProseMirror
+   *
+   * 编辑态拦截全部事件（textarea 输入、按钮、快捷键均不落入编辑器）；
+   * 属性表态仅拦截键值区点击（进编辑）与头部按钮，头部空白放行以点选删除节点。
+   *
+   * @param event - 待判定的事件
+   * @returns true 表示事件由本视图消费，不再交给 ProseMirror
+   */
   stopEvent(event: Event): boolean {
     if (this.editing) return true
     if (!(event.target instanceof HTMLElement)) return false

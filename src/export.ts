@@ -210,8 +210,15 @@ function collectThemeVars(): Record<string, string> {
  * - 标题加 GitHub 风格 id 锚点（与编辑器内 TOC 链接的 slug 规则一致）
  */
 
-/** inline token 的渲染纯文本（image 的 alt 不计入，与 ProseMirror textContent 对齐） */
+/** inline token 结构（markdown-it token 子集，仅保留导出所需的字段） */
 type InlineToken = { type: string; content?: string; children?: InlineToken[] }
+
+/**
+ * 递归提取 inline token 的渲染纯文本。
+ * image 的 alt 不计入，与 ProseMirror 的 textContent 行为对齐。
+ * @param token - 待提取的 inline token
+ * @returns 拼接后的纯文本
+ */
 function inlineText(token: InlineToken): string {
   if (token.type === 'text' || token.type === 'code_inline') return token.content ?? ''
   if (token.type === 'image') return ''

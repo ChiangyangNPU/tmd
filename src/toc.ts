@@ -229,6 +229,13 @@ class TocView implements NodeView {
 
   private view: EditorView
 
+  /**
+   * 构造 toc 节点视图：创建目录容器 DOM，注册到全局视图集合，并按当前文档渲染一次目录
+   *
+   * @param _node - 对应的 ProseMirror toc 节点（原子块，内容全部动态生成，未使用）
+   * @param view - 所属编辑器视图
+   * @param _getPos - 获取本节点位置的函数（本视图不需要，未使用）
+   */
   constructor(_node: ProseNode, view: EditorView, _getPos: () => number | undefined) {
     this.view = view
     this.dom = document.createElement('div')
@@ -274,21 +281,45 @@ class TocView implements NodeView {
     scrollEditorPosIntoView(this.view, selection.from)
   }
 
+  /**
+   * ProseMirror 在节点更新时调用
+   *
+   * toc 是内容恒定的原子块，目录 DOM 由本视图自行维护、无需重建，
+   * 仅在节点类型正确时返回 true 表示更新已自行处理。
+   *
+   * @param node - 更新后的节点
+   * @returns true 表示无需重建视图；false 表示节点类型不符，需要重建
+   */
   update(node: ProseNode): boolean {
     return node.type.name === 'toc'
   }
 
-  // 目录 DOM 全部自行管理，不交给 ProseMirror
+  /**
+   * 告诉 ProseMirror 哪些 DOM 变更应被忽略，避免目录 DOM 的重建被误判为用户编辑
+   *
+   * 目录内的 DOM 全部自行管理，除选区变化交还 ProseMirror 外一律忽略。
+   *
+   * @param mutation - ProseMirror 观察到的 DOM 变更记录
+   * @returns true 表示忽略该变更（不当作编辑处理）
+   */
   ignoreMutation(mutation: ViewMutationRecord): boolean {
     if (mutation.type === 'selection') return false
     return true
   }
 
-  // 目录行点击自行处理（跳转）；块内空白处放行，允许点选节点后删除
+  /**
+   * 阻止特定 DOM 事件冒泡给 ProseMirror
+   *
+   * 目录行点击自行处理（跳转到标题）；块内空白处放行，允许点选节点后删除。
+   *
+   * @param event - 待判定的事件
+   * @returns true 表示事件由本视图消费，不再交给 ProseMirror
+   */
   stopEvent(event: Event): boolean {
     return event.target instanceof HTMLElement && event.target.closest('.toc-item') !== null
   }
 
+  /** 视图销毁：从全局视图集合移除自身，后续文档变化不再刷新本视图 */
   destroy() {
     tocViews.delete(this)
   }
@@ -304,6 +335,13 @@ const tocView = $view(tocSchema.node, () => (node, view, getPos) => new TocView(
 const TOC_REFRESH_DELAY_MS = 300
 let refreshTimer: number | undefined
 
+/**
+ * 防抖调度一次全局目录刷新：重置未触发的定时器，TOC_REFRESH_DELAY_MS 后
+ * 统一调用所有存活 toc 视图的 refresh()
+ *
+ * 由 tocRefresh 插件在文档内容变化时调用；计时器是模块级的，多个 toc 块
+ * 共用一次刷新，连续输入不会每按一次键就全量重建目录 DOM。
+ */
 function scheduleTocRefresh() {
   window.clearTimeout(refreshTimer)
   refreshTimer = window.setTimeout(() => {

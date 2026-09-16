@@ -24,16 +24,25 @@ ipcRenderer.on(IPC.openPath, (_event, filePath) => {
 const api = {
   /** 是否在 Electron 环境中（浏览器里为 undefined，渲染层据此降级） */
   isNative: true,
+  /** 打开文件对话框并读取所选文件，返回路径与内容 */
   openFile: () => ipcRenderer.invoke(IPC.openFile),
+  /** 读取指定路径的文件内容 */
   readFile: (filePath) => ipcRenderer.invoke(IPC.readFile, filePath),
+  /** 读取指定目录的内容（文件树） */
   readDir: (dirPath) => ipcRenderer.invoke(IPC.readDir, dirPath),
+  /** 选择文件夹（用于侧边栏挂载工作区） */
   openFolder: () => ipcRenderer.invoke(IPC.openFolder),
+  /** 把内容写入指定路径 */
   saveFile: (filePath, content) => ipcRenderer.invoke(IPC.saveFile, filePath, content),
+  /** 另存为：弹对话框选路径后写入 */
   saveFileAs: (content) => ipcRenderer.invoke(IPC.saveFileAs, content),
+  /** 通用导出：按过滤器弹保存对话框并写入 */
   exportAs: (options) => ipcRenderer.invoke(IPC.exportAs, options),
+  /** 调起系统打印（导出 PDF 走此路径） */
   print: () => ipcRenderer.invoke(IPC.print),
   /** 向主进程同步未保存状态（用于关闭确认） */
   setDirty: (dirty) => ipcRenderer.send(IPC.setDirty, dirty),
+  /** 订阅主进程菜单项动作（参数为 action 标识） */
   onMenu: (callback) => {
     ipcRenderer.on(IPC.menu, (_event, action) => callback(action))
   },
