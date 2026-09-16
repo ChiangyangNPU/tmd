@@ -65,7 +65,16 @@
     "files": [
       "dist/**",
       "electron/**",
-      "!**/*.map"
+      "!**/*.map",
+      "!**/*.md",
+      "!**/License",
+      "!**/LICENSE*",
+      "!**/docs/**",
+      "!**/*.d.ts",
+      "!**/vitest.config.*",
+      "!**/test/**",
+      "!**/tests/**",
+      "!**/*.test.js"
     ],
     "fileAssociations": [
       {

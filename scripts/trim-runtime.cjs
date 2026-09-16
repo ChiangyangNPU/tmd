@@ -8,6 +8,9 @@
  * 2. LICENSES.chromium.html：Chromium 开源许可证汇总文件（约 19 MB），
  *    不影响运行时功能。注意：若需严格遵守 Chromium 许可证展示义务，
  *    可在应用「关于」页面另行提供许可证链接。
+ * 3. GPU 渲染相关 DLL（Windows）：纯文本编辑器不需要 WebGL/Vulkan 渲染，
+ *    移除 dxcompiler.dll、vk_swiftshader.dll、d3dcompiler_47.dll、dxil.dll
+ *    （释放约 35 MB）。
  *
  * @param {import('electron-builder').AfterPackContext} context - electron-builder 上下文
  * @author chiangyang
@@ -22,6 +25,16 @@ const KEEP_LOCALES_MAC = new Set(['en', 'zh_CN'])
 
 /** 需要删除的运行时根目录文件 */
 const REMOVE_ROOT_FILES = ['LICENSES.chromium.html']
+
+/** Windows 上可移除的 GPU 渲染相关 DLL（纯文本编辑器不需要 WebGL/Vulkan）。
+ *  注意：保留 d3dcompiler_47.dll，Chromium GPU 进程启动时需要它做图层合成加速，
+ *  否则会回退到纯 CPU 软件渲染导致滚动掉帧。
+ */
+const REMOVE_GPU_FILES_WIN = [
+  'dxcompiler.dll',
+  'vk_swiftshader.dll',
+  'dxil.dll',
+]
 
 /**
  * 删除指定文件，返回释放的字节数
@@ -171,6 +184,18 @@ exports.default = async function (context) {
           console.log(`[trim-runtime] removed ${fileName} (${(freed / 1024 / 1024).toFixed(2)} MB)`)
           freedBytes += freed
         }
+      }
+    }
+  }
+
+  // 3. 移除 GPU 渲染相关 DLL（Windows）
+  if (platform === 'win32') {
+    for (const fileName of REMOVE_GPU_FILES_WIN) {
+      const filePath = path.join(appOutDir, fileName)
+      const freed = removeFile(filePath)
+      if (freed > 0) {
+        console.log(`[trim-runtime] removed ${fileName} (${(freed / 1024 / 1024).toFixed(2)} MB)`)
+        freedBytes += freed
       }
     }
   }
