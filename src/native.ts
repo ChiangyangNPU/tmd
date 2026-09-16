@@ -84,6 +84,8 @@ export interface NativeFileAPI {
   getPicGoConfig(): Promise<PicGoConfig>
   /** 保存 PicGo 配置到 userData 目录 */
   savePicGoConfig(config: PicGoConfig): Promise<boolean>
+  /** 同步快捷键配置到主进程，更新菜单 accelerator */
+  syncShortcuts(shortcuts: Record<string, string>): void
 }
 
 /** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
@@ -166,4 +168,5 @@ export interface IpcChannels {
   uploadImage: string
   getPicGoConfig: string
   savePicGoConfig: string
+  syncShortcuts: string
 }

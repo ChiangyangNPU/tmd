@@ -46,6 +46,8 @@ const channels = {
   uploadImage: 'tmd:upload-image',
   getPicGoConfig: 'tmd:get-picgo-config',
   savePicGoConfig: 'tmd:save-picgo-config',
+  // 快捷键自定义：渲染层将配置同步给主进程以更新菜单 accelerator
+  syncShortcuts: 'tmd:sync-shortcuts',
 }
 
 module.exports = channels

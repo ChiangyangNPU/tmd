@@ -165,8 +165,26 @@ const DEFAULT_MENU_LABELS = {
 /** @type {Record<string, string>} */
 let menuLabels = { ...DEFAULT_MENU_LABELS }
 
+/**
+ * 用户自定义快捷键配置：action → Electron accelerator。
+ * 由渲染层通过 syncShortcuts IPC 同步过来，buildMenu 据此动态设置菜单 accelerator。
+ * 空对象表示全部使用默认值（在 buildMenu 中硬编码的 accelerator）。
+ * @type {Record<string, string>}
+ */
+let customShortcuts = {}
+
 /** @param {string} key @returns {string} */
 const L = (key) => menuLabels[key] ?? DEFAULT_MENU_LABELS[key]
+
+/**
+ * 获取菜单项的 accelerator：优先使用用户自定义配置，否则用默认值。
+ * @param {string} action - 动作标识（与渲染层 shortcuts.ts 的 SHORTCUT_DEFS 对齐）
+ * @param {string} fallback - 默认 accelerator
+ * @returns {string}
+ */
+function acc(action, fallback) {
+  return customShortcuts[action] ?? fallback
+}
 
 // 文件关联：Finder 双击 .md 时 macOS 通过 open-file 事件传入路径；
 // 渲染层未就绪时先排队，收到 ready 信号后再发给渲染层
@@ -227,12 +245,12 @@ function buildMenu() {
       submenu: [
         {
           label: L('open'),
-          accelerator: 'CmdOrCtrl+O',
+          accelerator: acc('open', 'CmdOrCtrl+O'),
           click: () => sendToRenderer(IPC.menu, 'open'),
         },
         {
           label: L('openFolder'),
-          accelerator: 'Shift+CmdOrCtrl+O',
+          accelerator: acc('open-folder', 'CmdOrCtrl+Shift+O'),
           click: () => sendToRenderer(IPC.menu, 'open-folder'),
         },
         {
@@ -241,23 +259,23 @@ function buildMenu() {
         },
         {
           label: L('save'),
-          accelerator: 'CmdOrCtrl+S',
+          accelerator: acc('save', 'CmdOrCtrl+S'),
           click: () => sendToRenderer(IPC.menu, 'save'),
         },
         {
           label: L('saveAs'),
-          accelerator: 'Shift+CmdOrCtrl+S',
+          accelerator: acc('save-as', 'CmdOrCtrl+Shift+S'),
           click: () => sendToRenderer(IPC.menu, 'save-as'),
         },
         { type: 'separator' },
         {
           label: L('newTab'),
-          accelerator: 'CmdOrCtrl+T',
+          accelerator: acc('new-tab', 'CmdOrCtrl+T'),
           click: () => sendToRenderer(IPC.menu, 'new-tab'),
         },
         {
           label: L('closeTab'),
-          accelerator: 'CmdOrCtrl+W',
+          accelerator: acc('close-tab', 'CmdOrCtrl+W'),
           click: () => sendToRenderer(IPC.menu, 'close-tab'),
         },
         { type: 'separator' },
@@ -280,13 +298,13 @@ function buildMenu() {
       submenu: [
         {
           label: L('exportHtml'),
-          accelerator: 'Shift+CmdOrCtrl+H',
+          accelerator: acc('export-html', 'CmdOrCtrl+Shift+H'),
           click: () => sendToRenderer(IPC.menu, 'export-html'),
         },
         {
           label: L('exportPdf'),
           // Ctrl/Cmd+P 已让位给快速切换面板（高频优先），PDF 改 Shift+Mod+P
-          accelerator: 'Shift+CmdOrCtrl+P',
+          accelerator: acc('export-pdf', 'CmdOrCtrl+Shift+P'),
           click: () => sendToRenderer(IPC.menu, 'export-pdf'),
         },
       ],
@@ -299,12 +317,12 @@ function buildMenu() {
       submenu: [
         {
           label: L('bold'),
-          accelerator: 'CmdOrCtrl+B',
+          accelerator: acc('fmt-bold', 'CmdOrCtrl+B'),
           click: () => sendToRenderer(IPC.menu, 'fmt-bold'),
         },
         {
           label: L('italic'),
-          accelerator: 'CmdOrCtrl+I',
+          accelerator: acc('fmt-italic', 'CmdOrCtrl+I'),
           click: () => sendToRenderer(IPC.menu, 'fmt-italic'),
         },
         {
@@ -317,54 +335,54 @@ function buildMenu() {
         },
         {
           label: L('highlight'),
-          accelerator: 'CmdOrCtrl+Shift+H',
+          accelerator: acc('fmt-mark', 'CmdOrCtrl+Shift+H'),
           click: () => sendToRenderer(IPC.menu, 'fmt-mark'),
         },
         {
           label: L('superscript'),
-          accelerator: 'CmdOrCtrl+Shift+=',
+          accelerator: acc('fmt-sup', 'CmdOrCtrl+Shift+='),
           click: () => sendToRenderer(IPC.menu, 'fmt-sup'),
         },
         {
           label: L('subscript'),
-          accelerator: 'CmdOrCtrl+Shift+-',
+          accelerator: acc('fmt-sub', 'CmdOrCtrl+Shift+-'),
           click: () => sendToRenderer(IPC.menu, 'fmt-sub'),
         },
         {
           label: L('link'),
-          accelerator: 'CmdOrCtrl+K',
+          accelerator: acc('fmt-link', 'CmdOrCtrl+K'),
           click: () => sendToRenderer(IPC.menu, 'fmt-link'),
         },
         { type: 'separator' },
         ...[1, 2, 3, 4, 5, 6].map((level) => ({
           label: L(`h${level}`),
-          accelerator: `CmdOrCtrl+${level}`,
+          accelerator: acc(`fmt-h${level}`, `CmdOrCtrl+${level}`),
           click: () => sendToRenderer(IPC.menu, `fmt-h${level}`),
         })),
         {
           label: L('paragraph'),
-          accelerator: 'CmdOrCtrl+0',
+          accelerator: acc('fmt-paragraph', 'CmdOrCtrl+0'),
           click: () => sendToRenderer(IPC.menu, 'fmt-paragraph'),
         },
         { type: 'separator' },
         {
           label: L('quote'),
-          accelerator: isMac ? 'Ctrl+Q' : 'CmdOrCtrl+Q',
+          accelerator: acc('fmt-quote', isMac ? 'Ctrl+Q' : 'CmdOrCtrl+Q'),
           click: () => sendToRenderer(IPC.menu, 'fmt-quote'),
         },
         {
           label: L('codeBlock'),
-          accelerator: 'Shift+CmdOrCtrl+K',
+          accelerator: acc('fmt-codeblock', 'CmdOrCtrl+Shift+K'),
           click: () => sendToRenderer(IPC.menu, 'fmt-codeblock'),
         },
         {
           label: L('bulletList'),
-          accelerator: 'Shift+CmdOrCtrl+8',
+          accelerator: acc('fmt-bullet', 'CmdOrCtrl+Shift+8'),
           click: () => sendToRenderer(IPC.menu, 'fmt-bullet'),
         },
         {
           label: L('orderedList'),
-          accelerator: 'Shift+CmdOrCtrl+9',
+          accelerator: acc('fmt-ordered', 'CmdOrCtrl+Shift+9'),
           click: () => sendToRenderer(IPC.menu, 'fmt-ordered'),
         },
       ],
@@ -839,6 +857,14 @@ ipcMain.handle(IPC.savePicGoConfig, async (_event, config) => {
   } catch (err) {
     console.error('[tmd] 保存 PicGo 配置失败', err)
     return false
+  }
+})
+
+// 渲染层同步快捷键配置，更新菜单 accelerator
+ipcMain.on(IPC.syncShortcuts, (_event, shortcuts) => {
+  if (shortcuts && typeof shortcuts === 'object') {
+    customShortcuts = shortcuts
+    buildMenu()
   }
 })
 

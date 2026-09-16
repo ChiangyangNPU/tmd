@@ -11,17 +11,20 @@
  * - 源码模式（CodeMirror）不挂 ProseMirror 编辑器，keymap 自然失效；
  *   菜单路径由 main.ts 显式拦截
  *
+ * 快捷键由 src/shortcuts.ts 的配置驱动（用户在设置面板可自定义），
+ * keymap 与主进程菜单 accelerator 读同一份配置，避免两处漂移。
+ *
  * Markdown 无下划线语法，故不提供 Ctrl+U（数据格式纯文本原则，见路线图）。
  *
  * @author chiangyang
  */
 import { $prose } from '@milkdown/kit/utils'
-import { keymap } from '@milkdown/kit/prose/keymap'
 import { lift, setBlockType, toggleMark, wrapIn } from '@milkdown/kit/prose/commands'
 import { liftListItem, wrapInList } from '@milkdown/kit/prose/schema-list'
-import { TextSelection } from '@milkdown/kit/prose/state'
+import { Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
 import type { Command, EditorState, Transaction } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
+import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
 
 // ---------------------------------------------------------------------------
 // 块级切换命令
@@ -195,35 +198,31 @@ export function applyFormatAction(view: EditorView, action: string): boolean {
   return ok
 }
 
-/** 编辑器内快捷键（浏览器模式无菜单栏，靠这条路径；Electron 下菜单 accelerator 先消费按键） */
+/**
+ * 格式化快捷键（配置驱动，ProseMirror handleKeyDown）。
+ *
+ * 每次按键实时读取 src/shortcuts.ts 的配置并匹配 fmt-* action，
+ * 因此用户在设置面板改键后立即生效，无需重建编辑器。
+ * 与主进程菜单 accelerator 读同一份配置，两边行为一致。
+ *
+ * - 浏览器模式无菜单栏，靠这条路径触发格式化命令
+ * - 源码模式（CodeMirror）不挂 ProseMirror 编辑器，本插件自然失效
+ */
 export const formatKeymap = $prose(() =>
-  keymap({
-    'Mod-b': (state, dispatch) => toggleMark(state.schema.marks.strong)(state, dispatch),
-    'Mod-i': (state, dispatch) => toggleMark(state.schema.marks.emphasis)(state, dispatch),
-    'Mod-1': (state, dispatch) =>
-      setBlockType(state.schema.nodes.heading, { level: 1 })(state, dispatch),
-    'Mod-2': (state, dispatch) =>
-      setBlockType(state.schema.nodes.heading, { level: 2 })(state, dispatch),
-    'Mod-3': (state, dispatch) =>
-      setBlockType(state.schema.nodes.heading, { level: 3 })(state, dispatch),
-    'Mod-4': (state, dispatch) =>
-      setBlockType(state.schema.nodes.heading, { level: 4 })(state, dispatch),
-    'Mod-5': (state, dispatch) =>
-      setBlockType(state.schema.nodes.heading, { level: 5 })(state, dispatch),
-    'Mod-6': (state, dispatch) =>
-      setBlockType(state.schema.nodes.heading, { level: 6 })(state, dispatch),
-    'Mod-0': (state, dispatch) => setBlockType(state.schema.nodes.paragraph)(state, dispatch),
-    // Mod-q 在 macOS 是退出应用，绑定 Ctrl+q 兜底（mac 菜单走 Ctrl+Q accelerator）
-    'Mod-q': toggleBlockquote,
-    'Ctrl-q': toggleBlockquote,
-    'Mod-Shift-8': (state, dispatch, view) => toggleList('bullet_list')(state, dispatch, view),
-    'Mod-Shift-9': (state, dispatch, view) => toggleList('ordered_list')(state, dispatch, view),
-    'Mod-Shift-k': (state, dispatch) =>
-      setBlockType(state.schema.nodes.code_block)(state, dispatch),
-    'Mod-k': (_state, _dispatch, view) => (view ? toggleLink(view) : false),
-    // 语法扩展：高亮 Cmd/Ctrl+Shift+H，上标 +Shift+=，下标 +Shift+-
-    'Mod-Shift-h': (state, dispatch) => toggleMark(state.schema.marks.highlight)(state, dispatch),
-    'Mod-Shift-=': (state, dispatch) => toggleMark(state.schema.marks.superscript)(state, dispatch),
-    'Mod-Shift--': (state, dispatch) => toggleMark(state.schema.marks.subscript)(state, dispatch),
+  new Plugin({
+    key: new PluginKey('tmd-format-keymap'),
+    props: {
+      handleKeyDown(view, event) {
+        const acc = eventToAccelerator(event)
+        // 必须带修饰键：避免单字符键吞掉正常输入（设置面板亦按此约束校验）
+        if (!acc.includes('+')) return false
+        const shortcuts = loadShortcuts()
+        for (const [action, accelerator] of Object.entries(shortcuts)) {
+          if (!action.startsWith('fmt-')) continue
+          if (isSameAccelerator(acc, accelerator)) return applyFormatAction(view, action)
+        }
+        return false
+      },
+    },
   }),
 )

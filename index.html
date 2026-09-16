@@ -427,6 +427,20 @@
         </div>
 
         <div class="settings-section">
+          <div class="settings-label" data-i18n="settings.shortcuts">快捷键</div>
+          <div class="settings-hint" data-i18n="settings.shortcutsHint">
+            点击按键框后按下新的组合键即可修改（需包含 Ctrl/Cmd 或 Alt）
+          </div>
+          <div id="shortcuts-list" class="shortcuts-list"></div>
+          <div class="settings-row">
+            <button id="shortcuts-reset-btn" class="settings-btn" data-i18n="settings.shortcutsReset">
+              恢复默认
+            </button>
+            <span id="shortcuts-status" class="settings-hint"></span>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <div class="settings-label" data-i18n="settings.imageStrategy">粘贴图片存储方式</div>
           <label class="settings-option"
             ><input type="radio" name="set-img" value="inline" /><span

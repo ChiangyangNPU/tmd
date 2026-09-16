@@ -107,6 +107,8 @@ const api = {
   getPicGoConfig: () => ipcRenderer.invoke(IPC.getPicGoConfig),
   /** 保存 PicGo 配置到 userData 目录 */
   savePicGoConfig: (config) => ipcRenderer.invoke(IPC.savePicGoConfig, config),
+  /** 同步快捷键配置到主进程，更新菜单 accelerator */
+  syncShortcuts: (shortcuts) => ipcRenderer.send(IPC.syncShortcuts, shortcuts),
 }
 
 contextBridge.exposeInMainWorld('tmdAPI', api)

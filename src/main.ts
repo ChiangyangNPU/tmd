@@ -74,6 +74,7 @@ import {
 import { applyTypography } from './typography'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
 import { saveDoc, loadDoc, clearDoc, getTheme, recentList } from './store'
+import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
 
 // ---------------------------------------------------------------------------
 // 应用常量
@@ -251,6 +252,7 @@ async function boot() {
     wireLinkNav()
 
     // 快捷键（源码模式下 F 键交给 CodeMirror）
+    // 快捷键配置从 localStorage 读取，与主进程菜单 accelerator 保持一致
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         closeMoreMenu()
@@ -261,19 +263,21 @@ async function boot() {
       }
       const mod = e.metaKey || e.ctrlKey
       if (!mod) return
-      if (e.key === 'p') {
+      const shortcuts = loadShortcuts()
+      const acc = eventToAccelerator(e)
+      if (isSameAccelerator(acc, shortcuts['quick-switch'])) {
         e.preventDefault()
         openQuickSwitch()
-      } else if (e.key === 'f' && !isSourceMode()) {
+      } else if (isSameAccelerator(acc, shortcuts['find']) && !isSourceMode()) {
         e.preventDefault()
         openFindBar()
-      } else if (e.key === 'e') {
+      } else if (isSameAccelerator(acc, shortcuts['source-mode'])) {
         e.preventDefault()
         void setSourceMode(!isSourceMode())
-      } else if (e.key === 't') {
+      } else if (isSameAccelerator(acc, shortcuts['new-tab'])) {
         e.preventDefault()
         createNewTab()
-      } else if (e.key === 'w') {
+      } else if (isSameAccelerator(acc, shortcuts['close-tab'])) {
         e.preventDefault()
         const id = getActiveTabId()
         if (id) void closeTab(id)
@@ -325,6 +329,8 @@ async function boot() {
     renderFilesSidebar()
     // 最近文件列表全量同步给主进程，构建原生菜单「打开最近文件」子菜单
     native?.recentSync(recentList())
+    // 快捷键配置同步给主进程，更新菜单 accelerator
+    native?.syncShortcuts(loadShortcuts())
     // 就绪信号：主进程补发排队中的待打开文件
     native?.ready()
     // 干净退出（无未保存内容）时清除恢复副本并停掉自动保存定时器
