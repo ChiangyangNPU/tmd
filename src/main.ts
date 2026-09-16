@@ -20,7 +20,7 @@ import { openFindBar, wireFindBar } from './findbar'
 import { collectOutline, renderOutline } from './outline'
 import { exportHtml, exportPdf } from './export'
 import { native } from './native'
-import { t, applyDomTexts, menuLabels } from './i18n'
+import { t, applyDomTexts, menuLabels, getLocale } from './i18n'
 import { setImagePasteContext } from './paste-image'
 import { applyTheme } from './theme'
 import { restoreThemeStyles } from './theme-presets'
@@ -121,8 +121,8 @@ async function boot() {
     if (navigator.userAgent.includes('Macintosh')) {
       document.documentElement.classList.add('mac')
     }
-    // 菜单栏文案跟随当前语言（Electron 主进程据此重建菜单）
-    native?.setLocaleInfo(menuLabels())
+    // 菜单栏文案与语言码跟随当前语言（主进程据此重建菜单、切换文件树排序规则）
+    native?.setLocaleInfo({ labels: menuLabels(), locale: getLocale() })
     const dark = getTheme() === 'dark'
     // 幂等再同步：<head> 内联脚本已在首帧前挂好 html.dark，这里兜底保持一致
     document.documentElement.classList.toggle('dark', dark)

@@ -172,6 +172,16 @@ const DEFAULT_MENU_LABELS = {
 let menuLabels = { ...DEFAULT_MENU_LABELS }
 
 /**
+ * 界面语言码 → Intl 排序区域。文件树里中文文件名按当前界面语言排序：
+ * 繁中必须落到 zh-TW 才会走注音/笔画序（zh-Hant 不在 ICU 的排序区域表里，
+ * 用它会退回默认中文序，与系统预期不符）；未知语言码原样透传。
+ * @type {Record<string, string>}
+ */
+const COLLATION_LOCALE = { 'zh-CN': 'zh-CN', 'zh-Hant': 'zh-TW', en: 'en' }
+/** 文件树排序区域：渲染层同步前先跟随系统语言 */
+let sortLocale = ''
+
+/**
  * 用户自定义快捷键配置：action → Electron accelerator。
  * 由渲染层通过 syncShortcuts IPC 同步过来，buildMenu 据此动态设置菜单 accelerator。
  * 空对象表示全部使用默认值（在 buildMenu 中硬编码的 accelerator）。
@@ -670,7 +680,9 @@ ipcMain.handle(IPC.readDir, async (_event, dirPath) => {
     const folders = []
     /** @type {import('../src/filetree.ts').FileEntry[]} */
     const files = []
-    for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'))) {
+    for (const entry of entries.sort((a, b) =>
+      a.name.localeCompare(b.name, sortLocale || app.getLocale()),
+    )) {
       if (entry.name.startsWith('.')) continue
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
@@ -917,13 +929,14 @@ ipcMain.on(IPC.ready, () => {
   flushPendingOpenPaths()
 })
 
-// 渲染层把当前语言的菜单文案发来，重建菜单
-/** @param {unknown} _event @param {unknown} labels */
-ipcMain.on(IPC.setLocaleInfo, (_event, labels) => {
-  if (labels && typeof labels === 'object') {
-    menuLabels = { ...DEFAULT_MENU_LABELS, ...labels }
+// 渲染层把当前语言的菜单文案与语言码发来：重建菜单 + 更新文件树排序区域
+/** @param {unknown} _event @param {{ labels?: Record<string, string>, locale?: string }} info */
+ipcMain.on(IPC.setLocaleInfo, (_event, info) => {
+  if (info?.labels) {
+    menuLabels = { ...DEFAULT_MENU_LABELS, ...info.labels }
     buildMenu()
   }
+  if (info?.locale) sortLocale = COLLATION_LOCALE[info.locale] ?? info.locale
 })
 
 // ---------- IPC：最近文件 ----------

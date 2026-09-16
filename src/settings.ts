@@ -24,6 +24,7 @@ import { changeThemePreset, changeCustomCss } from './theme-presets'
 import { reflectTypography, wireTypography } from './typography'
 import { setFocusMode, setTypewriterMode } from './writing-modes'
 import { renderTabs, updateTitle } from './tabs'
+import { reloadFolderTrees } from './files'
 import { currentMarkdown, updateWordCount } from './editor-core'
 import type { ImageStrategy } from './paste-image'
 import {
@@ -336,12 +337,14 @@ export function wireSettings() {
   document.querySelectorAll('input[name="set-lang"]').forEach((input) => {
     input.addEventListener('change', () => {
       setLocale((input as HTMLInputElement).value)
-      // 语言切换五联动：静态文案 / 标签栏 / 标题 / 字数 / 菜单
+      // 语言切换六联动：静态文案 / <html lang> / 标签栏 / 标题 / 字数 / 菜单与排序
       applyDomTexts()
       renderTabs()
       updateTitle()
       updateWordCount(currentMarkdown())
-      native?.setLocaleInfo(menuLabels())
+      native?.setLocaleInfo({ labels: menuLabels(), locale: getLocale() })
+      // 文件名排序随界面语言变化，已加载的目录树需按新规则重读
+      void reloadFolderTrees()
     })
   })
   // 主题列表：持久化 + 即时应用（纯 CSS 变量层，不触碰编辑器）；

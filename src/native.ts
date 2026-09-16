@@ -8,6 +8,16 @@
  * @author chiangyang
  */
 
+/**
+ * 界面语言信息：菜单文案 + 语言码。
+ * 主进程据此重建菜单，并把语言码映射为 Intl 排序区域（文件树内中文文件名的
+ * 排序规则随界面语言变化，如繁中用注音/笔画序）。
+ */
+export interface LocaleInfo {
+  labels: Record<string, string>
+  locale: string
+}
+
 export interface NativeFileAPI {
   isNative: true
   openFile(): Promise<{ path: string; name: string; content: string } | null>
@@ -30,8 +40,8 @@ export interface NativeFileAPI {
   onAutosave(callback: (enabled: boolean) => void): void
   /** 文件关联：Finder 双击 .md / 系统打开方式传入的文件路径 */
   onOpenPath(callback: (filePath: string) => void): void
-  /** 把当前语言的菜单栏文案发给主进程重建菜单 */
-  setLocaleInfo(labels: Record<string, string>): void
+  /** 把当前语言的菜单栏文案与语言码发给主进程（重建菜单 + 切换文件树排序区域） */
+  setLocaleInfo(info: LocaleInfo): void
   /** 渲染层就绪信号：主进程补发排队中的待打开文件 */
   ready(): void
   /** 设置面板同步自动保存开关（保持与菜单勾选一致） */

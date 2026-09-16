@@ -60,8 +60,8 @@ const api = {
       if (p) callback(p)
     }
   },
-  /** 把当前语言的菜单文案发给主进程重建菜单 */
-  setLocaleInfo: (labels) => ipcRenderer.send(IPC.setLocaleInfo, labels),
+  /** 把当前语言的菜单文案与语言码发给主进程：重建菜单并切换文件树排序区域 */
+  setLocaleInfo: (info) => ipcRenderer.send(IPC.setLocaleInfo, info),
   /** 渲染层就绪信号：主进程补发排队中的待打开文件 */
   ready: () => ipcRenderer.send(IPC.ready),
   /** 设置面板同步自动保存开关（保持与菜单勾选一致） */

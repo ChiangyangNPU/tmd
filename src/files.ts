@@ -189,6 +189,30 @@ async function toggleFolder(path: string) {
   renderFilesSidebar()
 }
 
+/**
+ * 重载已加载的文件夹树（切换界面语言后调用）。
+ *
+ * 目录树由主进程按界面语言排序（中文文件名走当地排序规则），缓存里仍是旧序，
+ * 需重新读盘；未加载过的条目本就在首次展开时才读取，无需处理。单个文件夹
+ * 读取失败时保留旧缓存（不提示，避免切换语言时弹无关错误）。
+ */
+export async function reloadFolderTrees() {
+  if (!native) return
+  let reloaded = false
+  for (const path of [...expandedFolders]) {
+    if (!folderChildrenCache.has(path)) continue
+    try {
+      const tree = await native.readDir(path)
+      if (!tree) continue
+      folderChildrenCache.set(path, tree.children)
+      reloaded = true
+    } catch {
+      /* 读盘失败：保留旧缓存，下次展开/重启再刷新 */
+    }
+  }
+  if (reloaded) renderFilesSidebar()
+}
+
 /** 按绝对路径打开文件（文件树 / 最近列表 / 系统最近菜单点击时）；
  *  文件已被移动或删除时提示而不是抛未捕获异常（最近条目天然可能失效） */
 export async function openPath(path: string) {
