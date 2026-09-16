@@ -860,7 +860,9 @@ ipcMain.on(IPC.updateAutoCheck, (_event, enabled) => {
 // 单实例：再次双击 .md / 启动应用时，把文件转交给已运行的实例
 const gotSingleInstanceLock = app.requestSingleInstanceLock()
 if (!gotSingleInstanceLock) {
-  app.quit()
+  // 用 exit(0) 而非 quit()：quit() 是异步的，whenReady 可能在退出前
+  // 触发并创建窗口，导致第二个实例闪一下窗口才消失。exit() 立即终止进程。
+  app.exit(0)
 }
 
 app.on('second-instance', (_event, argv) => {
@@ -914,6 +916,8 @@ function saveShellState(patch) {
 }
 
 app.whenReady().then(() => {
+  // 双重保险：未获取单实例锁时不创建窗口（exit 已处理，但防止竞态）
+  if (!gotSingleInstanceLock) return
   // 窗口创建前恢复上次主题：nativeTheme 与窗口底色在首帧渲染前生效，
   // 渲染层 prefers-color-scheme 启动即为正确外观（自绘标题栏同帧正确）
   const savedTheme = readShellState().themeSource
