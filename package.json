@@ -10,6 +10,7 @@
     "dev:electron": "concurrently -k -s first \"vite\" \"wait-on tcp:127.0.0.1:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
     "build": "tsc && vite build",
     "test": "vitest run",
+    "test:desktop": "node scripts/desktop-export-check.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

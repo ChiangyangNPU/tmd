@@ -15,6 +15,7 @@ npm install   # Install dependencies first (see note below if the Electron binar
 npm run dev            # Browser mode: http://localhost:5173
 npm run dev:electron   # Desktop mode: starts vite and the Electron window together
 npm run build          # Type check + production build
+npm run test:desktop   # Desktop end-to-end check (run build first; real Electron + real menus, covers the export flows)
 npm run dist:dir       # Package as a local directory app (no installer generated)
 npm run dist           # Build installer (mac: dmg / win: nsis)
 ```

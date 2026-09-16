@@ -15,6 +15,7 @@ npm install   # 首次安装依赖（国内网络 Electron 二进制下载失败
 npm run dev            # 浏览器模式：http://localhost:5173
 npm run dev:electron   # 桌面模式：同时启动 vite 和 Electron 窗口
 npm run build          # 类型检查 + 生产构建
+npm run test:desktop   # 桌面端端到端验证（需先 build；真实 Electron + 真实菜单，覆盖导出链路）
 npm run dist:dir       # 打包为本地目录应用（不生成安装包）
 npm run dist           # 打包安装包（mac: dmg / win: nsis）
 ```
