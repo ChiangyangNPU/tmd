@@ -416,6 +416,16 @@ export function openSettings() {
   const versionEl = document.getElementById('about-version')
   if (versionEl) versionEl.textContent = pkg.version
 
+  // 关于面板：版权年份为「首次发布年份 - 最近发布年份」，起始年固定，结束年随当前年份自动更新
+  const copyrightEl = document.getElementById('about-copyright')
+  if (copyrightEl) {
+    const startYear = 2026
+    const currentYear = new Date().getFullYear()
+    copyrightEl.textContent = `© ${startYear}${
+      currentYear > startYear ? `-${currentYear}` : ''
+    } chiangyang`
+  }
+
   // 图床配置：加载并根据图片策略显示/隐藏
   togglePicGoSection()
   void loadPicGoConfig()
