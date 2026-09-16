@@ -76,6 +76,21 @@ export default [
     },
   },
 
+  // scripts：Node CommonJS 脚本（与 electron/**/*.cjs 同环境）
+  {
+    files: ['scripts/**/*.cjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.commonjs,
+      },
+    },
+    rules: {
+      'no-console': 'off',
+      '@typescript-eslint/no-require-imports': 'off',
+    },
+  },
+
   // public：首帧引导脚本，浏览器环境（先于模块 JS 执行）
   {
     files: ['public/**/*.js'],
