@@ -9,27 +9,32 @@
  * @author chiangyang
  */
 import zhCN from './locales/zh-CN.json'
+import zhHant from './locales/zh-Hant.json'
 import en from './locales/en.json'
 import { LOCALE_KEY } from './store'
 
 const messages: Record<string, unknown> = {
   'zh-CN': zhCN,
+  'zh-Hant': zhHant,
   en,
 }
 
-/** 语言检测：localStorage 优先；zh 系（含繁中，暂回退简中包）取 zh-CN，其余 en */
+/**
+ * 语言检测：localStorage 优先；繁中（台/港/澳）取 zh-Hant，其余 zh 系取 zh-CN，
+ * 其他语言一律 en。
+ */
 function detectLocale(): string {
   const stored = localStorage.getItem(LOCALE_KEY)
   if (stored && messages[stored]) return stored
   const nav = navigator.language
-  if (nav === 'zh-TW' || nav === 'zh-HK' || nav === 'zh-Hant') return 'zh-CN' // 繁中语言包后续补充，暂回退简中
+  if (/^zh-(TW|HK|MO|Hant)/i.test(nav)) return 'zh-Hant'
   if (nav.startsWith('zh')) return 'zh-CN'
   return 'en'
 }
 
 let currentLocale = detectLocale()
 
-/** 获取当前语言码（'zh-CN' | 'en'） */
+/** 获取当前语言码（'zh-CN' | 'zh-Hant' | 'en'） */
 export function getLocale(): string {
   return currentLocale
 }
@@ -105,8 +110,14 @@ export function menuLabels(): Record<string, string> {
   }
 }
 
-/** 批量替换静态 HTML 文案（boot 时调用一次） */
+/**
+ * 批量替换静态 HTML 文案（boot 时与切换语言时各调用一次），
+ * 并把当前语言同步到 `<html lang>`——浏览器据此选字形（同一字体下的
+ * 简/繁字形差异）、断行规则与屏幕阅读器发音，index.html 里的静态默认值
+ * 在 boot 前生效，此处负责纠正。
+ */
 export function applyDomTexts(root: ParentNode = document) {
+  document.documentElement.lang = currentLocale
   root.querySelectorAll<HTMLElement>('[data-i18n]').forEach((el) => {
     el.textContent = t(el.dataset.i18n as string)
   })

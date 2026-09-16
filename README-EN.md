@@ -53,7 +53,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Autosave (writes back every 5 seconds; one shared switch for the settings panel and the menu)
 - Dark/light theme switching (diagrams re-rendered in place — the editor is never rebuilt, preserving undo history / focus / scroll position)
 - Theme presets (Default / Dark / Sepia / Green) and custom CSS injection (settings-panel textarea, takes effect immediately)
-- Multilingual UI (Simplified Chinese / English, follows the system, switchable in the settings panel)
+- Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
 - Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 10 third-party components
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
 - **Electron desktop shell** (`electron/`):

@@ -10,6 +10,7 @@ import markPlugin from 'markdown-it-mark'
 import subPlugin from 'markdown-it-sub'
 import supPlugin from 'markdown-it-sup'
 import { native } from './native'
+import { getLocale } from './i18n'
 import { slugify } from './toc'
 import { parseImgHtml } from './image-attrs'
 
@@ -281,7 +282,7 @@ export function buildExportHtml(
 ): string {
   const mermaidTheme = isDark ? 'dark' : 'default'
   return `<!doctype html>
-<html lang="zh-CN">
+<html lang="${getLocale()}">
 <head>
 <meta charset="UTF-8">
 <title>${currentName.replace(/\.md$/i, '')}</title>
