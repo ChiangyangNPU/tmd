@@ -272,6 +272,26 @@
           <div class="settings-hint" data-i18n="settings.themePresetHint">
             选择预设会同时应用其深浅模式；工具栏按钮可随时切换深浅
           </div>
+          <div id="set-file-theme-area" hidden>
+            <div id="set-file-themes"></div>
+            <div class="settings-hint settings-row">
+              <span data-i18n="settings.fileThemeHint"
+                >把自制 .css 文件放入主题文件夹，文件名即主题名</span
+              >
+              <span>
+                <button
+                  id="themes-open-dir-btn"
+                  class="tool-btn"
+                  data-i18n="settings.themesOpenDir"
+                >
+                  打开主题文件夹
+                </button>
+                <button id="themes-refresh-btn" class="tool-btn" data-i18n="settings.themesRefresh">
+                  刷新
+                </button>
+              </span>
+            </div>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -450,7 +470,11 @@
           </div>
           <div id="shortcuts-list" class="shortcuts-list"></div>
           <div class="settings-row">
-            <button id="shortcuts-reset-btn" class="settings-btn" data-i18n="settings.shortcutsReset">
+            <button
+              id="shortcuts-reset-btn"
+              class="settings-btn"
+              data-i18n="settings.shortcutsReset"
+            >
               恢复默认
             </button>
             <span id="shortcuts-status" class="settings-hint"></span>
@@ -488,7 +512,12 @@
         <div class="settings-section" id="picgo-config-section">
           <div class="settings-label" data-i18n="settings.picgoConfig">图床配置</div>
           <div class="settings-row">
-            <label class="settings-row-label" for="picgo-uploader" data-i18n="settings.picgoUploader">图床类型</label>
+            <label
+              class="settings-row-label"
+              for="picgo-uploader"
+              data-i18n="settings.picgoUploader"
+              >图床类型</label
+            >
             <select id="picgo-uploader" class="settings-select">
               <option value="smms">SM.MS (S.EE)</option>
               <option value="github">GitHub</option>
@@ -501,7 +530,9 @@
           </div>
           <div id="picgo-fields" class="picgo-fields"></div>
           <div class="settings-row">
-            <button id="picgo-save-btn" class="settings-btn" data-i18n="settings.picgoSave">保存图床配置</button>
+            <button id="picgo-save-btn" class="settings-btn" data-i18n="settings.picgoSave">
+              保存图床配置
+            </button>
             <span id="picgo-save-status" class="settings-hint"></span>
           </div>
         </div>
@@ -547,32 +578,89 @@
           </div>
           <div class="about-row">
             <span class="about-key" data-i18n="settings.aboutEmail">邮箱</span>
-            <a class="about-link" href="mailto:chiangyangnpu@163.com" data-external>chiangyangnpu@163.com</a>
+            <a class="about-link" href="mailto:chiangyangnpu@163.com" data-external
+              >chiangyangnpu@163.com</a
+            >
           </div>
           <div class="about-row">
             <span class="about-key" data-i18n="settings.aboutHomepage">主页</span>
             <span class="about-links">
-              <a class="about-link" href="https://github.com/ChiangyangNPU/tmd" data-external>GitHub</a>
-              <a class="about-link" href="https://gitee.com/ChiangyangNPU/tmd" data-external>Gitee</a>
+              <a class="about-link" href="https://github.com/ChiangyangNPU/tmd" data-external
+                >GitHub</a
+              >
+              <a class="about-link" href="https://gitee.com/ChiangyangNPU/tmd" data-external
+                >Gitee</a
+              >
             </span>
           </div>
           <div class="about-row">
             <span class="about-key" data-i18n="settings.aboutLicense">许可</span>
-            <a class="about-link" href="https://opensource.org/licenses/MIT" data-external>MIT License</a>
+            <a class="about-link" href="https://opensource.org/licenses/MIT" data-external
+              >MIT License</a
+            >
           </div>
           <div class="about-thirdparty">
-            <div class="about-thirdparty-title" data-i18n="settings.aboutThirdParty">第三方组件</div>
+            <div class="about-thirdparty-title" data-i18n="settings.aboutThirdParty">
+              第三方组件
+            </div>
             <div class="license-list">
-              <div class="license-item"><a href="https://github.com/electron/electron/blob/main/LICENSE" data-external>Electron</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://chromium.googlesource.com/chromium/src/+/main/LICENSE" data-external>Chromium</a><span class="license-type">BSD-3-Clause</span></div>
-              <div class="license-item"><a href="https://github.com/nodejs/node/blob/main/LICENSE" data-external>Node.js</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/Milkdown/milkdown/blob/main/LICENSE" data-external>Milkdown</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/codemirror/dev/blob/main/LICENSE" data-external>CodeMirror</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/markdown-it/markdown-it/blob/master/LICENSE" data-external>Markdown-It</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/mermaid-js/mermaid/blob/develop/LICENSE" data-external>Mermaid</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/wooorm/refractor/blob/main/license" data-external>Refractor</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/remarkjs/remark-frontmatter/blob/main/license" data-external>remark-frontmatter</a><span class="license-type">MIT</span></div>
-              <div class="license-item"><a href="https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/LICENSE" data-external>electron-updater</a><span class="license-type">MIT</span></div>
+              <div class="license-item">
+                <a href="https://github.com/electron/electron/blob/main/LICENSE" data-external
+                  >Electron</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a
+                  href="https://chromium.googlesource.com/chromium/src/+/main/LICENSE"
+                  data-external
+                  >Chromium</a
+                ><span class="license-type">BSD-3-Clause</span>
+              </div>
+              <div class="license-item">
+                <a href="https://github.com/nodejs/node/blob/main/LICENSE" data-external>Node.js</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a href="https://github.com/Milkdown/milkdown/blob/main/LICENSE" data-external
+                  >Milkdown</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a href="https://github.com/codemirror/dev/blob/main/LICENSE" data-external
+                  >CodeMirror</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a
+                  href="https://github.com/markdown-it/markdown-it/blob/master/LICENSE"
+                  data-external
+                  >Markdown-It</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a href="https://github.com/mermaid-js/mermaid/blob/develop/LICENSE" data-external
+                  >Mermaid</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a href="https://github.com/wooorm/refractor/blob/main/license" data-external
+                  >Refractor</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a
+                  href="https://github.com/remarkjs/remark-frontmatter/blob/main/license"
+                  data-external
+                  >remark-frontmatter</a
+                ><span class="license-type">MIT</span>
+              </div>
+              <div class="license-item">
+                <a
+                  href="https://github.com/electron-userland/electron-builder/blob/master/packages/electron-updater/LICENSE"
+                  data-external
+                  >electron-updater</a
+                ><span class="license-type">MIT</span>
+              </div>
             </div>
           </div>
         </div>

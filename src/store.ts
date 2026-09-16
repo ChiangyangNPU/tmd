@@ -17,6 +17,7 @@ export const LOCALE_KEY = 'tmd:lang'
 export const AUTO_CHECK_UPDATE_KEY = 'tmd:auto-check-update'
 export const THEME_PRESET_KEY = 'tmd:theme-preset'
 export const CUSTOM_CSS_KEY = 'tmd:custom-css'
+export const THEME_FILE_KEY = 'tmd:theme-file'
 export const SOURCE_LINENOS_KEY = 'tmd:src-linenos'
 export const TYPOGRAPHY_KEY = 'tmd:typography'
 export const FOCUS_MODE_KEY = 'tmd:focus-mode'
@@ -161,6 +162,17 @@ export function getCustomCss(): string {
 /** 持久化自定义 CSS */
 export function setCustomCss(css: string) {
   localStorage.setItem(CUSTOM_CSS_KEY, css)
+}
+
+/** 读取当前文件式主题文件名（裸文件名如「晚霞.css」；'' = 未使用文件主题） */
+export function getThemeFile(): string {
+  return localStorage.getItem(THEME_FILE_KEY) ?? ''
+}
+
+/** 持久化文件式主题文件名（空串即清除并回到内置预设体系） */
+export function setThemeFile(name: string) {
+  if (name) localStorage.setItem(THEME_FILE_KEY, name)
+  else localStorage.removeItem(THEME_FILE_KEY)
 }
 
 /** 源码模式是否显示行号（默认显示；关闭后隐藏行号列与折叠标记） */

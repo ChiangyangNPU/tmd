@@ -15,16 +15,27 @@ import {
   setAutoCheckUpdate,
   getCustomCss,
   getThemePreset,
+  getThemeFile,
+  setThemeFile,
   getSourceLineNumbers,
   setSourceLineNumbers,
   getFocusMode,
   getTypewriterMode,
 } from './store'
-import { changeThemePreset, changeCustomCss } from './theme-presets'
+import {
+  changeThemePreset,
+  changeCustomCss,
+  changeFileTheme,
+  applyFileTheme,
+  clearFileTheme,
+  resolveThemeSelection,
+  displayThemeName,
+  FILE_THEME_PREFIX,
+} from './theme-presets'
 import { reflectTypography, wireTypography } from './typography'
 import { setFocusMode, setTypewriterMode } from './writing-modes'
 import { renderTabs, updateTitle } from './tabs'
-import { reloadFolderTrees } from './files'
+import { reloadFolderTrees, showToast } from './files'
 import { currentMarkdown, updateWordCount } from './editor-core'
 import type { ImageStrategy } from './paste-image'
 import {
@@ -45,7 +56,10 @@ import pkg from '../package.json'
 let imageStrategy: ImageStrategy = getImageStrategy()
 
 /** PicGo 各图床的配置字段定义（label 为 i18n key，placeholder 为示例值） */
-export const PICGO_FIELDS: Record<string, { key: string; label: string; placeholder?: string; type?: string }[]> = {
+export const PICGO_FIELDS: Record<
+  string,
+  { key: string; label: string; placeholder?: string; type?: string }[]
+> = {
   smms: [
     { key: 'token', label: 'Token', placeholder: 'S.EE Dashboard API Token', type: 'password' },
   ],
@@ -54,7 +68,11 @@ export const PICGO_FIELDS: Record<string, { key: string; label: string; placehol
     { key: 'branch', label: '分支', placeholder: 'main' },
     { key: 'token', label: 'Token', placeholder: 'GitHub Personal Access Token', type: 'password' },
     { key: 'path', label: '路径', placeholder: 'img/' },
-    { key: 'customUrl', label: '自定义域名', placeholder: 'https://cdn.jsdelivr.net/gh/owner/repo' },
+    {
+      key: 'customUrl',
+      label: '自定义域名',
+      placeholder: 'https://cdn.jsdelivr.net/gh/owner/repo',
+    },
   ],
   qiniu: [
     { key: 'accessKey', label: 'AccessKey', placeholder: '七牛云 AccessKey' },
@@ -79,14 +97,17 @@ export const PICGO_FIELDS: Record<string, { key: string; label: string; placehol
   ],
   aliyun: [
     { key: 'accessKeyId', label: 'AccessKeyId', placeholder: '阿里云 AccessKeyId' },
-    { key: 'accessKeySecret', label: 'AccessKeySecret', placeholder: '阿里云 AccessKeySecret', type: 'password' },
+    {
+      key: 'accessKeySecret',
+      label: 'AccessKeySecret',
+      placeholder: '阿里云 AccessKeySecret',
+      type: 'password',
+    },
     { key: 'bucket', label: 'Bucket', placeholder: '存储空间名称' },
     { key: 'area', label: '区域', placeholder: 'oss-cn-hangzhou' },
     { key: 'path', label: '路径', placeholder: 'img/' },
   ],
-  imgur: [
-    { key: 'clientId', label: 'Client ID', placeholder: 'Imgur Client ID' },
-  ],
+  imgur: [{ key: 'clientId', label: 'Client ID', placeholder: 'Imgur Client ID' }],
 }
 
 /** 粘贴图片上下文读取当前策略（main.ts 装配注入） */
@@ -154,7 +175,6 @@ async function savePicGoConfig() {
   }
 }
 
-
 /** 源码模式行号开关应用到 DOM（body.src-no-linenos 经 CSS 隐藏 gutter，不触碰编辑器实例） */
 export function applySourceLineNumbers() {
   document.body.classList.toggle('src-no-linenos', !getSourceLineNumbers())
@@ -210,7 +230,10 @@ function showShortcutStatus(text: string) {
   const el = document.getElementById('shortcuts-status')
   if (!el) return
   el.textContent = text
-  if (text) setTimeout(() => { if (el.textContent === text) el.textContent = '' }, 3000)
+  if (text)
+    setTimeout(() => {
+      if (el.textContent === text) el.textContent = ''
+    }, 3000)
 }
 
 /** 在指定快捷键行内就近显示错误提示（避免提示被挤到面板底部看不见） */
@@ -266,6 +289,94 @@ function startCapture(action: string) {
   }
 }
 
+/** 同步主题 radio 高亮：内置预设 / 深色 / 文件主题三态统一映射 */
+function syncPresetRadio(): void {
+  const value = resolveThemeSelection(isDarkTheme(), getThemePreset(), getThemeFile())
+  document.querySelectorAll<HTMLInputElement>('input[name="set-preset"]').forEach((input) => {
+    if (input.value === value) input.checked = true
+  })
+}
+
+/**
+ * 扫描主题目录并把文件主题渲染为 radio 项（每次打开设置/刷新时整体重建）。
+ * 浏览器环境无 IPC，整个文件主题区保持隐藏。
+ * @returns 最新主题文件名列表（刷新时据此判断当前主题是否已被删除）
+ */
+async function renderFileThemes(): Promise<string[]> {
+  const area = document.getElementById('set-file-theme-area')
+  const container = document.getElementById('set-file-themes')
+  if (!area || !container) return []
+  if (!native) {
+    area.hidden = true
+    return []
+  }
+  area.hidden = false
+  const { themes } = await native.listThemes()
+  const current = getThemeFile()
+  container.replaceChildren()
+  for (const theme of themes) {
+    const label = document.createElement('label')
+    label.className = 'settings-option'
+    const radio = document.createElement('input')
+    radio.type = 'radio'
+    radio.name = 'set-preset'
+    radio.value = FILE_THEME_PREFIX + theme.name
+    radio.checked = theme.name === current
+    radio.addEventListener('change', () => {
+      void selectFileTheme(theme.name)
+    })
+    const span = document.createElement('span')
+    // textContent 赋值，文件名不经过 HTML 解析
+    span.textContent = displayThemeName(theme.name)
+    label.append(radio, span)
+    container.appendChild(label)
+  }
+  return themes.map((theme) => theme.name)
+}
+
+/** 选中某个文件式主题：读取 CSS 并注入；读取失败（竞态删除）则提示并重扫 */
+async function selectFileTheme(fileName: string): Promise<void> {
+  if (!native) return
+  const css = await native.readTheme(fileName)
+  if (css == null) {
+    showToast(t('settings.themeFileMissing', { name: fileName }))
+    await renderFileThemes()
+    syncPresetRadio()
+    return
+  }
+  changeFileTheme(fileName, css)
+}
+
+/**
+ * 「刷新」按钮：重新扫描主题目录。
+ * - 当前主题文件已被删除：撤出文件主题层（回落内置变量）并提示
+ * - 当前主题仍在：重新读取内容并注入（承接外部编辑器的修改）
+ */
+async function refreshFileThemes(): Promise<void> {
+  if (!native) return
+  const names = await renderFileThemes()
+  const current = getThemeFile()
+  if (!current) return
+  if (!names.includes(current)) {
+    setThemeFile('')
+    clearFileTheme()
+    showToast(t('settings.themeFileMissing', { name: current }))
+    syncPresetRadio()
+    return
+  }
+  // 文件仍在：重载内容（承接外部编辑器的修改）；扫描与读取之间被删的竞态
+  // 同样按缺失回落
+  const css = await native.readTheme(current)
+  if (css == null) {
+    setThemeFile('')
+    clearFileTheme()
+    showToast(t('settings.themeFileMissing', { name: current }))
+    syncPresetRadio()
+    return
+  }
+  applyFileTheme(css)
+}
+
 /** 打开设置面板并反映当前配置值 */
 export function openSettings() {
   const overlay = document.getElementById('settings-overlay')
@@ -275,15 +386,10 @@ export function openSettings() {
     `input[name="set-lang"][value="${getLocale()}"]`,
   ) as HTMLInputElement | null
   if (langRadio) langRadio.checked = true
-  // 主题列表高亮：按"预设 + 深浅"映射到列表项
-  // （default+浅→简约白；default+深→深色；sepia/green→各自预设项）
-  const isDark = isDarkTheme()
-  const preset = getThemePreset()
-  const listItemValue = isDark && preset === 'default' ? 'dark' : preset
-  const presetRadio = overlay.querySelector(
-    `input[name="set-preset"][value="${listItemValue}"]`,
-  ) as HTMLInputElement | null
-  if (presetRadio) presetRadio.checked = true
+  // 主题列表高亮：内置预设 / 深色 / 文件主题三态统一由纯函数映射
+  syncPresetRadio()
+  // 文件式主题：Electron 环境下扫描主题目录渲染外部 radio 项
+  void renderFileThemes()
   const autosaveBox = document.getElementById('set-autosave') as HTMLInputElement | null
   if (autosaveBox) {
     autosaveBox.checked = isAutosaveOn() && !!native
@@ -345,14 +451,28 @@ export function wireSettings() {
       native?.setLocaleInfo({ labels: menuLabels(), locale: getLocale() })
       // 文件名排序随界面语言变化，已加载的目录树需按新规则重读
       void reloadFolderTrees()
+      // 文件主题列表同样按新语言区域排序，重扫一次
+      void renderFileThemes()
     })
   })
   // 主题列表：持久化 + 即时应用（纯 CSS 变量层，不触碰编辑器）；
-  // 深色项 = 切换到主界面深色模式
+  // 深色项 = 切换到主界面深色模式。动态渲染的文件主题 radio 在
+  // renderFileThemes() 中单独绑定（changeFileTheme），与此处内置项互斥。
   document.querySelectorAll('input[name="set-preset"]').forEach((input) => {
     input.addEventListener('change', () => {
       changeThemePreset((input as HTMLInputElement).value)
     })
+  })
+  // 文件式主题：打开主题文件夹（空目录时主进程创建并写入示例主题）
+  document.getElementById('themes-open-dir-btn')?.addEventListener('click', () => {
+    void native?.openThemesDir().then((ok) => {
+      if (!ok) showToast(t('settings.themesOpenFailed'))
+    })
+  })
+  // 刷新：重新扫描主题目录；当前主题被删则回落内置，仍在则重载文件内容
+  // （外部编辑器改完 CSS 保存后点此按钮即生效，不做常驻文件监听）
+  document.getElementById('themes-refresh-btn')?.addEventListener('click', () => {
+    void refreshFileThemes()
   })
   // 自定义 CSS：输入即应用（防抖交给 input 事件天然节流），「恢复默认」清空
   const cssBox = document.getElementById('set-custom-css') as HTMLTextAreaElement | null

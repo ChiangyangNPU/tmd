@@ -23,7 +23,7 @@ import { native } from './native'
 import { t, applyDomTexts, menuLabels, getLocale } from './i18n'
 import { setImagePasteContext } from './paste-image'
 import { applyTheme } from './theme'
-import { restoreThemeStyles } from './theme-presets'
+import { restoreThemeStyles, restoreFileTheme } from './theme-presets'
 import {
   activeTab,
   getActiveTabId,
@@ -46,6 +46,7 @@ import {
   renderFilesSidebar,
   clearRecentDocuments,
   clearFolderEntries,
+  showToast,
 } from './files'
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
@@ -129,6 +130,9 @@ async function boot() {
     setMermaidTheme(dark ? 'dark' : 'default')
     // 主题预设与自定义 CSS：恢复持久化的变量覆盖层
     restoreThemeStyles()
+    // 文件式主题：异步经 IPC 读取注入（赶在编辑器挂载前，避免先闪内置配色；
+    // 主题文件已被删除时回落内置变量并提示）
+    await restoreFileTheme((name) => showToast(t('settings.themeFileMissing', { name })))
     // 源码模式行号开关：恢复持久化状态（body class，CSS 层控制）
     applySourceLineNumbers()
     // 排版设置：恢复持久化配置（CSS 变量层，不触碰编辑器实例）

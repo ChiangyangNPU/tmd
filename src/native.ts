@@ -98,6 +98,12 @@ export interface NativeFileAPI {
   syncShortcuts(shortcuts: Record<string, string>): void
   /** 跨文件全文搜索：在给定根目录下递归搜索关键词，返回按行汇总的命中列表 */
   searchFiles(roots: string[], query: string): Promise<SearchResult>
+  /** 文件式主题：列出主题目录（~/.tmd/themes）下全部 .css 主题及目录路径 */
+  listThemes(): Promise<ThemeFileList>
+  /** 文件式主题：按裸文件名读取主题 CSS 内容（主进程做路径穿越校验，失败 null） */
+  readTheme(name: string): Promise<string | null>
+  /** 文件式主题：系统文件管理器打开主题目录（空目录时创建并写入示例主题） */
+  openThemesDir(): Promise<boolean>
 }
 
 /** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
@@ -137,6 +143,20 @@ export interface SearchResult {
   truncated: boolean
   /** 耗时（毫秒） */
   elapsedMs: number
+}
+
+/** 文件式主题条目（主题目录中的一个 .css 文件） */
+export interface ThemeFileEntry {
+  /** 裸文件名（含 .css 扩展名），同时作为持久化标识 */
+  name: string
+}
+
+/** 主题目录扫描结果 */
+export interface ThemeFileList {
+  /** 主题目录绝对路径（设置面板提示用） */
+  dir: string
+  /** 主题条目（已按界面语言区域排序） */
+  themes: ThemeFileEntry[]
 }
 
 /**
@@ -215,4 +235,7 @@ export interface IpcChannels {
   savePicGoConfig: string
   syncShortcuts: string
   searchFiles: string
+  themesList: string
+  themesRead: string
+  themesOpenDir: string
 }

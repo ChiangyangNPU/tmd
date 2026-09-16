@@ -52,7 +52,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Export: HTML (standalone file, Mermaid/KaTeX via CDN) and PDF (via the system print dialog)
 - Autosave (writes back every 5 seconds; one shared switch for the settings panel and the menu)
 - Dark/light theme switching (diagrams re-rendered in place — the editor is never rebuilt, preserving undo history / focus / scroll position)
-- Theme presets (Default / Dark / Sepia / Green) and custom CSS injection (settings-panel textarea, takes effect immediately)
+- Theme presets (Default / Dark / Sepia / Green), file-based themes (`~/.tmd/themes/*.css` — the file name is the theme name; open the folder / reload from the settings panel) and custom CSS injection (takes effect immediately)
 - Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
 - Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 10 third-party components
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
@@ -76,6 +76,7 @@ index.html                Page entry
 public/boot.js            First-frame bootstrap script (theme/platform classes, prevents white flash)
 electron/main.cjs         Electron main process (window, menu, IPC file read/write, image hosting, auto-update)
 electron/search.cjs       Full-text search scanning & matching (pure Node, independently verifiable)
+electron/themes.cjs       File-based theme folder scanning & safety checks (pure Node, independently verifiable)
 electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
 electron/preload.cjs      Controlled API exposure (contextBridge)
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
@@ -83,7 +84,7 @@ src/main.ts               App startup & global wiring (boot / hooks injection / 
 src/editor-core.ts        Editor hub (create / rebuild / source mode / content retrieval)
 src/tabs.ts               Multi-tab state machine
 src/mermaid.ts            Mermaid real-time rendering plugin (core)
-src/theme-presets.ts      Theme presets & custom CSS injection
+src/theme-presets.ts      Theme presets, file-based themes & custom CSS injection
 src/shortcuts.ts          Shortcut configuration (definitions / read-write / validation / display formatting)
 src/search.ts             Cross-file search panel (debounce / grouped rendering / jump & locate)
 src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)

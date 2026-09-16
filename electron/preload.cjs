@@ -118,8 +118,14 @@ const api = {
   savePicGoConfig: (config) => ipcRenderer.invoke(IPC.savePicGoConfig, config),
   /** 同步快捷键配置到主进程，更新菜单 accelerator */
   syncShortcuts: (shortcuts) => ipcRenderer.send(IPC.syncShortcuts, shortcuts),
-  /** 跨文件全文搜索：主进程递归扫描根目录并逐行匹配 */
+  /** 跨文件全文搜索：主进程递归扫描挂载目录并逐行匹配 */
   searchFiles: (roots, query) => ipcRenderer.invoke(IPC.searchFiles, roots, query),
+  /** 文件式主题：列出 ~/.tmd/themes 下的全部 .css 主题（附目录绝对路径） */
+  listThemes: () => ipcRenderer.invoke(IPC.themesList),
+  /** 文件式主题：按裸文件名读取单个主题 CSS（主进程做路径穿越校验） */
+  readTheme: (name) => ipcRenderer.invoke(IPC.themesRead, name),
+  /** 文件式主题：在系统文件管理器中打开主题目录（空目录时创建并写入示例） */
+  openThemesDir: () => ipcRenderer.invoke(IPC.themesOpenDir),
 }
 
 contextBridge.exposeInMainWorld('tmdAPI', api)

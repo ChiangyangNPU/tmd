@@ -34,6 +34,12 @@ const {
   SEARCH_MAX_FILES,
   SEARCH_MAX_MATCHES,
 } = require('./search.cjs')
+const {
+  themesDir,
+  listThemeFiles,
+  readThemeFile,
+  ensureThemesDirWithSample,
+} = require('./themes.cjs')
 const os = require('node:os')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -721,6 +727,35 @@ ipcMain.handle(IPC.searchFiles, async (_event, roots, query) => {
     scannedFiles: collected.files.length,
     truncated: collected.truncated || searched.truncated,
     elapsedMs: Date.now() - started,
+  }
+})
+
+// ---------- 文件式主题（~/.tmd/themes/*.css） ----------
+
+/** 列出主题目录中的全部主题文件 + 目录绝对路径（目录不存在返回空列表） */
+ipcMain.handle(IPC.themesList, async () => {
+  const dir = themesDir(app.getPath('home'))
+  const themes = await listThemeFiles(dir, sortLocale || app.getLocale())
+  return { dir, themes }
+})
+
+/** 读取单个主题文件内容（裸文件名经主进程 basename 校验，失败返回 null） */
+/** @param {unknown} _event @param {unknown} name */
+ipcMain.handle(IPC.themesRead, async (_event, name) => {
+  const dir = themesDir(app.getPath('home'))
+  return readThemeFile(dir, name)
+})
+
+/** 在系统文件管理器中打开主题目录：不存在则创建，并在空目录写入示例主题 */
+ipcMain.handle(IPC.themesOpenDir, async () => {
+  const dir = themesDir(app.getPath('home'))
+  try {
+    await ensureThemesDirWithSample(dir)
+    const error = await shell.openPath(dir)
+    return !error
+  } catch (err) {
+    console.error('[tmd] 打开主题目录失败', err)
+    return false
   }
 })
 

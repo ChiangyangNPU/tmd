@@ -49,7 +49,7 @@ export function getFolderTrees(): {
 }
 
 /** 轻量浮层提示（复用 .toast 样式，3 秒后自动消失） */
-function showToast(message: string) {
+export function showToast(message: string) {
   const el = document.createElement('div')
   el.className = 'toast'
   el.textContent = message

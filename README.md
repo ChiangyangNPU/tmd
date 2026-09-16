@@ -52,7 +52,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 导出：HTML（独立文件，Mermaid/KaTeX 走 CDN）、PDF（经系统打印对话框）
 - 自动保存（5 秒周期写回，设置面板与菜单共用开关）
 - 深色/浅色主题切换（图表原地重渲，不重建编辑器，保住撤销历史/焦点/滚动位置）
-- 主题预设（简约白 / 深色 / 羊皮纸 / 护眼绿）与自定义 CSS 注入（设置面板文本域，即时生效）
+- 主题预设（简约白 / 深色 / 羊皮纸 / 护眼绿）、文件式主题（`~/.tmd/themes/*.css`，文件名即主题名，设置面板一键打开目录/刷新加载）与自定义 CSS 注入（即时生效）
 - 多语言界面（简体中文 / 繁體中文（台港用词）/ English，跟随系统，设置面板可切换）
 - 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 10 个第三方组件的许可证声明与直达链接
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
@@ -76,6 +76,7 @@ index.html            页面入口
 public/boot.js        首帧引导脚本（主题/平台类，防启动白闪）
 electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、图床上传、自动更新）
 electron/search.cjs   全文搜索的扫描与匹配（纯 Node，可独立验证）
+electron/themes.cjs   文件式主题目录扫描与安全校验（纯 Node，可独立验证）
 electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
 electron/preload.cjs  受控 API 暴露（contextBridge）
 scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
@@ -83,7 +84,7 @@ src/main.ts           应用启动与全局装配（boot / hooks 注入 / 快捷
 src/editor-core.ts    编辑器枢纽（创建/重建/源码模式/内容取回）
 src/tabs.ts           多标签页状态机
 src/mermaid.ts        Mermaid 实时渲染插件（核心）
-src/theme-presets.ts  主题预设与自定义 CSS 注入
+src/theme-presets.ts  主题预设、文件式主题与自定义 CSS 注入
 src/shortcuts.ts      快捷键配置（定义 / 读写 / 校验 / 显示格式化）
 src/search.ts         跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
 src/fs-path.ts        文件系统路径工具（规范化 / 取目录 / 同一性判断）
