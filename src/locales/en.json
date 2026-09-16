@@ -217,7 +217,8 @@
     "aboutCopyright": "Copyright",
     "aboutEmail": "Email",
     "aboutHomepage": "Homepage",
-    "aboutLicense": "License"
+    "aboutLicense": "License",
+    "aboutThirdParty": "Third-Party Components"
   },
   "image": {
     "alignLeft": "Align left",

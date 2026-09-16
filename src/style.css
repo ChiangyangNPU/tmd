@@ -335,6 +335,46 @@ html.win .win-controls {
   text-decoration: underline;
 }
 
+/* 第三方组件许可证列表 */
+.about-thirdparty {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.about-thirdparty-title {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.license-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.license-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.license-item a {
+  color: var(--accent, #4a90d9);
+  text-decoration: none;
+}
+
+.license-item a:hover {
+  text-decoration: underline;
+}
+
+.license-type {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 /* 排版区小节标题：弱于 settings-label 一级 */
 .settings-sub {
   font-size: 12px;

@@ -217,7 +217,8 @@
     "aboutCopyright": "版权",
     "aboutEmail": "邮箱",
     "aboutHomepage": "主页",
-    "aboutLicense": "许可"
+    "aboutLicense": "许可",
+    "aboutThirdParty": "第三方组件"
   },
   "image": {
     "alignLeft": "左对齐",
