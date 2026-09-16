@@ -11,10 +11,11 @@
  * （与 mermaid 渲染的 renderSeq 同一做法）。
  *
  * 定位说明：主进程返回的是「原始 markdown 的行号与文件内序号」，
- * 与 ProseMirror 位置不能直接换算（frontmatter 会被剥离、语法字符不占位）。
- * 因此打开文件后用 findMatches() 在同文档内重新匹配，取第 occurrence 个；
- * 滚动用 scrollEditorPosIntoView()——PM 自带的 scrollIntoView 对
- * .page-scroll 这个自定义滚动容器无效。
+ * 与编辑器内的实时文档不能直接换算（进入编辑器前内容经过序列化，frontmatter
+ * 会被剥离、语法字符不占位，文档还可能已被编辑）。因此打开文件后用关键词在
+ * 实时文档内重新匹配，取第 occurrence 个：所见即所得走 findMatches()，
+ * 源码模式走 jumpToSourceMatch()；滚动用 scrollEditorPosIntoView()——
+ * PM 自带的 scrollIntoView 对 .page-scroll 这个自定义滚动容器无效。
  *
  * @author chiangyang
  */
@@ -25,7 +26,7 @@ import type { SearchMatch } from './native'
 import { activateTab, findByPath } from './tabs'
 import { openPath } from './files'
 import { folderList } from './store'
-import { getPmView, isSourceMode } from './editor-core'
+import { getPmView, isSourceMode, jumpToSourceMatch } from './editor-core'
 import { findMatches } from './find'
 import { scrollEditorPosIntoView } from './toc'
 import { dirOf, normalizeFsPath } from './fs-path'
@@ -209,11 +210,17 @@ async function runSearch(rawQuery: string) {
 
 /**
  * 在已就绪的编辑器内定位到命中处。
- * 按 occurrence 取第 N 个匹配；同文档内匹配数不足时退回最后一个。
+ * 所见即所得与源码模式都按 occurrence 取实时文档内第 N 个匹配；
+ * 匹配数不足时退回最后一个（文档已被编辑时行号会漂移）。
  */
 function locateMatch(match: SearchMatch, query: string) {
+  // 源码模式：CodeMirror 文档内重新匹配定位（同一策略，见 jumpToSourceMatch）
+  if (isSourceMode()) {
+    jumpToSourceMatch(query, match.occurrence)
+    return
+  }
   const view = getPmView()
-  if (!view || isSourceMode()) return
+  if (!view) return
   const ranges = findMatches(view.state.doc, query)
   if (!ranges.length) return
   const target = ranges[Math.min(match.occurrence, ranges.length) - 1]

@@ -26,6 +26,28 @@ interface FindState {
 
 let state: FindState = { query: '', matches: [], index: -1 }
 
+/**
+ * 在纯文本中查找 query 的所有出现位置（大小写不敏感，纯函数）。
+ * 供源码模式复用「在实时文档内重新匹配」的定位策略：磁盘文件的行号与编辑器内
+ * 的实时文档不能换算（进入源码模式前 markdown 经过序列化，源码文档又可能已被
+ * 编辑），故与 ProseMirror 侧同一思路——拿关键词在实时文本里重新数一遍。
+ * @param text - 待查找的纯文本
+ * @param query - 关键词；为空时返回空数组
+ * @returns 匹配区间数组（from/to 为文本下标）
+ */
+export function findTextRanges(text: string, query: string): MatchRange[] {
+  if (!query) return []
+  const results: MatchRange[] = []
+  const needle = query.toLowerCase()
+  const haystack = text.toLowerCase()
+  let idx = haystack.indexOf(needle)
+  while (idx !== -1) {
+    results.push({ from: idx, to: idx + query.length })
+    idx = haystack.indexOf(needle, idx + needle.length)
+  }
+  return results
+}
+
 /** 在全文中查找 query 的所有出现位置（大小写不敏感；不跨节点，仅匹配单个文本节点内） */
 export function findMatches(doc: ProseNode, query: string): MatchRange[] {
   if (!query) return []

@@ -18,7 +18,7 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import { mermaidPlugins } from './mermaid'
 import { pasteImage } from './paste-image'
 import { pasteHtml } from './paste-html'
-import { findPlugin, findClear } from './find'
+import { findPlugin, findClear, findTextRanges } from './find'
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
 import { markPlugins } from './mark-ext'
@@ -34,6 +34,7 @@ import { formatKeymap } from './format'
 import { focusPlugin } from './writing-modes'
 import { collectOutline, renderOutline } from './outline'
 import { createSourceEditor } from './sourcemode'
+import type { EditorView as SourceView } from 'codemirror'
 import { t } from './i18n'
 
 /** 当前编辑器实例 */
@@ -43,7 +44,7 @@ let pmView: EditorView | null = null
 /** 是否处于源码模式（CodeMirror 整篇编辑） */
 let sourceMode = false
 /** 源码模式下的 CodeMirror 实例（仅源码模式期间存在） */
-let cmView: { destroy(): void; state: { doc: { toString(): string } } } | null = null
+let cmView: SourceView | null = null
 
 /** 文档变更钩子（main.ts 装配） */
 interface EditorHooks {
@@ -291,4 +292,31 @@ export async function setSourceMode(on: boolean, syncContent = true) {
   pmEl.hidden = on
   srcEl.hidden = !on
   if (btn) btn.textContent = on ? t('toolbar.sourceModeOn') : t('toolbar.sourceMode')
+}
+
+/**
+ * 源码模式：定位到关键词的第 occurrence 个匹配，选中并滚入视野。
+ *
+ * 与所见即所得路径同一策略——不用主进程返回的磁盘行号，而是在实时文档内
+ * 重新匹配取第 N 个：进入源码模式前 markdown 经过序列化（空行、语法字符会
+ * 被规范化），且源码文档可被继续编辑，行号未必与磁盘文件一致。
+ * 滚动交给 CodeMirror：其 scrollRectIntoView 会向上寻找可滚动祖先并滚动之
+ * （源码模式下 #src-editor 的 height:100% 对自动高度的父级不生效，CM 自身
+ * 的 scroller 不产生滚动，实际滚动的是 .page-scroll），故无需手工算滚动量，
+ * 与 ProseMirror 侧必须手动算滚动量不同。
+ * @param query - 搜索关键词（大小写不敏感）
+ * @param occurrence - 目标匹配在文档内的序号（1 起始）；匹配数不足时退回最后一个
+ * @returns 是否成功定位（非源码模式、关键词为空或无匹配时为 false）
+ */
+export function jumpToSourceMatch(query: string, occurrence: number): boolean {
+  if (!sourceMode || !cmView) return false
+  const ranges = findTextRanges(cmView.state.doc.toString(), query)
+  if (!ranges.length) return false
+  const target = ranges[Math.min(Math.max(occurrence, 1), ranges.length) - 1]
+  cmView.dispatch({
+    selection: { anchor: target.from, head: target.to },
+    scrollIntoView: true,
+  })
+  cmView.focus()
+  return true
 }

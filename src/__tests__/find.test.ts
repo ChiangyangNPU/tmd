@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Schema } from '@milkdown/kit/prose/model'
-import { findMatches } from '../find'
+import { findMatches, findTextRanges } from '../find'
 
 const schema = new Schema({
   nodes: {
@@ -41,5 +41,26 @@ describe('findMatches', () => {
   it('同段重叠匹配不遗漏', () => {
     const d = doc(['aaa'])
     expect(findMatches(d, 'aa')).toEqual([{ from: 1, to: 3 }])
+  })
+})
+
+describe('findTextRanges', () => {
+  it('空查询返回空', () => {
+    expect(findTextRanges('hello', '')).toEqual([])
+  })
+
+  it('大小写不敏感，返回文本下标', () => {
+    expect(findTextRanges('Hello hello', 'hello')).toEqual([
+      { from: 0, to: 5 },
+      { from: 6, to: 11 },
+    ])
+  })
+
+  it('跨行匹配（源码模式文档含换行）', () => {
+    expect(findTextRanges('a\nb\nab', 'ab')).toEqual([{ from: 4, to: 6 }])
+  })
+
+  it('未命中返回空数组', () => {
+    expect(findTextRanges('abc', 'zzz')).toEqual([])
   })
 })
