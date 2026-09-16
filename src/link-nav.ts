@@ -18,15 +18,31 @@ import { native } from './native'
 /** 链接解析结果：外部 URL 或本地文件绝对路径 */
 export type LinkTarget = { kind: 'external'; url: string } | { kind: 'file'; path: string }
 
-/** 规范化路径：解析 ./ 与 ../ 段（baseDir + 相对链接的拼接结果） */
+/**
+ * 规范化路径：反斜杠统一为正斜杠，解析 `./` 与 `../` 段
+ * （输入通常是 baseDir + 相对链接的拼接结果）。
+ *
+ * Windows 上 baseDir 来自主进程 path.join（含反斜杠），若不先统一分隔符，
+ * 整段会被当作一个路径段而无法解析 `./` 与 `../`；
+ * 盘符路径保持 `E:/a/b` 形态（`/E:/a/b` 不是合法 Windows 路径），
+ * POSIX 路径则保持以 `/` 开头的绝对形式。
+ */
 export function normalizePath(path: string): string {
+  const unified = path.replaceAll('\\', '/')
+  const hasDrive = /^[a-zA-Z]:\//.test(unified)
   const out: string[] = []
-  for (const seg of path.split('/')) {
+  for (const seg of unified.split('/')) {
     if (!seg || seg === '.') continue
     if (seg === '..') out.pop()
     else out.push(seg)
   }
-  return '/' + out.join('/')
+  const joined = out.join('/')
+  return hasDrive ? joined : '/' + joined
+}
+
+/** 是否为绝对路径（POSIX 的 `/` 开头，或 Windows 的 `E:\` / `E:/` 盘符形式） */
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(p)
 }
 
 /**
@@ -52,7 +68,7 @@ export function resolveLink(href: string, baseDir: string | null): LinkTarget | 
   }
   p = p.split('#')[0].split('?')[0]
   if (!p) return null
-  if (p.startsWith('/')) return { kind: 'file', path: normalizePath(p) }
+  if (isAbsolutePath(p)) return { kind: 'file', path: normalizePath(p) }
   if (!baseDir) return null
   return { kind: 'file', path: normalizePath(`${baseDir}/${p}`) }
 }

@@ -48,6 +48,8 @@ const channels = {
   savePicGoConfig: 'tmd:save-picgo-config',
   // 快捷键自定义：渲染层将配置同步给主进程以更新菜单 accelerator
   syncShortcuts: 'tmd:sync-shortcuts',
+  // 跨文件全文搜索：主进程递归扫描挂载目录并逐行匹配
+  searchFiles: 'tmd:search-files',
 }
 
 module.exports = channels

@@ -17,6 +17,7 @@ import { findByPath, activateTab, listTabs } from './tabs'
 import { recentList } from './store'
 import { getFolderTrees } from './files'
 import { openPath } from './files'
+import { dirOf } from './fs-path'
 
 /** 候选条目：路径唯一标识，展示名 + 所在目录 */
 export interface QuickEntry {
@@ -98,14 +99,8 @@ function flattenTree(entries: import('./filetree').FileEntry[], out: QuickEntry[
       flattenTree(entry.children, out)
       continue
     }
-    out.push({ path: entry.path, name: entry.name, dir: parentDir(entry.path) })
+    out.push({ path: entry.path, name: entry.name, dir: dirOf(entry.path) })
   }
-}
-
-/** 取路径的目录部分（无分隔符返回空串） */
-function parentDir(path: string): string {
-  const idx = path.lastIndexOf('/')
-  return idx > 0 ? path.slice(0, idx) : ''
 }
 
 /** 三路数据源合并去重：已打开标签 → 文件夹树 → 最近列表 */
@@ -116,7 +111,7 @@ export function collectEntries(): QuickEntry[] {
     byPath.set(tab.path, {
       path: tab.path,
       name: tab.name,
-      dir: parentDir(tab.path),
+      dir: dirOf(tab.path),
       open: true,
     })
   }
@@ -130,7 +125,7 @@ export function collectEntries(): QuickEntry[] {
       byPath.set(recent.path, {
         path: recent.path,
         name: recent.name,
-        dir: parentDir(recent.path),
+        dir: dirOf(recent.path),
       })
     }
   }

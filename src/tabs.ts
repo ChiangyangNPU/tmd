@@ -9,6 +9,7 @@ import { replaceEditor, currentMarkdown, destroyEditor } from './editor-core'
 import { setImageBaseDir } from './image-resolver'
 import { native } from './native'
 import { t } from './i18n'
+import { dirOf } from './fs-path'
 
 /** 打开的文档标签页：一个标签对应一份在编辑的文档 */
 export interface DocTab {
@@ -85,10 +86,9 @@ export function getActiveBaseDir(): string | null {
   return tab?.path ? dirName(tab.path) : null
 }
 
-/** 取路径的目录部分（兼容 / 与 \ 分隔符） */
+/** 取路径的目录部分（兼容 / 与 \ 分隔符；无分隔符时原样返回） */
 function dirName(p: string): string {
-  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
-  return i > 0 ? p.slice(0, i) : p
+  return dirOf(p) || p
 }
 
 /** 同步窗口标题（工具栏居中文件名 + 未保存圆点标记）并更新图片显示目录 */

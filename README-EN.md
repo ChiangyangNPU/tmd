@@ -38,10 +38,11 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Outline panel (headings level 1-3, click to jump) and TOC block (GitHub-style anchors)
 - Table editing: floating toolbar on cursor entry (row/column add-remove, per-column alignment), drag-to-resize columns
 - Quick switch panel (Ctrl/Cmd+P): fuzzy-search open tabs, all expanded folders and recent files, Enter to open
+- **Cross-file search** (Ctrl/Cmd+Shift+F): line-by-line search across the folders mounted in the sidebar; results are grouped by file with line numbers and context (keyword highlighting) — ↑↓ to select, Enter to open and jump to the match. Dependency folders are skipped and per-file/result limits are enforced, so large workspaces never freeze the UI
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - Drag & drop: drop a .md file onto the window to open it (new tab); drop images to insert them per the paste strategy
 - Formatting shortcuts & Format menu: headings 1–6 (Ctrl/Cmd+1–6), bold/italic (Ctrl/Cmd+B/I), link (Ctrl/Cmd+K), blockquote, lists, code block — all undoable
-- **Custom shortcuts**: the settings panel lists 28 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
+- **Custom shortcuts**: the settings panel lists 29 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
 - Syntax extensions: footnotes `[^1]`, highlight `==text==`, superscript/subscript (both `^x^`/`~x~` and `^{x}`/`_{x}` are recognized; saving normalizes to the Pandoc single-symbol style), YAML front matter (a leading `---` fence renders as a key-value property table, click to edit the YAML source, written back byte-for-byte on save, stripped automatically from HTML/PDF export). Shortcuts: highlight Ctrl/Cmd+Shift+H, superscript Ctrl/Cmd+Shift+=, subscript Ctrl/Cmd+Shift+-
 - Right-click context menu in the editor: cut/copy/paste plus selection-aware format items (including remove link)
 - Link following: Ctrl/Cmd+click opens external URLs in the browser; relative-path links resolve against the document directory and open with the system app (hold Mod while hovering for a pointer hint)
@@ -74,6 +75,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 index.html                Page entry
 public/boot.js            First-frame bootstrap script (theme/platform classes, prevents white flash)
 electron/main.cjs         Electron main process (window, menu, IPC file read/write, image hosting, auto-update)
+electron/search.cjs       Full-text search scanning & matching (pure Node, independently verifiable)
 electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
 electron/preload.cjs      Controlled API exposure (contextBridge)
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
@@ -83,6 +85,8 @@ src/tabs.ts               Multi-tab state machine
 src/mermaid.ts            Mermaid real-time rendering plugin (core)
 src/theme-presets.ts      Theme presets & custom CSS injection
 src/shortcuts.ts          Shortcut configuration (definitions / read-write / validation / display formatting)
+src/search.ts             Cross-file search panel (debounce / grouped rendering / jump & locate)
+src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)
 src/find.ts               Find & replace (decorator-based)
 src/toc.ts                Table-of-contents (TOC) block
 src/mark-ext.ts           Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)

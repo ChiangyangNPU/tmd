@@ -10,6 +10,7 @@ import { $prose } from '@milkdown/kit/utils'
 import { Plugin, TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView } from '@milkdown/kit/prose/view'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
+import { scrollEditorPosIntoView } from './toc'
 
 /** 单个匹配项在文档中的位置区间 */
 export interface MatchRange {
@@ -83,11 +84,11 @@ export function findStep(view: EditorView, delta: 1 | -1): FindState {
   if (!state.matches.length) return state
   state.index = (state.index + delta + state.matches.length) % state.matches.length
   const match = state.matches[state.index]
-  view.dispatch(
-    view.state.tr
-      .setSelection(TextSelection.create(view.state.doc, match.from, match.to))
-      .scrollIntoView(),
-  )
+  const selection = TextSelection.create(view.state.doc, match.from, match.to)
+  view.dispatch(view.state.tr.setSelection(selection))
+  // ProseMirror 自带的 tr.scrollIntoView() 对自定义滚动容器（.page-scroll）不生效，
+  // 改用手动计算滚动量的共用工具（toc / outline 亦用之）
+  scrollEditorPosIntoView(view, selection.from)
   sync(view)
   return state
 }

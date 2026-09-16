@@ -52,6 +52,7 @@ import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
+import { openSearch, closeSearch, wireSearch } from './search'
 import { wireTableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
 import {
@@ -260,6 +261,7 @@ async function boot() {
         closeLinkBar()
         closeContextMenu()
         closeQuickSwitch()
+        closeSearch()
       }
       const mod = e.metaKey || e.ctrlKey
       if (!mod) return
@@ -268,6 +270,9 @@ async function boot() {
       if (isSameAccelerator(acc, shortcuts['quick-switch'])) {
         e.preventDefault()
         openQuickSwitch()
+      } else if (isSameAccelerator(acc, shortcuts['search-files'])) {
+        e.preventDefault()
+        openSearch()
       } else if (isSameAccelerator(acc, shortcuts['find']) && !isSourceMode()) {
         e.preventDefault()
         openFindBar()
@@ -324,6 +329,7 @@ async function boot() {
     wireLinkBar()
     wireContextMenu()
     wireQuickSwitch()
+    wireSearch()
     // 表格工具栏按钮：源码模式下无 PM 视图，忽略
     wireTableToolbar(() => (isSourceMode() ? null : getPmView()))
     renderFilesSidebar()

@@ -86,12 +86,47 @@ export interface NativeFileAPI {
   savePicGoConfig(config: PicGoConfig): Promise<boolean>
   /** 同步快捷键配置到主进程，更新菜单 accelerator */
   syncShortcuts(shortcuts: Record<string, string>): void
+  /** 跨文件全文搜索：在给定根目录下递归搜索关键词，返回按行汇总的命中列表 */
+  searchFiles(roots: string[], query: string): Promise<SearchResult>
 }
 
 /** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
 export interface RecentMenuEntry {
   name: string
   path: string
+}
+
+/**
+ * 全文搜索的单条命中（按「行」汇总，一行最多一条）。
+ * `occurrence` 是该行首个匹配在文件内的序号（1 起），
+ * 供渲染层在同文档内用 findMatches 重新匹配后精确落位。
+ */
+export interface SearchMatch {
+  /** 文件绝对路径 */
+  path: string
+  /** 文件名 */
+  name: string
+  /** 行号（1 起） */
+  line: number
+  /** 首个匹配的列号（1 起） */
+  column: number
+  /** 该行首个匹配在文件内的序号（1 起） */
+  occurrence: number
+  /** 该行原文（超长截断，用于结果预览） */
+  text: string
+}
+
+/** 全文搜索结果：命中行列表与统计信息 */
+export interface SearchResult {
+  matches: SearchMatch[]
+  /** 命中的文件数 */
+  fileCount: number
+  /** 实际扫描的文件数 */
+  scannedFiles: number
+  /** 是否因上限（文件数 / 命中数）而截断 */
+  truncated: boolean
+  /** 耗时（毫秒） */
+  elapsedMs: number
 }
 
 /**
@@ -169,4 +204,5 @@ export interface IpcChannels {
   getPicGoConfig: string
   savePicGoConfig: string
   syncShortcuts: string
+  searchFiles: string
 }

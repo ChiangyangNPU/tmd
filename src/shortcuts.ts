@@ -80,6 +80,12 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   },
   { action: 'find', labelKey: 'settings.shortcutFind', default: 'CmdOrCtrl+F', group: 'editor' },
   {
+    action: 'search-files',
+    labelKey: 'settings.shortcutSearchFiles',
+    default: 'CmdOrCtrl+Shift+F',
+    group: 'editor',
+  },
+  {
     action: 'source-mode',
     labelKey: 'settings.shortcutSourceMode',
     default: 'CmdOrCtrl+E',

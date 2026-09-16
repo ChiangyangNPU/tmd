@@ -28,6 +28,12 @@ const {
 const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
+const {
+  collectSearchFiles,
+  searchInFiles,
+  SEARCH_MAX_FILES,
+  SEARCH_MAX_MATCHES,
+} = require('./search.cjs')
 const os = require('node:os')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -680,6 +686,29 @@ ipcMain.handle(IPC.readDir, async (_event, dirPath) => {
     return { path: dirPath, name: path.basename(dirPath), children: await walk(dirPath, 1) }
   } catch {
     return null
+  }
+})
+
+// ---------- 跨文件全文搜索 ----------
+
+/** @param {unknown} _event @param {unknown} roots @param {unknown} query */
+ipcMain.handle(IPC.searchFiles, async (_event, roots, query) => {
+  /** @type {import('../src/native.ts').SearchResult} */
+  const empty = { matches: [], fileCount: 0, scannedFiles: 0, truncated: false, elapsedMs: 0 }
+  if (!Array.isArray(roots) || typeof query !== 'string') return empty
+  const needle = query.trim().toLowerCase()
+  const dirs = roots.filter((r) => typeof r === 'string' && r !== '')
+  if (!needle || !dirs.length) return empty
+
+  const started = Date.now()
+  const collected = await collectSearchFiles(dirs, SEARCH_MAX_FILES)
+  const searched = await searchInFiles(collected.files, needle, SEARCH_MAX_MATCHES)
+  return {
+    matches: searched.matches,
+    fileCount: searched.fileCount,
+    scannedFiles: collected.files.length,
+    truncated: collected.truncated || searched.truncated,
+    elapsedMs: Date.now() - started,
   }
 })
 

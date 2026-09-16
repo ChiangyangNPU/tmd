@@ -136,6 +136,14 @@
     "placeholder": "搜索文件名，回车打开",
     "empty": "无匹配文件"
   },
+  "search": {
+    "placeholder": "在已挂载的文件夹中搜索",
+    "searching": "搜索中…",
+    "summary": "{files} 个文件，{hits} 处匹配（{ms} ms）",
+    "truncated": "结果已截断",
+    "noFolder": "请先在侧边栏挂载文件夹",
+    "unavailable": "浏览器模式不支持跨文件搜索"
+  },
   "tt": {
     "rowAdd": "行+",
     "rowAddTitle": "在下方插入一行",
@@ -212,6 +220,7 @@
     "shortcutGroupEditor": "编辑器",
     "shortcutQuickSwitch": "快速切换文件",
     "shortcutFind": "查找替换",
+    "shortcutSearchFiles": "在文件夹中搜索",
     "shortcutSourceMode": "源码模式",
     "shortcutCapture": "按下组合键…",
     "shortcutInvalid": "快捷键必须包含 Ctrl/Cmd 或 Alt",

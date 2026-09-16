@@ -136,6 +136,14 @@
     "placeholder": "Search files by name, Enter to open",
     "empty": "No matching files"
   },
+  "search": {
+    "placeholder": "Search in mounted folders",
+    "searching": "Searching…",
+    "summary": "{files} files, {hits} matches ({ms} ms)",
+    "truncated": "results truncated",
+    "noFolder": "Mount a folder in the sidebar first",
+    "unavailable": "Cross-file search is unavailable in browser mode"
+  },
   "tt": {
     "rowAdd": "+Row",
     "rowAddTitle": "Insert a row below",
@@ -212,6 +220,7 @@
     "shortcutGroupEditor": "Editor",
     "shortcutQuickSwitch": "Quick Switch",
     "shortcutFind": "Find & Replace",
+    "shortcutSearchFiles": "Search in Folders",
     "shortcutSourceMode": "Source Mode",
     "shortcutCapture": "Press keys…",
     "shortcutInvalid": "Shortcut must include Ctrl/Cmd or Alt",

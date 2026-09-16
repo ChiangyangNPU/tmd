@@ -38,10 +38,11 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 大纲面板（1-3 级标题点击跳转）与目录块（TOC，GitHub 风格锚点）
 - 表格编辑：光标入表弹出悬浮工具栏（行/列增删、当前列对齐），列宽拖拽调整
 - 快速切换面板（Ctrl/Cmd+P）：模糊搜索已打开标签、已展开的多个文件夹与最近文件，回车直达
+- **跨文件全文搜索**（Ctrl/Cmd+Shift+F）：在侧边栏已挂载的文件夹中逐行检索，结果按文件分组显示行号与上下文（关键词高亮），↑↓ 选择、回车打开并定位到匹配处；自动跳过依赖目录、限制单文件大小与结果数量，大型工作区也不会卡住界面
 - 文件侧边栏：可同时挂载多个文件夹（独立展开、重启恢复、展开懒加载）与最近打开列表；两者均支持行内 hover × 单条移除与一键清空（二次确认；文件夹只取消挂载，不删除磁盘文件）
 - 拖拽打开：拖 .md 文件进窗口即打开（新标签），拖图片进文档按粘贴策略插入
 - 格式化快捷键与「格式」菜单：标题 1~6（Ctrl/Cmd+1~6）、加粗/斜体（Ctrl/Cmd+B/I）、链接（Ctrl/Cmd+K）、引用、有序/无序列表、代码块，全部可撤销
-- **快捷键自定义**：设置面板按「文件 / 导出 / 格式 / 编辑器」四组罗列 28 项快捷键，点击按键框后按下新组合键即可改键；带冲突检测与就地错误提示，支持一键恢复默认（Windows 显示 `Ctrl+Shift+O`，macOS 按苹果规范显示 `⇧⌘O`）
+- **快捷键自定义**：设置面板按「文件 / 导出 / 格式 / 编辑器」四组罗列 29 项快捷键，点击按键框后按下新组合键即可改键；带冲突检测与就地错误提示，支持一键恢复默认（Windows 显示 `Ctrl+Shift+O`，macOS 按苹果规范显示 `⇧⌘O`）
 - 语法扩展：脚注 `[^1]`、高亮 `==文本==`、上/下标（`^x^`/`~x~` 与 `^{x}`/`_{x}` 两种写法均识别，保存统一为 Pandoc 单符号风格）、YAML front matter（文档开头 `---` 围栏渲染为键值属性表，点击进 YAML 源码编辑，保存字节级原样写回，导出 HTML/PDF 自动剥离）；快捷键：高亮 Ctrl/Cmd+Shift+H、上标 Ctrl/Cmd+Shift+=、下标 Ctrl/Cmd+Shift+-
 - 编辑区右键上下文菜单：剪切/复制/粘贴 + 按选区显隐的格式化项（含移除链接）
 - 链接点击跳转：Ctrl/Cmd+点击外部链接跳浏览器、相对路径链接按文档目录解析后用系统应用打开（悬停按住 Mod 键提示可点）
@@ -74,6 +75,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 index.html            页面入口
 public/boot.js        首帧引导脚本（主题/平台类，防启动白闪）
 electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、图床上传、自动更新）
+electron/search.cjs   全文搜索的扫描与匹配（纯 Node，可独立验证）
 electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
 electron/preload.cjs  受控 API 暴露（contextBridge）
 scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
@@ -83,6 +85,8 @@ src/tabs.ts           多标签页状态机
 src/mermaid.ts        Mermaid 实时渲染插件（核心）
 src/theme-presets.ts  主题预设与自定义 CSS 注入
 src/shortcuts.ts      快捷键配置（定义 / 读写 / 校验 / 显示格式化）
+src/search.ts         跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
+src/fs-path.ts        文件系统路径工具（规范化 / 取目录 / 同一性判断）
 src/find.ts           查找替换（装饰器实现）
 src/toc.ts            目录（TOC）块
 src/mark-ext.ts       语法扩展（高亮 / 上下标：解析、序列化、输入规则）

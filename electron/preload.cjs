@@ -118,6 +118,8 @@ const api = {
   savePicGoConfig: (config) => ipcRenderer.invoke(IPC.savePicGoConfig, config),
   /** 同步快捷键配置到主进程，更新菜单 accelerator */
   syncShortcuts: (shortcuts) => ipcRenderer.send(IPC.syncShortcuts, shortcuts),
+  /** 跨文件全文搜索：主进程递归扫描根目录并逐行匹配 */
+  searchFiles: (roots, query) => ipcRenderer.invoke(IPC.searchFiles, roots, query),
 }
 
 contextBridge.exposeInMainWorld('tmdAPI', api)
