@@ -42,6 +42,10 @@ const channels = {
   recentClear: 'tmd:recent-clear',
   recentRemove: 'tmd:recent-remove',
   recentOpen: 'tmd:recent-open',
+  // 图床上传（PicGo-Core）
+  uploadImage: 'tmd:upload-image',
+  getPicGoConfig: 'tmd:get-picgo-config',
+  savePicGoConfig: 'tmd:save-picgo-config',
 }
 
 module.exports = channels

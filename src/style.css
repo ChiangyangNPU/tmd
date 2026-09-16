@@ -402,6 +402,53 @@ html.win .win-controls {
   font-size: 12px;
 }
 
+/* 图床配置区：label + 控件横排 */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.settings-row-label {
+  flex: 0 0 90px;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.settings-row .settings-input {
+  margin-top: 0;
+  flex: 1;
+}
+
+.settings-select {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.settings-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  background: var(--bg-hover);
+}
+
+.picgo-fields {
+  margin-top: 6px;
+}
+
 /* 更新区块：检查按钮 + 状态文字 + 重启按钮 */
 .settings-update-row {
   display: flex;

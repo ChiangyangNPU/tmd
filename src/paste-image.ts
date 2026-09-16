@@ -5,6 +5,8 @@
  * - inline：剪贴板图片转 data URL 内联进文档（默认；无需文档已保存）
  * - assets：图片写入文档同目录 assets/ 文件夹，文档里保存相对路径
  *   （便于迁移与 GitHub 展示；要求文档已保存过，否则自动降级 inline）
+ * - hosting：图片上传到图床（PicGo-Core），文档里保存云端 URL
+ *   （适合分享到网络；上传失败自动降级 inline）
  *
  * 相对路径的"显示解析"由 src/image-resolver.ts 完成（文档内容里始终保存相对路径）。
  *
@@ -16,7 +18,7 @@ import type { Selection } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { native } from './native'
 
-export type ImageStrategy = 'inline' | 'assets'
+export type ImageStrategy = 'inline' | 'assets' | 'hosting'
 
 /** 粘贴上下文：策略来自设置面板，目录来自当前标签页的文件路径 */
 interface ImagePasteContext {
@@ -91,7 +93,7 @@ export async function insertImageFiles(
   return inserted
 }
 
-/** 读取图片并按当前策略插入：assets 落盘失败时自动降级为内联 */
+/** 读取图片并按当前策略插入：assets/hosting 失败时自动降级为内联 */
 async function insertImage(view: EditorView, file: File, selection: Selection) {
   const dataUrl = await readAsDataURL(file)
 
@@ -101,6 +103,10 @@ async function insertImage(view: EditorView, file: File, selection: Selection) {
   if (strategy === 'assets' && baseDir && native) {
     const savedName = await saveToAssets(baseDir, file, dataUrl)
     if (savedName) src = `assets/${savedName}`
+  } else if (strategy === 'hosting' && native) {
+    const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+    const url = await native.uploadImage(base64)
+    if (url) src = url
   }
 
   const nodeType = view.state.schema.nodes.image

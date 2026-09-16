@@ -440,8 +440,38 @@
               >保存到文档同目录 assets/ 文件夹（需先将文档保存）</span
             ></label
           >
+          <label class="settings-option"
+            ><input type="radio" name="set-img" value="hosting" /><span
+              data-i18n="settings.imageHosting"
+              >上传到图床（PicGo，适合分享到网络）</span
+            ></label
+          >
           <div class="settings-hint" data-i18n="settings.imageAssetsHint">
             选择 assets 模式时，未保存过的文档会自动降级为内联模式
+          </div>
+          <div class="settings-hint" data-i18n="settings.imageHostingHint">
+            选择图床模式时，上传失败会自动降级为内联模式
+          </div>
+        </div>
+
+        <div class="settings-section" id="picgo-config-section">
+          <div class="settings-label" data-i18n="settings.picgoConfig">图床配置</div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="picgo-uploader" data-i18n="settings.picgoUploader">图床类型</label>
+            <select id="picgo-uploader" class="settings-select">
+              <option value="smms">SM.MS (S.EE)</option>
+              <option value="github">GitHub</option>
+              <option value="qiniu">七牛云</option>
+              <option value="upyun">又拍云</option>
+              <option value="tcyun">腾讯云 COS</option>
+              <option value="aliyun">阿里云 OSS</option>
+              <option value="imgur">Imgur</option>
+            </select>
+          </div>
+          <div id="picgo-fields" class="picgo-fields"></div>
+          <div class="settings-row">
+            <button id="picgo-save-btn" class="settings-btn" data-i18n="settings.picgoSave">保存图床配置</button>
+            <span id="picgo-save-status" class="settings-hint"></span>
           </div>
         </div>
 

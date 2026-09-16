@@ -78,12 +78,27 @@ export interface NativeFileAPI {
   recentRemove(path: string): void
   /** 订阅主进程「打开最近」菜单项点击（参数为文件绝对路径） */
   onRecentOpen(callback: (filePath: string) => void): void
+  /** 图床上传：把 base64 图片交给主进程用 PicGo 上传，返回图片 URL */
+  uploadImage(base64: string): Promise<string | null>
+  /** 获取 PicGo 当前配置（图床类型及各图床参数） */
+  getPicGoConfig(): Promise<PicGoConfig>
+  /** 保存 PicGo 配置到 userData 目录 */
+  savePicGoConfig(config: PicGoConfig): Promise<boolean>
 }
 
 /** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
 export interface RecentMenuEntry {
   name: string
   path: string
+}
+
+/**
+ * PicGo 图床配置：current 为当前选中的图床类型，
+ * 各图床参数以扁平对象存储（与 PicGo 的 picBed 配置结构一致）。
+ */
+export interface PicGoConfig {
+  current: string
+  [key: string]: unknown
 }
 
 /**
@@ -148,4 +163,7 @@ export interface IpcChannels {
   recentClear: string
   recentRemove: string
   recentOpen: string
+  uploadImage: string
+  getPicGoConfig: string
+  savePicGoConfig: string
 }

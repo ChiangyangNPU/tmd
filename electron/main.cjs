@@ -28,7 +28,10 @@ const {
 const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
+const os = require('node:os')
 const IPC = require('./ipc.cjs')
+// 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
+const { PicGo } = require('picgo')
 // 自动更新：electron-updater。开发模式（app.isPackaged === false）下
 // checkForUpdates 会因找不到 latest.yml 报错，统一由 error 事件处理。
 const { autoUpdater } = require('electron-updater')
@@ -759,6 +762,84 @@ ipcMain.handle(IPC.openExternal, (_event, url) => {
 ipcMain.handle(IPC.openLocalFile, (_event, filePath) => {
   if (typeof filePath !== 'string' || !filePath) return 'invalid path'
   return shell.openPath(filePath)
+})
+
+// ---------- IPC：图床上传（PicGo-Core） ----------
+
+/** PicGo 配置文件路径（userData 目录，随应用卸载清理） */
+function picgoConfigPath() {
+  return path.join(app.getPath('userData'), 'picgo-config.json')
+}
+
+/** 懒加载 PicGo 实例：配置文件放 userData，不使用默认的 ~/.picgo/config.json */
+/** @type {import('picgo').PicGo | null} */
+let picgoInstance = null
+/** @returns {import('picgo').PicGo} */
+function getPicGo() {
+  if (!picgoInstance) {
+    picgoInstance = new PicGo(picgoConfigPath())
+  }
+  return picgoInstance
+}
+
+/**
+ * 上传图片到图床：渲染层传 base64，主进程写临时文件后交给 PicGo 上传，
+ * 返回图片 URL；失败返回 null。
+ * @param {unknown} _event
+ * @param {unknown} base64  纯 base64 字符串（不含 data:image/...;base64, 前缀）
+ */
+ipcMain.handle(IPC.uploadImage, async (_event, base64) => {
+  if (typeof base64 !== 'string' || !base64) return null
+  let tmpFile = ''
+  try {
+    // 写临时文件：PicGo 的 path transformer 只接受文件路径
+    const ext = base64.startsWith('/') ? 'jpg' : base64.startsWith('i') ? 'png' : 'png'
+    tmpFile = path.join(os.tmpdir(), `tmd-picgo-${Date.now()}.${ext}`)
+    await fs.writeFile(tmpFile, Buffer.from(base64, 'base64'))
+    const picgo = getPicGo()
+    /** @type {unknown} */
+    const result = await picgo.upload([tmpFile])
+    if (Array.isArray(result) && result[0] && typeof result[0].imgUrl === 'string') {
+      return result[0].imgUrl
+    }
+    return null
+  } catch (err) {
+    console.error('[tmd] 图床上传失败', err)
+    return null
+  } finally {
+    // 清理临时文件
+    if (tmpFile) {
+      fs.unlink(tmpFile).catch(() => {})
+    }
+  }
+})
+
+/** 获取 PicGo 配置（图床类型及各图床参数） */
+ipcMain.handle(IPC.getPicGoConfig, async () => {
+  try {
+    const picgo = getPicGo()
+    const config = picgo.getConfig()
+    // picBed 包含 current（当前图床）和各图床参数
+    return config.picBed || { current: '' }
+  } catch (err) {
+    console.error('[tmd] 获取 PicGo 配置失败', err)
+    return { current: '' }
+  }
+})
+
+/** 保存 PicGo 配置到 userData 目录 */
+/** @param {unknown} _event @param {unknown} config */
+ipcMain.handle(IPC.savePicGoConfig, async (_event, config) => {
+  if (!config || typeof config !== 'object') return false
+  try {
+    const picgo = getPicGo()
+    // saveConfig 会写入配置文件并持久化
+    picgo.saveConfig({ picBed: config })
+    return true
+  } catch (err) {
+    console.error('[tmd] 保存 PicGo 配置失败', err)
+    return false
+  }
 })
 
 // 渲染层就绪：补发排队中的待打开文件
