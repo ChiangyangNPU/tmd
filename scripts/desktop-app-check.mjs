@@ -65,6 +65,9 @@ const DOC_KEY = 'tmd:doc:v1'
 
 const EDIT_MARKER = 'E2E-EDIT-MARKER-7f3a'
 const RECOVER_MARKER = 'E2E-RECOVER-MARKER-9c2b'
+const SPLIT_MARKER = 'E2E-SPLIT-MARKER-3d1e'
+const SOURCE_MARKER = 'E2E-SOURCE-MARKER-5a8f'
+const CM_EDIT_MARKER = 'E2E-CM-MARKER-7b2c'
 const RENDER_ERROR_MARKER = 'tmd-e2e-render-error-marker'
 
 const KEEP = process.argv.includes('--keep')
@@ -582,6 +585,204 @@ async function main() {
       '场景6 未保存关闭选取消后窗口与文档存活',
       JSON.parse(cancelInfo).windows === 1 && rendererAlive,
       cancelInfo,
+    )
+
+    // ---------- 场景 6b：左右分屏（源码 + 所见即所得） ----------
+    // 前置归位：视图模式是全局状态，若前序步骤留下源码/分屏态，单击只会「切走」
+    // 而不是「切入」，断言就会错位——先确保回到所见即所得
+    await rendererCdp.evalJson(`(() => {
+      if (document.body.classList.contains('view-source')) document.getElementById('source-mode-btn')?.click()
+      if (document.body.classList.contains('view-split')) document.getElementById('split-view-btn')?.click()
+      return document.body.className
+    })()`)
+    await sleep(500)
+
+    await rendererCdp.evalJson(`document.getElementById('split-view-btn')?.click()`)
+    /** @type {Record<string, unknown> | null} */
+    let splitState = null
+    for (let i = 0; i < 40; i++) {
+      splitState = JSON.parse(
+        /** @type {string} */ (
+          await rendererCdp.evalJson(`JSON.stringify({
+            isSplit: document.body.classList.contains('view-split'),
+            srcVisible: document.getElementById('src-pane')?.hidden === false,
+            dividerVisible: document.getElementById('split-divider')?.hidden === false,
+            cmReadonly: document.querySelector('#src-editor .cm-content')?.getAttribute('contenteditable') === 'false',
+            pmReadonly: document.querySelector('#editor .ProseMirror')?.getAttribute('contenteditable') === 'false',
+            cmText: (document.querySelector('#src-editor .cm-content')?.textContent || '').slice(0, 300),
+            bodyClass: document.body.className
+          })`)
+        ),
+      )
+      if (splitState.isSplit === true) break
+      await sleep(200)
+    }
+    check(
+      '场景6b 分屏打开：两栏并排，所见即所得可编辑、源码侧只读并已载入当前文档',
+      splitState?.isSplit === true &&
+        splitState.srcVisible === true &&
+        splitState.dividerVisible === true &&
+        splitState.pmReadonly === false &&
+        splitState.cmReadonly === true &&
+        String(splitState.cmText).includes('主链路验证文档'),
+      JSON.stringify(splitState),
+    )
+
+    // 所见即所得侧输入 → 源码侧防抖跟随
+    await insertText(rendererCdp, SPLIT_MARKER)
+    let followOk = false
+    for (let i = 0; i < 40; i++) {
+      const text = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `document.querySelector('#src-editor .cm-content')?.textContent || ''`,
+        )
+      )
+      if (text.includes(SPLIT_MARKER)) {
+        followOk = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6c 所见即所得输入后源码侧跟随更新', followOk)
+
+    // 点源码侧 → 它成为可编辑侧，所见即所得转只读
+    await rendererCdp.evalJson(`(() => {
+      const pane = document.getElementById('src-pane')
+      const el = document.querySelector('#src-editor .cm-content') || pane
+      const rect = el.getBoundingClientRect()
+      pane.dispatchEvent(new MouseEvent('mousedown', {
+        clientX: rect.left + 30, clientY: rect.top + 30, bubbles: true,
+      }))
+      return true
+    })()`)
+    await sleep(700)
+    const activeState = JSON.parse(
+      /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          cmReadonly: document.querySelector('#src-editor .cm-content')?.getAttribute('contenteditable') === 'false',
+          pmReadonly: document.querySelector('#editor .ProseMirror')?.getAttribute('contenteditable') === 'false'
+        })`)
+      ),
+    )
+    check(
+      '场景6d 点源码侧后由源码编辑、所见即所得转只读',
+      activeState.cmReadonly === false && activeState.pmReadonly === true,
+      JSON.stringify(activeState),
+    )
+
+    // 反向同步：源码为编辑侧时在源码里输入 → 所见即所得防抖跟随
+    await rendererCdp.evalJson(`document.querySelector('#src-editor .cm-content')?.focus()`)
+    await rendererCdp.send('Input.insertText', { text: CM_EDIT_MARKER })
+    let reverseFollowOk = false
+    for (let i = 0; i < 40; i++) {
+      const text = await editorText(rendererCdp)
+      if (text.includes(CM_EDIT_MARKER)) {
+        reverseFollowOk = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6d2 源码侧输入后所见即所得跟随更新（反向同步）', reverseFollowOk)
+
+    // 拖拽分隔条 → 比例变化并持久化
+    const ratioBefore = /** @type {string} */ (
+      await rendererCdp.evalJson(
+        `document.getElementById('panes')?.style.getPropertyValue('--split-ratio') || ''`,
+      )
+    )
+    await rendererCdp.evalJson(`(() => {
+      const divider = document.getElementById('split-divider')
+      const rect = divider.getBoundingClientRect()
+      divider.dispatchEvent(new MouseEvent('mousedown', {
+        clientX: rect.left + 2, clientY: rect.top + 20, bubbles: true,
+      }))
+      document.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: rect.left + 160, clientY: rect.top + 20, bubbles: true,
+      }))
+      document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+      return true
+    })()`)
+    await sleep(300)
+    const ratioAfter = /** @type {string} */ (
+      await rendererCdp.evalJson(
+        `document.getElementById('panes')?.style.getPropertyValue('--split-ratio') || ''`,
+      )
+    )
+    const ratioStored = /** @type {string} */ (
+      await rendererCdp.evalJson(`localStorage.getItem('tmd:split-ratio') || ''`)
+    )
+    check(
+      '场景6e 拖拽分隔条改变左右比例并写入持久化',
+      ratioBefore !== '' && ratioAfter !== ratioBefore && ratioStored !== '',
+      `${ratioBefore} → ${ratioAfter}，持久化 ${ratioStored}`,
+    )
+
+    // 再点一次退出分屏
+    await rendererCdp.evalJson(`document.getElementById('split-view-btn')?.click()`)
+    await sleep(600)
+    const closedState = JSON.parse(
+      /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          isSplit: document.body.classList.contains('view-split'),
+          srcHidden: document.getElementById('src-pane')?.hidden === true,
+          pmReadonly: document.querySelector('#editor .ProseMirror')?.getAttribute('contenteditable') === 'false'
+        })`)
+      ),
+    )
+    check(
+      '场景6f 再次点击退出分屏并恢复单栏可编辑',
+      closedState.isSplit === false &&
+        closedState.srcHidden === true &&
+        closedState.pmReadonly === false,
+      JSON.stringify(closedState),
+    )
+
+    // ---------- 场景 6g：纯源码模式回归（视图三态中的 source） ----------
+    // 源码模式的退出路径已由「重建编辑器」改为「parser + dispatch 原地更新」，
+    // 这里覆盖「源码侧改动能否并回所见即所得」
+    await rendererCdp.evalJson(`document.getElementById('source-mode-btn')?.click()`)
+    /** @type {Record<string, unknown> | null} */
+    let sourceState = null
+    for (let i = 0; i < 40; i++) {
+      sourceState = JSON.parse(
+        /** @type {string} */ (
+          await rendererCdp.evalJson(`JSON.stringify({
+            isSource: document.body.classList.contains('view-source'),
+            pmHidden: document.querySelector('.page-scroll')?.hidden === true,
+            srcVisible: document.getElementById('src-pane')?.hidden === false,
+            cmReadonly: document.querySelector('#src-editor .cm-content')?.getAttribute('contenteditable') === 'false',
+            bodyClass: document.body.className
+          })`)
+        ),
+      )
+      if (sourceState.isSource === true) break
+      await sleep(200)
+    }
+    check(
+      '场景6g 切到纯源码模式：单栏源码可编辑、所见即所得隐藏',
+      sourceState?.isSource === true &&
+        sourceState.pmHidden === true &&
+        sourceState.srcVisible === true &&
+        sourceState.cmReadonly === false,
+      JSON.stringify(sourceState),
+    )
+
+    await rendererCdp.evalJson(`document.querySelector('#src-editor .cm-content')?.focus()`)
+    await rendererCdp.send('Input.insertText', { text: SOURCE_MARKER })
+    await sleep(500)
+    await rendererCdp.evalJson(`document.getElementById('source-mode-btn')?.click()`)
+    // 退出源码模式后：视图回到单栏，且源码侧改动已并回所见即所得
+    let afterSourceExit = ''
+    for (let i = 0; i < 40; i++) {
+      afterSourceExit = await editorText(rendererCdp)
+      const isSource = await rendererCdp.evalJson(`document.body.classList.contains('view-source')`)
+      if (isSource !== true && afterSourceExit.includes(SOURCE_MARKER)) break
+      await sleep(250)
+    }
+    check(
+      '场景6h 退出源码模式后源码侧改动并回所见即所得',
+      afterSourceExit.includes(SOURCE_MARKER),
+      `正文 ${afterSourceExit.length} 字符`,
     )
 
     // ---------- 场景 7：渲染层异常落盘 ----------

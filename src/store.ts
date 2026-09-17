@@ -19,6 +19,7 @@ export const THEME_PRESET_KEY = 'tmd:theme-preset'
 export const CUSTOM_CSS_KEY = 'tmd:custom-css'
 export const THEME_FILE_KEY = 'tmd:theme-file'
 export const SOURCE_LINENOS_KEY = 'tmd:src-linenos'
+export const SPLIT_RATIO_KEY = 'tmd:split-ratio'
 export const TYPOGRAPHY_KEY = 'tmd:typography'
 export const FOCUS_MODE_KEY = 'tmd:focus-mode'
 export const TYPEWRITER_MODE_KEY = 'tmd:typewriter-mode'
@@ -183,6 +184,17 @@ export function getSourceLineNumbers(): boolean {
 /** 持久化源码模式行号开关 */
 export function setSourceLineNumbers(enabled: boolean) {
   localStorage.setItem(SOURCE_LINENOS_KEY, enabled ? 'true' : 'false')
+}
+
+/** 分屏左右宽度比例（左栏占比；未设置或非法值回落 0.5，具体上下限由 split.ts 收紧） */
+export function getSplitRatio(): number {
+  const raw = Number(localStorage.getItem(SPLIT_RATIO_KEY))
+  return Number.isFinite(raw) && raw > 0 ? raw : 0.5
+}
+
+/** 持久化分屏宽度比例 */
+export function setSplitRatio(ratio: number) {
+  localStorage.setItem(SPLIT_RATIO_KEY, String(ratio))
 }
 
 /** 排版设置（编辑区外观，各项空值 = 跟随默认） */

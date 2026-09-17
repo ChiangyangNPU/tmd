@@ -54,6 +54,7 @@ import { wireContextMenu, closeContextMenu } from './context-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
 import { openSearch, closeSearch, wireSearch } from './search'
+import { wireSplit } from './split'
 import { openHistory, wireHistory } from './history'
 import { wireTableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
@@ -62,6 +63,8 @@ import {
   currentMarkdown,
   replaceEditor,
   setSourceMode,
+  setViewMode,
+  getViewMode,
   updateWordCount,
   getPmView,
   isSourceMode,
@@ -96,6 +99,15 @@ const DEMO_DOC = ''
 function closeMoreMenu() {
   const menu = document.getElementById('more-menu')
   if (menu) menu.hidden = true
+}
+
+/**
+ * 分屏开关：在「左右分屏」与「所见即所得」之间切换。
+ * 与源码模式是同一份视图状态（editor-core 的三态），故互斥——分屏中再按一次
+ * 源码模式键会切到纯源码，而不是叠加。
+ */
+function toggleSplitView() {
+  setViewMode(getViewMode() === 'split' ? 'wysiwyg' : 'split')
 }
 
 /** 切换侧边栏面板（大纲 / 文件二选一，互斥展开收起） */
@@ -181,7 +193,8 @@ async function boot() {
     document.getElementById('export-btn')?.addEventListener('click', () => void saveDocument())
     document
       .getElementById('source-mode-btn')
-      ?.addEventListener('click', () => void setSourceMode(!isSourceMode()))
+      ?.addEventListener('click', () => setSourceMode(!isSourceMode()))
+    document.getElementById('split-view-btn')?.addEventListener('click', () => toggleSplitView())
     document
       .getElementById('sidebar-outline-btn')
       ?.addEventListener('click', () => toggleSidebar('outline'))
@@ -307,7 +320,10 @@ async function boot() {
         openFindBar()
       } else if (isSameAccelerator(acc, shortcuts['source-mode'])) {
         e.preventDefault()
-        void setSourceMode(!isSourceMode())
+        setSourceMode(!isSourceMode())
+      } else if (isSameAccelerator(acc, shortcuts['split-view'])) {
+        e.preventDefault()
+        toggleSplitView()
       } else if (isSameAccelerator(acc, shortcuts['new-tab'])) {
         e.preventDefault()
         createNewTab()
@@ -372,6 +388,8 @@ async function boot() {
     wireContextMenu()
     wireQuickSwitch()
     wireSearch()
+    // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
+    wireSplit()
     // 历史版本面板：恢复只把快照载入编辑器并置脏，是否覆盖磁盘由用户后续保存决定
     wireHistory({
       onRestore: async (content) => {

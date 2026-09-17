@@ -36,21 +36,41 @@ export interface ShortcutDef {
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // 文件操作
   { action: 'open', labelKey: 'menu.open', default: 'CmdOrCtrl+O', group: 'file' },
-  { action: 'open-folder', labelKey: 'menu.openFolder', default: 'CmdOrCtrl+Shift+O', group: 'file' },
+  {
+    action: 'open-folder',
+    labelKey: 'menu.openFolder',
+    default: 'CmdOrCtrl+Shift+O',
+    group: 'file',
+  },
   { action: 'save', labelKey: 'menu.save', default: 'CmdOrCtrl+S', group: 'file' },
   { action: 'save-as', labelKey: 'menu.saveAs', default: 'CmdOrCtrl+Shift+S', group: 'file' },
   { action: 'new-tab', labelKey: 'menu.newTab', default: 'CmdOrCtrl+T', group: 'file' },
   { action: 'close-tab', labelKey: 'menu.closeTab', default: 'CmdOrCtrl+W', group: 'file' },
 
   // 导出
-  { action: 'export-html', labelKey: 'menu.exportHtml', default: 'CmdOrCtrl+Shift+H', group: 'export' },
-  { action: 'export-pdf', labelKey: 'menu.exportPdf', default: 'CmdOrCtrl+Shift+P', group: 'export' },
+  {
+    action: 'export-html',
+    labelKey: 'menu.exportHtml',
+    default: 'CmdOrCtrl+Shift+H',
+    group: 'export',
+  },
+  {
+    action: 'export-pdf',
+    labelKey: 'menu.exportPdf',
+    default: 'CmdOrCtrl+Shift+P',
+    group: 'export',
+  },
 
   // 格式
   { action: 'fmt-bold', labelKey: 'menu.bold', default: 'CmdOrCtrl+B', group: 'format' },
   { action: 'fmt-italic', labelKey: 'menu.italic', default: 'CmdOrCtrl+I', group: 'format' },
   { action: 'fmt-mark', labelKey: 'menu.highlight', default: 'CmdOrCtrl+Shift+H', group: 'format' },
-  { action: 'fmt-sup', labelKey: 'menu.superscript', default: 'CmdOrCtrl+Shift+=', group: 'format' },
+  {
+    action: 'fmt-sup',
+    labelKey: 'menu.superscript',
+    default: 'CmdOrCtrl+Shift+=',
+    group: 'format',
+  },
   { action: 'fmt-sub', labelKey: 'menu.subscript', default: 'CmdOrCtrl+Shift+-', group: 'format' },
   { action: 'fmt-link', labelKey: 'menu.link', default: 'CmdOrCtrl+K', group: 'format' },
   { action: 'fmt-h1', labelKey: 'menu.h1', default: 'CmdOrCtrl+1', group: 'format' },
@@ -67,9 +87,24 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
     default: IS_MAC ? 'Ctrl+Q' : 'CmdOrCtrl+Q',
     group: 'format',
   },
-  { action: 'fmt-codeblock', labelKey: 'menu.codeBlock', default: 'CmdOrCtrl+Shift+K', group: 'format' },
-  { action: 'fmt-bullet', labelKey: 'menu.bulletList', default: 'CmdOrCtrl+Shift+8', group: 'format' },
-  { action: 'fmt-ordered', labelKey: 'menu.orderedList', default: 'CmdOrCtrl+Shift+9', group: 'format' },
+  {
+    action: 'fmt-codeblock',
+    labelKey: 'menu.codeBlock',
+    default: 'CmdOrCtrl+Shift+K',
+    group: 'format',
+  },
+  {
+    action: 'fmt-bullet',
+    labelKey: 'menu.bulletList',
+    default: 'CmdOrCtrl+Shift+8',
+    group: 'format',
+  },
+  {
+    action: 'fmt-ordered',
+    labelKey: 'menu.orderedList',
+    default: 'CmdOrCtrl+Shift+9',
+    group: 'format',
+  },
 
   // 编辑器
   {
@@ -91,15 +126,16 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
     default: 'CmdOrCtrl+E',
     group: 'editor',
   },
+  {
+    action: 'split-view',
+    labelKey: 'settings.shortcutSplitView',
+    default: 'CmdOrCtrl+Shift+E',
+    group: 'editor',
+  },
 ]
 
 /** 快捷键分组展示顺序（显示文案由 settings.ts 按 i18n 映射，本模块保持纯逻辑无 i18n 依赖） */
-export const SHORTCUT_GROUP_ORDER: ShortcutDef['group'][] = [
-  'file',
-  'export',
-  'format',
-  'editor',
-]
+export const SHORTCUT_GROUP_ORDER: ShortcutDef['group'][] = ['file', 'export', 'format', 'editor']
 
 /**
  * 读取用户自定义的快捷键配置（合并默认值）
@@ -223,7 +259,10 @@ function displayPart(part: string): string {
  * 因此配置写成 'Shift+CmdOrCtrl+O' 也会显示为 'Ctrl+Shift+O'（mac 上为 '⇧⌘O'）。
  */
 export function formatAccelerator(acc: string): string {
-  const parts = acc.split('+').map((p) => p.trim()).filter(Boolean)
+  const parts = acc
+    .split('+')
+    .map((p) => p.trim())
+    .filter(Boolean)
   const mods = parts
     .filter((p) => p in MODIFIER_DISPLAY_ORDER)
     .sort((a, b) => MODIFIER_DISPLAY_ORDER[a] - MODIFIER_DISPLAY_ORDER[b])
@@ -243,7 +282,12 @@ export function isValidShortcut(acc: string): boolean {
  * 检查两个 accelerator 是否冲突（忽略修饰键顺序）。
  */
 export function isSameAccelerator(a: string, b: string): boolean {
-  const norm = (s: string) => s.split('+').map((p) => p.trim()).sort().join('+')
+  const norm = (s: string) =>
+    s
+      .split('+')
+      .map((p) => p.trim())
+      .sort()
+      .join('+')
   return norm(a) === norm(b)
 }
 

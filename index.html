@@ -33,6 +33,14 @@
           源码
         </button>
         <button
+          id="split-view-btn"
+          class="tool-btn"
+          data-i18n="toolbar.splitView"
+          data-i18n-title="toolbar.splitViewTitle"
+        >
+          分屏
+        </button>
+        <button
           id="import-btn"
           class="tool-btn"
           data-i18n="toolbar.open"
@@ -797,10 +805,21 @@
 
       <main class="content">
         <div id="tab-bar" class="tab-bar"></div>
-        <div class="page-scroll">
-          <div class="page">
-            <div id="editor"></div>
-            <div id="src-editor" hidden></div>
+        <div id="panes" class="panes">
+          <div class="page-scroll">
+            <div class="page">
+              <div id="editor"></div>
+            </div>
+          </div>
+          <div
+            id="split-divider"
+            class="split-divider"
+            hidden
+            role="separator"
+            aria-orientation="vertical"
+          ></div>
+          <div id="src-pane" class="src-pane" hidden>
+            <div id="src-editor"></div>
           </div>
         </div>
       </main>

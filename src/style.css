@@ -1676,9 +1676,56 @@ img {
   color: var(--fg);
 }
 
+/* ---------------- 视图容器：所见即所得 / 源码 / 左右分屏 ---------------- */
+
+/* 横向容器：左边所见即所得（.page-scroll 自己滚），右边源码（CodeMirror 自己滚） */
+.panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 源码栏：纯源码模式占满，分屏时与所见即所得并排 */
+.src-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 纯源码模式：保持排版设置里的编辑区宽度与居中（原先靠 .page 的限宽实现） */
+body.view-source #src-editor {
+  max-width: var(--editor-page-width, 860px);
+  margin: 0 auto;
+}
+
+/* 分屏分隔条：拖拽调整左右比例 */
+.split-divider {
+  flex: 0 0 5px;
+  background: var(--border);
+  cursor: col-resize;
+  user-select: none;
+}
+
+.split-divider:hover,
+.split-divider.dragging {
+  background: var(--muted);
+}
+
+/* 分屏：左栏按 --split-ratio 固定宽度，右栏吃掉剩余（--split-ratio 由 JS 写在 #panes 上） */
+body.view-split .page-scroll {
+  flex: 0 0 var(--split-ratio, 50%);
+  min-width: 0;
+}
+
 #src-editor {
   padding: 24px 32px;
   height: 100%;
+}
+
+/* 分屏时两栏各占半屏，源码栏内边距收窄把宽度让给正文 */
+body.view-split #src-editor {
+  padding: 24px 20px;
 }
 
 #src-editor .cm-editor {

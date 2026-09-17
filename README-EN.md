@@ -44,7 +44,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - Drag & drop: drop a .md file onto the window to open it (new tab); drop images to insert them per the paste strategy
 - Formatting shortcuts & Format menu: headings 1–6 (Ctrl/Cmd+1–6), bold/italic (Ctrl/Cmd+B/I), link (Ctrl/Cmd+K), blockquote, lists, code block — all undoable
-- **Custom shortcuts**: the settings panel lists 29 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
+- **Custom shortcuts**: the settings panel lists 31 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
 - Syntax extensions: footnotes `[^1]`, highlight `==text==`, superscript/subscript (both `^x^`/`~x~` and `^{x}`/`_{x}` are recognized; saving normalizes to the Pandoc single-symbol style), YAML front matter (a leading `---` fence renders as a key-value property table, click to edit the YAML source, written back byte-for-byte on save, stripped automatically from HTML/PDF export). Shortcuts: highlight Ctrl/Cmd+Shift+H, superscript Ctrl/Cmd+Shift+=, subscript Ctrl/Cmd+Shift+-
 - Right-click context menu in the editor: cut/copy/paste plus selection-aware format items (including remove link)
 - Link following: Ctrl/Cmd+click opens external URLs in the browser; relative-path links resolve against the document directory and open with the system app (hold Mod while hovering for a pointer hint)
@@ -60,7 +60,8 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
 - **Local crash capture & logs (zero telemetry)**: crashReporter writes minidumps only to `~/.tmd/crash-dumps` (no upload, no server, no crash dialog); JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
 - **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
-- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / version history / unsaved-close interception / error persistence / renderer & main process crash recovery — 17 assertions in total
+- **Split view**: source and WYSIWYG side by side (toolbar "Split" / `Ctrl/Cmd+Shift+E`) — one pane is editable, the other follows along read-only; click a pane to make it the editable one (two-way live sync is intentionally not offered: Markdown round-tripping would rewrite your hand-written source). Scrolling is approximately synced, the divider is draggable and its width is remembered
+- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 25 assertions in total
 - **Electron desktop shell** (`electron/`):
   - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
   - Native open / save / save-as dialogs; File menu shortcuts Cmd/Ctrl+O / S / Shift+S
@@ -89,7 +90,7 @@ electron/history.cjs      Local version history (pre-write snapshots / hash dedu
 electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
 electron/preload.cjs      Controlled API exposure (contextBridge)
 scripts/lib/desktop-harness.mjs  Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
-scripts/desktop-app-check.mjs    Main-flow, reliability & version-history desktop E2E (17 assertions)
+scripts/desktop-app-check.mjs    Main-flow, reliability, history & split-view desktop E2E (25 assertions)
 scripts/desktop-export-check.mjs Word / long-image export desktop E2E
 scripts/desktop-bench.mjs        Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
@@ -103,6 +104,7 @@ src/search.ts             Cross-file search panel (debounce / grouped rendering 
 src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)
 src/error-report.ts       Renderer uncaught-error / Promise-rejection capture & IPC reporting
 src/history.ts            Version-history panel (snapshot list / preview / restore into the editor)
+src/split.ts              Split-view interaction (divider drag / click to pick the editable pane / approximate scroll sync)
 src/export-doc.ts         Export document core (render pipeline / styles / image-ref classification, shared by all four formats)
 src/export-word.ts        Word export adapter (region capture rasterization + OOXML conversion)
 src/export-image.ts       Long-image export (segment planning + canvas stitching)

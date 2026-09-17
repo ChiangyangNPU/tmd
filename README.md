@@ -44,7 +44,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 文件侧边栏：可同时挂载多个文件夹（独立展开、重启恢复、展开懒加载）与最近打开列表；两者均支持行内 hover × 单条移除与一键清空（二次确认；文件夹只取消挂载，不删除磁盘文件）
 - 拖拽打开：拖 .md 文件进窗口即打开（新标签），拖图片进文档按粘贴策略插入
 - 格式化快捷键与「格式」菜单：标题 1~6（Ctrl/Cmd+1~6）、加粗/斜体（Ctrl/Cmd+B/I）、链接（Ctrl/Cmd+K）、引用、有序/无序列表、代码块，全部可撤销
-- **快捷键自定义**：设置面板按「文件 / 导出 / 格式 / 编辑器」四组罗列 29 项快捷键，点击按键框后按下新组合键即可改键；带冲突检测与就地错误提示，支持一键恢复默认（Windows 显示 `Ctrl+Shift+O`，macOS 按苹果规范显示 `⇧⌘O`）
+- **快捷键自定义**：设置面板按「文件 / 导出 / 格式 / 编辑器」四组罗列 31 项快捷键，点击按键框后按下新组合键即可改键；带冲突检测与就地错误提示，支持一键恢复默认（Windows 显示 `Ctrl+Shift+O`，macOS 按苹果规范显示 `⇧⌘O`）
 - 语法扩展：脚注 `[^1]`、高亮 `==文本==`、上/下标（`^x^`/`~x~` 与 `^{x}`/`_{x}` 两种写法均识别，保存统一为 Pandoc 单符号风格）、YAML front matter（文档开头 `---` 围栏渲染为键值属性表，点击进 YAML 源码编辑，保存字节级原样写回，导出 HTML/PDF 自动剥离）；快捷键：高亮 Ctrl/Cmd+Shift+H、上标 Ctrl/Cmd+Shift+=、下标 Ctrl/Cmd+Shift+-
 - 编辑区右键上下文菜单：剪切/复制/粘贴 + 按选区显隐的格式化项（含移除链接）
 - 链接点击跳转：Ctrl/Cmd+点击外部链接跳浏览器、相对路径链接按文档目录解析后用系统应用打开（悬停按住 Mod 键提示可点）
@@ -60,7 +60,8 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
 - **本地崩溃捕获与日志（零遥传）**：crashReporter 只把崩溃转储写入 `~/.tmd/crash-dumps`（不上传、无服务端、无崩溃弹窗）；主/渲染进程 JS 异常与渲染器崩溃统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
 - **本地历史版本**：每次保存前自动留存被覆盖的旧内容到 `~/.tmd/history`（内容未变不重复留档，每文件 50 条 + 全局 200MB 自动清理）；主菜单「文件 → 历史版本…」可列出快照、预览并恢复到编辑器——恢复只改编辑器内容并置脏，是否覆盖磁盘由你显式保存决定
-- **主链路端到端测试**：真实构建产物 + Chrome DevTools 协议驱动（无额外测试框架），覆盖打开/编辑/脏标记/保存/另存为/历史版本/未保存关闭拦截/异常落盘/渲染器与主进程崩溃恢复，共 17 项断言
+- **左右分屏**：源码与所见即所得并排（工具栏「分屏」/ `Ctrl/Cmd+Shift+E`），一侧编辑、另一侧只读跟随——点哪一侧即可编辑那一侧（双向实时同步会让 Markdown 往返转换改写你手写的源码，故不做）；两侧滚动近似同步，中间分隔条可拖拽调宽，宽度会记住
+- **主链路端到端测试**：真实构建产物 + Chrome DevTools 协议驱动（无额外测试框架），覆盖打开/编辑/脏标记/保存/另存为/历史版本/分屏双向跟随/未保存关闭拦截/异常落盘/渲染器与主进程崩溃恢复，共 25 项断言
 - **Electron 桌面壳**（`electron/`）：
   - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
   - 原生打开/保存/另存为对话框，文件菜单快捷键 Cmd/Ctrl+O / S / Shift+S
@@ -89,7 +90,7 @@ electron/history.cjs  本地历史版本（写盘前快照 / 指纹去重 / 两�
 electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
 electron/preload.cjs  受控 API 暴露（contextBridge）
 scripts/lib/desktop-harness.mjs  桌面 E2E 共享驱动（CDP 客户端 / 隔离启动 / 进程组回收）
-scripts/desktop-app-check.mjs    主链路 + 可靠性 + 历史版本桌面 E2E（17 断言）
+scripts/desktop-app-check.mjs    主链路 + 可靠性 + 历史版本 + 分屏桌面 E2E（25 断言）
 scripts/desktop-export-check.mjs 导出 Word / 长图桌面 E2E
 scripts/desktop-bench.mjs        大文档性能基准（打开 / 输入 / 滚动 / 长任务，带回归门禁）
 scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
@@ -103,6 +104,7 @@ src/search.ts         跨文件全文搜索面板（防抖 / 分组渲染 / 跳�
 src/fs-path.ts        文件系统路径工具（规范化 / 取目录 / 同一性判断）
 src/error-report.ts   渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
 src/history.ts        历史版本面板（快照列表 / 预览 / 恢复到编辑器）
+src/split.ts          左右分屏交互（分隔条拖拽 / 点选可编辑侧 / 滚动近似同步）
 src/export-doc.ts     导出文档核心（渲染管线 / 样式 / 图片引用分类，四载体共用）
 src/export-word.ts    Word 导出适配（区域截帧栅格化 + OOXML 转换）
 src/export-image.ts   长图导出（分段计划 + canvas 拼接）
