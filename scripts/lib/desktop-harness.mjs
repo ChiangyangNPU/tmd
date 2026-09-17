@@ -153,6 +153,11 @@ export async function waitForPortsFree(timeoutMs = 15000) {
 
 /**
  * 以固定调试端口启动 dist 产物的 Electron（隔离配置目录）。
+ *
+ * 始终消费子进程的 stdout/stderr：不读会让 Electron 写满管道缓冲区后阻塞
+ * （崩溃类场景输出尤其多）。默认静默，设 TMD_E2E_VERBOSE=1 时转发到父进程
+ * 输出并加 [electron:out|err] 前缀，便于排查崩溃现场。
+ *
  * @param {{
  *   repo: string,
  *   profile: string,
@@ -164,7 +169,7 @@ export async function waitForPortsFree(timeoutMs = 15000) {
 export function spawnApp({ repo, profile, extraArgs = [], env = {} }) {
   const electronBin = join(repo, 'node_modules', '.bin', 'electron')
   if (!existsSync(electronBin)) throw new Error('未找到 electron 可执行文件')
-  return spawn(
+  const child = spawn(
     electronBin,
     [
       '.',
@@ -181,6 +186,17 @@ export function spawnApp({ repo, profile, extraArgs = [], env = {} }) {
       env: { ...process.env, ...env },
     },
   )
+  const verbose = process.env.TMD_E2E_VERBOSE === '1'
+  /** @param {NodeJS.ReadableStream | null} stream @param {string} tag */
+  const relay = (stream, tag) => {
+    if (!stream) return
+    stream.on('data', (buf) => {
+      if (verbose) process.stdout.write(`[electron:${tag}] ${String(buf)}`)
+    })
+  }
+  relay(child.stdout, 'out')
+  relay(child.stderr, 'err')
+  return child
 }
 
 /**
