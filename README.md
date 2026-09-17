@@ -78,44 +78,63 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 ## 目录结构
 
 ```
-index.html            页面入口
-export-renderer.html  离屏导出页入口（Word / 长图，隐藏窗口加载）
-public/boot.js        首帧引导脚本（主题/平台类，防启动白闪）
-electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、图床上传、自动更新）
-electron/search.cjs   全文搜索的扫描与匹配（纯 Node，可独立验证）
-electron/themes.cjs   文件式主题目录扫描与安全校验（纯 Node，可独立验证）
-electron/exporter.cjs 离屏导出服务（隐藏窗口 / 串行队列 / 截图与读图原语）
-electron/logger.cjs   本地 JSONL 日志与崩溃转储扫描（纯 Node，可独立验证）
-electron/history.cjs  本地历史版本（写盘前快照 / 指纹去重 / 两层剪枝，纯 Node，可独立验证）
-electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
-electron/preload.cjs  受控 API 暴露（contextBridge）
-scripts/lib/desktop-harness.mjs  桌面 E2E 共享驱动（CDP 客户端 / 隔离启动 / 进程组回收）
-scripts/desktop-app-check.mjs    主链路 + 可靠性 + 历史版本 + 分屏桌面 E2E（25 断言）
-scripts/desktop-export-check.mjs 导出 Word / 长图桌面 E2E
-scripts/desktop-bench.mjs        大文档性能基准（打开 / 输入 / 滚动 / 长任务，带回归门禁）
-scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
-src/main.ts           应用启动与全局装配（boot / hooks 注入 / 快捷键 / 菜单回调）
-src/editor-core.ts    编辑器枢纽（创建/重建/源码模式/内容取回）
-src/tabs.ts           多标签页状态机
-src/mermaid.ts        Mermaid 实时渲染插件（核心）
-src/theme-presets.ts  主题预设、文件式主题与自定义 CSS 注入
-src/shortcuts.ts      快捷键配置（定义 / 读写 / 校验 / 显示格式化）
-src/search.ts         跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
-src/fs-path.ts        文件系统路径工具（规范化 / 取目录 / 同一性判断）
-src/error-report.ts   渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
-src/history.ts        历史版本面板（快照列表 / 预览 / 恢复到编辑器）
-src/split.ts          左右分屏交互（分隔条拖拽 / 点选可编辑侧 / 滚动近似同步）
-src/export-doc.ts     导出文档核心（渲染管线 / 样式 / 图片引用分类，四载体共用）
-src/export-word.ts    Word 导出适配（区域截帧栅格化 + OOXML 转换）
-src/export-image.ts   长图导出（分段计划 + canvas 拼接）
-src/export-renderer.ts 离屏导出页引导（渲染管线 + 任务分派）
-src/find.ts           查找替换（装饰器实现）
-src/toc.ts            目录（TOC）块
-src/mark-ext.ts       语法扩展（高亮 / 上下标：解析、序列化、输入规则）
-src/frontmatter.ts    YAML front matter（属性表 ⇄ 源码双态编辑）
-src/paste-image.ts    粘贴图片插件（inline / assets / 图床 三策略）
-src/style.css         全部样式（CSS 变量实现深浅主题 + 高亮配色）
-docs/                 需求说明 / 架构设计 / 详细设计 / 打包发布等文档
+├─ index.html                    页面入口（所见即所得 + 源码模式）
+├─ export-renderer.html           离屏导出页（Word / 长图，隐藏窗口加载）
+├─ public/
+│  └─ boot.js                    首帧引导脚本（主题 / 平台类，防启动白闪）
+│
+├─ electron/                     Electron 桌面壳（主进程 + preload）
+│  ├─ main.cjs                   主进程入口（窗口创建、菜单、IPC、图床上传、自动更新）
+│  ├─ exporter.cjs               离屏导出服务（隐藏窗口、串行任务队列、截图与读图原语）
+│  ├─ preload.cjs                受控 API 暴露（contextBridge）
+│  ├─ ipc.cjs                    IPC 通道名常量（主进程与 preload 共用）
+│  └─ 子模块（纯 Node，可独立验证）：
+│      ├─ history.cjs            本地历史版本（写盘前快照、指纹去重、两层剪枝）
+│      ├─ logger.cjs              本地 JSONL 日志与崩溃转储扫描
+│      ├─ search.cjs              全文搜索的扫描与匹配
+│      └─ themes.cjs              文件式主题目录扫描与安全校验
+│
+├─ scripts/                      构建 / 测试 / 打包脚本
+│  ├─ trim-runtime.cjs           打包钩子：裁剪 Electron 运行时冗余文件（语言包、WebGL DLL）
+│  ├─ desktop-app-check.mjs      主链路 + 可靠性 + 历史版本 + 分屏 桌面 E2E（25 断言）
+│  ├─ desktop-export-check.mjs   导出 Word / 长图 桌面 E2E
+│  ├─ desktop-bench.mjs          大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
+│  └─ lib/
+│     └─ desktop-harness.mjs     桌面 E2E 共享驱动（CDP 客户端、隔离启动、进程组回收）
+│
+├─ src/                          渲染层（Vite 构建产物）
+│  ├─ main.ts                    应用启动与全局装配（boot、hooks 注入、快捷键、菜单回调）
+│  ├─ editor-core.ts             编辑器枢纽（创建 / 重建 / 源码模式 / 内容取回）
+│  ├─ mermaid.ts                 Mermaid 实时渲染插件（核心特性）
+│  ├─ tabs.ts                    多标签页状态机
+│  ├─ theme-presets.ts           主题预设、文件式主题与自定义 CSS 注入
+│  ├─ shortcuts.ts               快捷键配置（定义 / 读写 / 校验 / 显示格式化）
+│  ├─ 搜索相关：
+│  │  ├─ search.ts               跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
+│  │  └─ find.ts                 查找替换（装饰器实现）
+│  ├─ 导出相关：
+│  │  ├─ export-doc.ts           导出核心（渲染管线 / 样式 / 图片引用分类，四格式共用）
+│  │  ├─ export-word.ts          Word 导出（区域截帧栅格化 + OOXML 转换）
+│  │  ├─ export-image.ts         长图导出（分段计划 + canvas 拼接）
+│  │  └─ export-renderer.ts      离屏导出页引导（渲染管线 + 任务分派）
+│  ├─ 编辑器功能：
+│  │  ├─ mark-ext.ts             语法扩展（高亮 / 上下标：解析、序列化、输入规则）
+│  │  ├─ frontmatter.ts          YAML front matter（属性表 ⇄ 源码双态编辑）
+│  │  ├─ paste-image.ts          粘贴图片插件（inline / assets / 图床 三策略）
+│  │  ├─ toc.ts                  目录（TOC）块
+│  │  ├─ split.ts                左右分屏交互（分隔条拖拽 / 点选可编辑侧 / 滚动近似同步）
+│  │  ├─ history.ts              历史版本面板（快照列表 / 预览 / 恢复到编辑器）
+│  │  └─ style.css               全部样式（CSS 变量实现深浅主题 + 高亮配色）
+│  └─ 工具与基础设施：
+│     ├─ fs-path.ts              文件系统路径工具（规范化 / 取目录 / 同一性判断）
+│     └─ error-report.ts         渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
+│
+└─ docs/                         项目文档
+   ├─ 需求说明.md                功能清单与路线图
+   ├─ 架构设计.md                模块职责与数据流
+   ├─ 详细设计.md                关键模块实现细节
+   ├─ 打包发布.md                本地打包与 CI 发布流程
+   └─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
 ```
 
-> 完整模块清单与职责见 [docs/架构设计.md](docs/架构设计.md)。
+> 完整模块职责说明见 [docs/架构设计.md](docs/架构设计.md)。

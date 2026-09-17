@@ -78,44 +78,63 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 ## Directory Structure
 
 ```
-index.html                Page entry
-export-renderer.html      Offscreen export page entry (Word / long image, loaded by a hidden window)
-public/boot.js            First-frame bootstrap script (theme/platform classes, prevents white flash)
-electron/main.cjs         Electron main process (window, menu, IPC file read/write, image hosting, auto-update)
-electron/search.cjs       Full-text search scanning & matching (pure Node, independently verifiable)
-electron/themes.cjs       File-based theme folder scanning & safety checks (pure Node, independently verifiable)
-electron/exporter.cjs     Offscreen export service (hidden window / serial task queue / capture & read-image primitives)
-electron/logger.cjs       Local JSONL logging & minidump scanning (pure Node, independently verifiable)
-electron/history.cjs      Local version history (pre-write snapshots / hash dedup / two-tier pruning; pure Node, independently verifiable)
-electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
-electron/preload.cjs      Controlled API exposure (contextBridge)
-scripts/lib/desktop-harness.mjs  Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
-scripts/desktop-app-check.mjs    Main-flow, reliability, history & split-view desktop E2E (25 assertions)
-scripts/desktop-export-check.mjs Word / long-image export desktop E2E
-scripts/desktop-bench.mjs        Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
-scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
-src/main.ts               App startup & global wiring (boot / hooks injection / shortcuts / menu callbacks)
-src/editor-core.ts        Editor hub (create / rebuild / source mode / content retrieval)
-src/tabs.ts               Multi-tab state machine
-src/mermaid.ts            Mermaid real-time rendering plugin (core)
-src/theme-presets.ts      Theme presets, file-based themes & custom CSS injection
-src/shortcuts.ts          Shortcut configuration (definitions / read-write / validation / display formatting)
-src/search.ts             Cross-file search panel (debounce / grouped rendering / jump & locate)
-src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)
-src/error-report.ts       Renderer uncaught-error / Promise-rejection capture & IPC reporting
-src/history.ts            Version-history panel (snapshot list / preview / restore into the editor)
-src/split.ts              Split-view interaction (divider drag / click to pick the editable pane / approximate scroll sync)
-src/export-doc.ts         Export document core (render pipeline / styles / image-ref classification, shared by all four formats)
-src/export-word.ts        Word export adapter (region capture rasterization + OOXML conversion)
-src/export-image.ts       Long-image export (segment planning + canvas stitching)
-src/export-renderer.ts    Offscreen export page bootstrap (render pipeline + task dispatch)
-src/find.ts               Find & replace (decorator-based)
-src/toc.ts                Table-of-contents (TOC) block
-src/mark-ext.ts           Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)
-src/frontmatter.ts        YAML front matter (property table ⇄ source dual-mode editing)
-src/paste-image.ts        Pasted-image plugin (inline / assets / image host — triple strategy)
-src/style.css             All styles (CSS variables for dark/light themes + highlight colors)
-docs/                     Requirements / architecture / detailed design / packaging docs (Chinese)
+├─ index.html                    Main page entry (WYSIWYG + source mode)
+├─ export-renderer.html          Offscreen export page (Word / long image, loaded by a hidden window)
+├─ public/
+│  └─ boot.js                    First-frame bootstrap script (theme / platform classes, prevents white flash)
+│
+├─ electron/                     Electron desktop shell (main process + preload)
+│  ├─ main.cjs                   Main process entry (window creation, menu, IPC, image hosting, auto-update)
+│  ├─ exporter.cjs               Offscreen export service (hidden window, serial task queue, capture & read-image primitives)
+│  ├─ preload.cjs                Controlled API exposure (contextBridge)
+│  ├─ ipc.cjs                    IPC channel name constants (shared by main and preload)
+│  └─ Submodules (pure Node, independently verifiable):
+│      ├─ history.cjs            Local version history (pre-write snapshots, hash dedup, two-tier pruning)
+│      ├─ logger.cjs              Local JSONL logging & minidump scanning
+│      ├─ search.cjs              Full-text search scanning & matching
+│      └─ themes.cjs              File-based theme folder scanning & safety checks
+│
+├─ scripts/                      Build / test / pack scripts
+│  ├─ trim-runtime.cjs           Pack hook: trims redundant Electron runtime files (locales, WebGL DLLs)
+│  ├─ desktop-app-check.mjs      Main-flow, reliability, history & split-view desktop E2E (25 assertions)
+│  ├─ desktop-export-check.mjs   Word / long-image export desktop E2E
+│  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
+│  └─ lib/
+│     └─ desktop-harness.mjs     Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
+│
+├─ src/                          Renderer layer (Vite build output)
+│  ├─ main.ts                    App startup & global wiring (boot, hooks injection, shortcuts, menu callbacks)
+│  ├─ editor-core.ts             Editor hub (create / rebuild / source mode / content retrieval)
+│  ├─ mermaid.ts                 Mermaid real-time rendering plugin (core feature)
+│  ├─ tabs.ts                    Multi-tab state machine
+│  ├─ theme-presets.ts           Theme presets, file-based themes & custom CSS injection
+│  ├─ shortcuts.ts               Shortcut configuration (definitions / read-write / validation / display formatting)
+│  ├─ Search:
+│  │  ├─ search.ts               Cross-file search panel (debounce / grouped rendering / jump & locate)
+│  │  └─ find.ts                 Find & replace (decorator-based)
+│  ├─ Export:
+│  │  ├─ export-doc.ts           Export core (render pipeline / styles / image-ref classification, shared by all four formats)
+│  │  ├─ export-word.ts          Word export (region capture rasterization + OOXML conversion)
+│  │  ├─ export-image.ts         Long-image export (segment planning + canvas stitching)
+│  │  └─ export-renderer.ts      Offscreen export page bootstrap (render pipeline + task dispatch)
+│  ├─ Editor features:
+│  │  ├─ mark-ext.ts             Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)
+│  │  ├─ frontmatter.ts          YAML front matter (property table ⇄ source dual-mode editing)
+│  │  ├─ paste-image.ts          Pasted-image plugin (inline / assets / image host — triple strategy)
+│  │  ├─ toc.ts                  Table-of-contents (TOC) block
+│  │  ├─ split.ts                Split-view interaction (divider drag / click to pick the editable pane / approximate scroll sync)
+│  │  ├─ history.ts              Version-history panel (snapshot list / preview / restore into the editor)
+│  │  └─ style.css               All styles (CSS variables for dark/light themes + highlight colors)
+│  └─ Utilities & infrastructure:
+│     ├─ fs-path.ts              Filesystem path utilities (normalize / dirname / identity check)
+│     └─ error-report.ts         Renderer uncaught-error / Promise-rejection capture & IPC reporting
+│
+└─ docs/                         Project documentation (Chinese)
+   ├─ 需求说明.md                Feature list & roadmap
+   ├─ 架构设计.md                Module responsibilities & data flow
+   ├─ 详细设计.md                Key module implementation details
+   ├─ 打包发布.md                Local packaging & CI release workflow
+   └─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
 ```
 
-> For the full module list and responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese).
+> For the full module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese).
