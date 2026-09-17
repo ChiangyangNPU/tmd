@@ -105,6 +105,9 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
+    "releaseInfo": {
+      "releaseNotesFile": "CHANGELOG.md"
+    },
     "publish": [
       {
         "provider": "generic",

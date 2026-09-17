@@ -107,13 +107,14 @@ jobs:
             fi
           done
 
-          # 2. 创建 Gitee Release
+          # 2. 创建 Gitee Release（正文取 CHANGELOG.md，与 GitHub Release 保持一致）
+          RELEASE_BODY=$(cat CHANGELOG.md 2>/dev/null || echo "See GitHub Release for details")
           RELEASE_RESP=$(curl -s -X POST \
             "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
             -F "access_token=$GITEE_TOKEN" \
             -F "tag_name=$TAG" \
             -F "name=$TAG" \
-            -F "body=See GitHub Release for details" \
+            --form-string "body=$RELEASE_BODY" \
             -F "target_commitish=main")
           RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
           if [ -z "$RELEASE_ID" ]; then
