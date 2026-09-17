@@ -1106,6 +1106,93 @@ dl[data-type='footnote_definition'] dd {
   color: inherit;
 }
 
+/* ---------------- 历史版本面板 ---------------- */
+
+/* 复用 .search-overlay / .search-panel 外壳，仅覆盖两栏布局 */
+.history-panel {
+  /* 固定高度：切换快照预览时不随内容长度跳动 */
+  height: 70vh;
+}
+
+.history-title {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0;
+  color: var(--fg);
+  font-size: 14px;
+}
+
+.history-restore {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.history-restore:hover:not(:disabled) {
+  background: var(--code-bg);
+}
+
+.history-restore:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* 左列表 + 右预览；min-height:0 是子项内部滚动生效的前提 */
+.history-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.history-list {
+  flex: 0 0 200px;
+  overflow-y: auto;
+  padding: 6px 0;
+  border-right: 1px solid var(--border);
+}
+
+.history-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.history-item.active {
+  background: var(--code-bg);
+}
+
+.history-item-time {
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.history-item-size {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.history-preview {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 12px 14px;
+  overflow: auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* ---------------- 表格悬浮工具栏 ---------------- */
 
 .table-toolbar {

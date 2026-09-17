@@ -109,6 +109,13 @@ export interface NativeFileAPI {
   /** 系统文件管理器打开日志目录（不存在则创建），返回是否成功 */
   openLogsDir(): Promise<boolean>
   /**
+   * 本地历史版本：列出某文件的快照清单（最新在前）。
+   * 快照由主进程在每次写盘前自动留存，本方法只负责查阅；无历史返回 null。
+   */
+  listHistory(filePath: string): Promise<FileHistory | null>
+  /** 本地历史版本：读取单条快照正文（id 非法或文件缺失返回 null） */
+  readHistory(filePath: string, id: string): Promise<HistoryEntry | null>
+  /**
    * Word / 长图离屏导出：主进程先弹保存框（取消返回 null），
    * 再把任务下发给隐藏导出窗口执行并写入目标文件。
    */
@@ -156,6 +163,32 @@ export interface SearchResult {
   truncated: boolean
   /** 耗时（毫秒） */
   elapsedMs: number
+}
+
+/** 单条历史快照的元信息（正文按需再取，避免列举时搬运全部内容） */
+export interface HistorySnapshot {
+  /** 快照 id（本地时间戳串，同时是正文文件名） */
+  id: string
+  /** 快照产生时刻（ISO 串，渲染层按当前语言本地化展示） */
+  ts: string
+  /** 正文字节数 */
+  size: number
+}
+
+/** 某个文件的全部历史快照（最新在前） */
+export interface FileHistory {
+  /** 源文件绝对路径（以最近一次写入为准，文件改名后仍可对照） */
+  path: string
+  /** 源文件名 */
+  name: string
+  snapshots: HistorySnapshot[]
+}
+
+/** 单条历史快照的正文 */
+export interface HistoryEntry {
+  id: string
+  ts: string
+  content: string
 }
 
 /** 文件式主题条目（主题目录中的一个 .css 文件） */
@@ -265,4 +298,8 @@ export interface IpcChannels {
   logReport: string
   /** 在系统文件管理器中打开日志目录 */
   logOpenDir: string
+  /** 本地历史版本：列出某文件的快照清单 */
+  historyList: string
+  /** 本地历史版本：读取单条快照正文 */
+  historyRead: string
 }

@@ -241,9 +241,13 @@ async function main() {
     await renderer.connect()
     await renderer.send('Runtime.enable')
 
-    // 等渲染层 boot 完成（菜单标签同步到主进程后才算就绪）
-    for (let i = 0; i < 40; i++) {
-      const ready = await renderer.evalJson(`!!document.querySelector('#menu-export-word-btn')`)
+    // 等渲染层 boot 完成：工具栏按钮是静态 DOM，若只等它会在 boot 未完成时
+    // 立即通过，随后的菜单点击可能早于渲染层注册 onMenu 而被丢弃；
+    // ProseMirror 挂载在 boot 中后段，作为就绪判据更可靠
+    for (let i = 0; i < 60; i++) {
+      const ready = await renderer.evalJson(
+        `!!document.querySelector('#menu-export-word-btn') && !!document.querySelector('#editor .ProseMirror')`,
+      )
       if (ready) break
       await sleep(250)
     }
@@ -294,10 +298,18 @@ async function main() {
       fileMenu.submenu.items[0].click()
       return 'clicked'
     })()`)
-    await sleep(2500)
-    const opened = await renderer.evalJson(
-      `(document.title || '') + '|' + (document.querySelector('.tab.active')?.textContent?.trim() || '')`,
-    )
+    await sleep(500)
+    // 轮询等待打开完成：固定 sleep 在系统负载高（如上一轮崩溃转储落盘）时不够
+    let opened = ''
+    for (let i = 0; i < 60; i++) {
+      opened = /** @type {string} */ (
+        await renderer.evalJson(
+          `(document.title || '') + '|' + (document.querySelector('.tab.active')?.textContent?.trim() || '')`,
+        )
+      )
+      if (/sample\.md/.test(opened)) break
+      await sleep(250)
+    }
     check('测试文档已打开（渲染层标题含文件名）', /sample\.md/.test(opened), opened)
 
     // ---------- 导出 Word ----------

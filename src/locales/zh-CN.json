@@ -88,6 +88,7 @@
     "clearRecent": "清空最近文件",
     "save": "保存",
     "saveAs": "另存为",
+    "history": "历史版本…",
     "newTab": "新标签页",
     "closeTab": "关闭标签页",
     "autosave": "自动保存到文件",
@@ -146,6 +147,17 @@
     "truncated": "结果已截断",
     "noFolder": "请先在侧边栏挂载文件夹",
     "unavailable": "浏览器模式不支持跨文件搜索"
+  },
+  "history": {
+    "title": "历史版本",
+    "summary": "{count} 个版本",
+    "empty": "此文件还没有历史版本",
+    "untitled": "未保存的新文档没有历史版本",
+    "hint": "每次保存前会自动留存磁盘上的旧内容。",
+    "previewHint": "选择左侧的版本以预览",
+    "restore": "恢复此版本",
+    "restored": "已载入编辑器，保存后才会写入磁盘",
+    "loadFailed": "读取历史版本失败"
   },
   "tt": {
     "rowAdd": "行+",

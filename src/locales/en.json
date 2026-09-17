@@ -88,6 +88,7 @@
     "clearRecent": "Clear Recent Files",
     "save": "Save",
     "saveAs": "Save As",
+    "history": "Version History…",
     "newTab": "New Tab",
     "closeTab": "Close Tab",
     "autosave": "Auto-save to File",
@@ -146,6 +147,17 @@
     "truncated": "results truncated",
     "noFolder": "Mount a folder in the sidebar first",
     "unavailable": "Cross-file search is unavailable in browser mode"
+  },
+  "history": {
+    "title": "Version history",
+    "summary": "{count} versions",
+    "empty": "No history for this file yet",
+    "untitled": "Unsaved documents have no history",
+    "hint": "The previous on-disk content is archived before every save.",
+    "previewHint": "Select a version on the left to preview",
+    "restore": "Restore this version",
+    "restored": "Loaded into the editor; saved to disk only after you save",
+    "loadFailed": "Failed to read the version"
   },
   "tt": {
     "rowAdd": "+Row",

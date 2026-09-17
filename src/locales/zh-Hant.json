@@ -88,6 +88,7 @@
     "clearRecent": "清空最近檔案",
     "save": "儲存",
     "saveAs": "另存新檔",
+    "history": "歷史版本…",
     "newTab": "新增分頁",
     "closeTab": "關閉分頁",
     "autosave": "自動儲存至檔案",
@@ -146,6 +147,17 @@
     "truncated": "結果已截斷",
     "noFolder": "請先在側邊欄掛載資料夾",
     "unavailable": "瀏覽器模式不支援跨檔案搜尋"
+  },
+  "history": {
+    "title": "歷史版本",
+    "summary": "{count} 個版本",
+    "empty": "此檔案還沒有歷史版本",
+    "untitled": "未儲存的新文件沒有歷史版本",
+    "hint": "每次儲存前會自動留存磁碟上的舊內容。",
+    "previewHint": "選擇左側的版本以預覽",
+    "restore": "還原此版本",
+    "restored": "已載入編輯器，儲存後才會寫入磁碟",
+    "loadFailed": "讀取歷史版本失敗"
   },
   "tt": {
     "rowAdd": "列+",

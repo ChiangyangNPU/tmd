@@ -58,6 +58,8 @@ const COPY_PATH = join(WORK, 'copy-1.md')
 const LOGS_DIR = join(HOME_DIR, '.tmd', 'logs')
 /** 崩溃转储目录（与 logger.cjs 的 crashDumpsDir 结构一致） */
 const DUMPS_DIR = join(HOME_DIR, '.tmd', 'crash-dumps')
+/** 历史版本目录（与 history.cjs 的 historyDir 结构一致） */
+const HISTORY_DIR = join(HOME_DIR, '.tmd', 'history')
 /** 渲染层恢复副本键名（须与 src/store.ts DOC_KEY 一致） */
 const DOC_KEY = 'tmd:doc:v1'
 
@@ -178,6 +180,7 @@ async function clickFileAction(main, action) {
     )
     const match = (label) => {
       const s = label || ''
+      if (action === 'history') return /历史版本|Version History/.test(s)
       if (action === 'open') return /打开|Open/.test(s) && !/文件夹|Folder/.test(s)
       if (action === 'save') return /保存|Save/.test(s) && !/另存|Save As/.test(s)
       return /另存为|Save As/.test(s)
@@ -439,6 +442,112 @@ async function main() {
       await sleep(250)
     }
     check('场景5 另存为产出新文件且标签切换关联路径', savedAsOk, saveAsDetail)
+
+    // 另存为后激活标签是 copy-1.md（新文件、无历史），先切回 sample.md：
+    // 同路径已打开 → openFromData 走 activateTab 去重，不开新标签
+    await clickFileAction(mainCdp, 'open')
+    for (let i = 0; i < 40; i++) {
+      const name = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `document.querySelector('.tab.active')?.textContent?.trim() || ''`,
+        )
+      )
+      if (/sample\.md/.test(name)) break
+      await sleep(250)
+    }
+
+    // ---------- 场景 5b：历史版本（写盘前自动快照） ----------
+    // 场景 4 的保存覆盖了磁盘旧内容，主进程应在写盘前把它存进 ~/.tmd/history。
+    // 目录名是路径哈希，故这里只按「有目录且有 .md」计数，不假设具体名字。
+    const historyDirs = existsSync(HISTORY_DIR)
+      ? readdirSync(HISTORY_DIR, { withFileTypes: true }).filter((d) => d.isDirectory())
+      : []
+    const snapCount = historyDirs.reduce(
+      (sum, d) =>
+        sum + readdirSync(join(HISTORY_DIR, d.name)).filter((f) => f.endsWith('.md')).length,
+      0,
+    )
+    check(
+      '场景5b 写盘前自动留存旧内容快照（~/.tmd/history，随 TMD_HOME_DIR 重定位）',
+      historyDirs.length === 1 && snapCount >= 1,
+      `历史目录 ${historyDirs.length} 个，快照 ${snapCount} 个`,
+    )
+
+    // ---------- 场景 5c：菜单打开历史面板并列出快照 ----------
+    await clickFileAction(mainCdp, 'history')
+    /** @type {{ hidden?: boolean, items?: number, status?: string } | null} */
+    let panelState = null
+    for (let i = 0; i < 40; i++) {
+      panelState = JSON.parse(
+        /** @type {string} */ (
+          await rendererCdp.evalJson(`JSON.stringify({
+            hidden: document.getElementById('history-overlay')?.hidden,
+            items: document.querySelectorAll('#history-list .history-item').length,
+            status: document.getElementById('history-status')?.textContent || ''
+          })`)
+        ),
+      )
+      if (panelState.hidden === false && (panelState.items ?? 0) > 0) break
+      await sleep(250)
+    }
+    check(
+      '场景5c 菜单打开历史面板并列出快照',
+      panelState?.hidden === false && (panelState?.items ?? 0) >= 1,
+      JSON.stringify(panelState),
+    )
+
+    // ---------- 场景 5d：选中快照 → 预览保存前的旧内容 ----------
+    await rendererCdp.evalJson(`document.querySelector('#history-list .history-item')?.click()`)
+    let preview = ''
+    for (let i = 0; i < 40; i++) {
+      preview = /** @type {string} */ (
+        await rendererCdp.evalJson(`document.getElementById('history-preview')?.textContent || ''`)
+      )
+      if (preview.includes('主链路验证文档')) break
+      await sleep(250)
+    }
+    check(
+      '场景5d 预览内容为保存前的旧版本（不含本次编辑标记）',
+      preview.includes('主链路验证文档') && !preview.includes(EDIT_MARKER),
+      `预览 ${preview.length} 字符`,
+    )
+
+    // ---------- 场景 5e：恢复快照 → 载入编辑器并置脏 ----------
+    const restoreEnabled =
+      (await rendererCdp.evalJson(`!document.getElementById('history-restore-btn')?.disabled`)) ===
+      true
+    await rendererCdp.evalJson(`document.getElementById('history-restore-btn')?.click()`)
+    /** @type {{ hidden?: boolean, text?: string, tab?: string } | null} */
+    let restoredInfo = null
+    for (let i = 0; i < 40; i++) {
+      restoredInfo = JSON.parse(
+        /** @type {string} */ (
+          await rendererCdp.evalJson(`JSON.stringify({
+            hidden: document.getElementById('history-overlay')?.hidden,
+            text: document.querySelector('#editor .ProseMirror')?.innerText || '',
+            tab: document.querySelector('.tab.active')?.textContent?.trim() || ''
+          })`)
+        ),
+      )
+      if (restoredInfo.hidden === true && !(restoredInfo.text ?? '').includes(EDIT_MARKER)) break
+      await sleep(250)
+    }
+    check(
+      '场景5e 恢复快照到编辑器并置脏、面板自动关闭',
+      restoreEnabled &&
+        restoredInfo?.hidden === true &&
+        !(restoredInfo?.text ?? '').includes(EDIT_MARKER) &&
+        (restoredInfo?.tab ?? '').startsWith('•'),
+      JSON.stringify({ restoreEnabled, tab: restoredInfo?.tab, len: restoredInfo?.text?.length }),
+    )
+
+    // 恢复只改编辑器：磁盘仍是已保存的含编辑标记版本（是否覆盖由用户后续保存决定）
+    const diskAfterRestore = await readFile(MD_PATH, 'utf-8').catch(() => '')
+    check(
+      '场景5f 恢复不直接改写磁盘（仍需用户显式保存）',
+      diskAfterRestore.includes(EDIT_MARKER),
+      `磁盘 ${diskAfterRestore.length} 字节`,
+    )
 
     // ---------- 场景 6：未保存关闭选「取消」 ----------
     // 再制造一处未保存修改（也是场景 9 崩溃恢复的验证文本）

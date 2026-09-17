@@ -54,11 +54,13 @@ import { wireContextMenu, closeContextMenu } from './context-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
 import { openSearch, closeSearch, wireSearch } from './search'
+import { openHistory, wireHistory } from './history'
 import { wireTableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
 import {
   mountEditor,
   currentMarkdown,
+  replaceEditor,
   setSourceMode,
   updateWordCount,
   getPmView,
@@ -329,6 +331,7 @@ async function boot() {
         'open-folder': () => void openFolder(),
         save: () => void saveDocument(),
         'save-as': () => void saveDocument(true),
+        history: () => void openHistory(),
         'new-tab': () => createNewTab(),
         'close-tab': () => {
           const id = getActiveTabId()
@@ -369,6 +372,22 @@ async function boot() {
     wireContextMenu()
     wireQuickSwitch()
     wireSearch()
+    // 历史版本面板：恢复只把快照载入编辑器并置脏，是否覆盖磁盘由用户后续保存决定
+    wireHistory({
+      onRestore: async (content) => {
+        const tab = activeTab()
+        if (!tab) return
+        tab.markdown = content
+        await replaceEditor(content)
+        // 与文档变更钩子保持同一套副作用：恢复副本 / 字数 / 脏标记
+        const clean = normalizeEmptyTableCells(content)
+        saveDoc(clean)
+        updateWordCount(clean)
+        markDirty()
+        renderTabs()
+        updateTitle()
+      },
+    })
     // 表格工具栏按钮：源码模式下无 PM 视图，忽略
     wireTableToolbar(() => (isSourceMode() ? null : getPmView()))
     renderFilesSidebar()

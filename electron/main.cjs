@@ -50,6 +50,7 @@ const {
   normalizeRendererReport,
   scanNewDumps,
 } = require('./logger.cjs')
+const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./history.cjs')
 const os = require('node:os')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -92,6 +93,30 @@ crashReporter.start({
   compress: true,
 })
 const logger = createLogger({ home: tmdRoot })
+
+// ---------- 本地历史版本（文件快照） ----------
+// 根目录 ~/.tmd/history：每次写盘覆盖前把被覆盖的旧内容存档，仅提供人工恢复
+// 入口（不自动回滚）。与 themes / logs 同级、跨升级保留，随 TMD_HOME_DIR 重定位。
+const historyRoot = historyDir(tmdRoot)
+
+/**
+ * 写盘前的历史快照：读取即将被覆盖的旧内容存入历史目录。
+ * 快照是纯附加能力，任何失败（文件首次创建、权限、磁盘）都必须静默，
+ * 绝不能反过来阻断用户的保存动作；去重与剪枝由 history.cjs 内部处理。
+ * @param {string} filePath
+ */
+async function snapshotBeforeWrite(filePath) {
+  try {
+    const previous = await fs.readFile(filePath, 'utf-8')
+    await writeSnapshot(historyRoot, {
+      path: filePath,
+      name: path.basename(filePath),
+      content: previous,
+    })
+  } catch {
+    /* 文件尚不存在（首次保存）或读取失败：无旧内容可存 */
+  }
+}
 
 // 主进程 JS 异常：落盘后保持 Electron 默认语义（不主动退出），仅补本地记录。
 // 注意写盘失败已在 logger 内部静默，不会递归进入本钩子。
@@ -360,6 +385,11 @@ function buildMenu() {
           label: L('saveAs'),
           accelerator: acc('save-as', 'CmdOrCtrl+Shift+S'),
           click: () => sendToRenderer(IPC.menu, 'save-as'),
+        },
+        // 历史版本：低频查阅，不绑快捷键（避免与保存类操作抢键位）
+        {
+          label: L('history'),
+          click: () => sendToRenderer(IPC.menu, 'history'),
         },
         { type: 'separator' },
         {
@@ -876,6 +906,8 @@ ipcMain.handle(IPC.logOpenDir, async () => {
 
 /** @param {unknown} _event @param {string} filePath @param {string} content */
 ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
+  // 先留旧版快照再覆盖：这是「历史版本」唯一的产生点（自动保存同样经此路径）
+  await snapshotBeforeWrite(filePath)
   await fs.writeFile(filePath, content, 'utf-8')
   return true
 })
@@ -887,8 +919,22 @@ ipcMain.handle(IPC.saveFileAs, async (_event, content) => {
     filters: MD_FILTERS,
   })
   if (result.canceled || !result.filePath) return null
+  // 另存为若覆盖了已存在的文件，那份内容同样值得留档
+  await snapshotBeforeWrite(result.filePath)
   await fs.writeFile(result.filePath, content, 'utf-8')
   return { path: result.filePath, name: path.basename(result.filePath) }
+})
+
+/** 本地历史版本：列出某文件的快照清单（最新在前），无历史返回 null */
+ipcMain.handle(IPC.historyList, async (_event, filePath) => {
+  if (typeof filePath !== 'string' || !filePath) return null
+  return listSnapshots(historyRoot, filePath)
+})
+
+/** 本地历史版本：读取单条快照正文（id 合法性由 history.cjs 校验，防目录穿越） */
+ipcMain.handle(IPC.historyRead, async (_event, filePath, id) => {
+  if (typeof filePath !== 'string' || !filePath) return null
+  return readSnapshot(historyRoot, filePath, id)
 })
 
 // 通用导出（HTML 等）：弹出另存为对话框并写入

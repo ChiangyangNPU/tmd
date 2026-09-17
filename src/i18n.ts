@@ -84,6 +84,7 @@ export function menuLabels(): Record<string, string> {
     clearRecent: t('menu.clearRecent'),
     save: t('menu.save'),
     saveAs: t('menu.saveAs'),
+    history: t('menu.history'),
     newTab: t('menu.newTab'),
     closeTab: t('menu.closeTab'),
     autosave: t('menu.autosave'),

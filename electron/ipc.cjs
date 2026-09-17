@@ -63,6 +63,10 @@ const channels = {
   // 日志与诊断：渲染层异常上报（仅本地落盘）/ 在文件管理器中打开日志目录
   logReport: 'tmd:log-report',
   logOpenDir: 'tmd:log-open-dir',
+  // 本地历史版本：快照留存由主进程在写盘时自动完成（无 IPC），
+  // 这两个通道仅供渲染层查阅清单与读取正文
+  historyList: 'tmd:history-list',
+  historyRead: 'tmd:history-read',
 }
 
 module.exports = channels

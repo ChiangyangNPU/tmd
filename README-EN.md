@@ -58,7 +58,8 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 11 third-party components
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
 - **Local crash capture & logs (zero telemetry)**: crashReporter writes minidumps only to `~/.tmd/crash-dumps` (no upload, no server, no crash dialog); JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
-- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering 10 scenarios: open / edit / dirty flag / save / save-as / unsaved-close interception / error persistence / renderer & main process crash recovery
+- **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
+- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / version history / unsaved-close interception / error persistence / renderer & main process crash recovery — 17 assertions in total
 - **Electron desktop shell** (`electron/`):
   - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
   - Native open / save / save-as dialogs; File menu shortcuts Cmd/Ctrl+O / S / Shift+S
@@ -83,10 +84,11 @@ electron/search.cjs       Full-text search scanning & matching (pure Node, indep
 electron/themes.cjs       File-based theme folder scanning & safety checks (pure Node, independently verifiable)
 electron/exporter.cjs     Offscreen export service (hidden window / serial task queue / capture & read-image primitives)
 electron/logger.cjs       Local JSONL logging & minidump scanning (pure Node, independently verifiable)
+electron/history.cjs      Local version history (pre-write snapshots / hash dedup / two-tier pruning; pure Node, independently verifiable)
 electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
 electron/preload.cjs      Controlled API exposure (contextBridge)
 scripts/lib/desktop-harness.mjs  Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
-scripts/desktop-app-check.mjs    Main-flow & reliability desktop E2E (10 scenarios)
+scripts/desktop-app-check.mjs    Main-flow, reliability & version-history desktop E2E (17 assertions)
 scripts/desktop-export-check.mjs Word / long-image export desktop E2E
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
 src/main.ts               App startup & global wiring (boot / hooks injection / shortcuts / menu callbacks)
@@ -98,6 +100,7 @@ src/shortcuts.ts          Shortcut configuration (definitions / read-write / val
 src/search.ts             Cross-file search panel (debounce / grouped rendering / jump & locate)
 src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)
 src/error-report.ts       Renderer uncaught-error / Promise-rejection capture & IPC reporting
+src/history.ts            Version-history panel (snapshot list / preview / restore into the editor)
 src/export-doc.ts         Export document core (render pipeline / styles / image-ref classification, shared by all four formats)
 src/export-word.ts        Word export adapter (region capture rasterization + OOXML conversion)
 src/export-image.ts       Long-image export (segment planning + canvas stitching)

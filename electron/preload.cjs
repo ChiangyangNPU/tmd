@@ -130,6 +130,10 @@ const api = {
   reportError: (entry) => ipcRenderer.send(IPC.logReport, entry),
   /** 在系统文件管理器中打开日志目录（不存在则创建） */
   openLogsDir: () => ipcRenderer.invoke(IPC.logOpenDir),
+  /** 本地历史版本：列出某文件的快照清单（最新在前，无历史为 null） */
+  listHistory: (filePath) => ipcRenderer.invoke(IPC.historyList, filePath),
+  /** 本地历史版本：读取单条快照正文 */
+  readHistory: (filePath, id) => ipcRenderer.invoke(IPC.historyRead, filePath, id),
   /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
   exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
 }
