@@ -56,7 +56,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Dark/light theme switching (diagrams re-rendered in place — the editor is never rebuilt, preserving undo history / focus / scroll position)
 - Theme presets (Default / Dark / Sepia / Green), file-based themes (`~/.tmd/themes/*.css` — the file name is the theme name; open the folder / reload from the settings panel) and custom CSS injection (takes effect immediately)
 - Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
-- Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 11 third-party components
+- Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 13 third-party components
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
 - **Local crash capture & logs (zero telemetry)**: crashReporter writes minidumps only to `~/.tmd/crash-dumps` (no upload, no server, no crash dialog); JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
 - **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
@@ -138,3 +138,9 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 ```
 
 > For the full module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese).
+
+## License
+
+This software is released under the [MIT License](LICENSE), Copyright (c) 2026 chiangyang.
+
+License declarations and links for third-party components (Electron, Chromium, Node.js, Milkdown, CodeMirror, Markdown-It, Mermaid, KaTeX, Refractor, remark-frontmatter, PicGo-Core, electron-updater, dom-docx) are available in the app's Settings → About panel.

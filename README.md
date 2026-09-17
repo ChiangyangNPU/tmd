@@ -56,7 +56,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 深色/浅色主题切换（图表原地重渲，不重建编辑器，保住撤销历史/焦点/滚动位置）
 - 主题预设（简约白 / 深色 / 羊皮纸 / 护眼绿）、文件式主题（`~/.tmd/themes/*.css`，文件名即主题名，设置面板一键打开目录/刷新加载）与自定义 CSS 注入（即时生效）
 - 多语言界面（简体中文 / 繁體中文（台港用词）/ English，跟随系统，设置面板可切换）
-- 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 11 个第三方组件的许可证声明与直达链接
+- 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 13 个第三方组件的许可证声明与直达链接
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
 - **本地崩溃捕获与日志（零遥传）**：crashReporter 只把崩溃转储写入 `~/.tmd/crash-dumps`（不上传、无服务端、无崩溃弹窗）；主/渲染进程 JS 异常与渲染器崩溃统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
 - **本地历史版本**：每次保存前自动留存被覆盖的旧内容到 `~/.tmd/history`（内容未变不重复留档，每文件 50 条 + 全局 200MB 自动清理）；主菜单「文件 → 历史版本…」可列出快照、预览并恢复到编辑器——恢复只改编辑器内容并置脏，是否覆盖磁盘由你显式保存决定
@@ -138,3 +138,9 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 ```
 
 > 完整模块职责说明见 [docs/架构设计.md](docs/架构设计.md)。
+
+## 许可证
+
+本软件以 [MIT License](LICENSE) 发布，Copyright (c) 2026 chiangyang。
+
+第三方组件（Electron、Chromium、Node.js、Milkdown、CodeMirror、Markdown-It、Mermaid、KaTeX、Refractor、remark-frontmatter、PicGo-Core、electron-updater、dom-docx）的许可证声明与链接见软件内设置面板「关于」区域。
