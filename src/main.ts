@@ -194,7 +194,6 @@ async function boot() {
     document
       .getElementById('source-mode-btn')
       ?.addEventListener('click', () => setSourceMode(!isSourceMode()))
-    document.getElementById('split-view-btn')?.addEventListener('click', () => toggleSplitView())
     document
       .getElementById('sidebar-outline-btn')
       ?.addEventListener('click', () => toggleSidebar('outline'))
@@ -235,6 +234,11 @@ async function boot() {
     document.getElementById('menu-insert-toc-btn')?.addEventListener('click', () => {
       const view = getPmView()
       if (view && !isSourceMode()) insertToc(view)
+      closeMoreMenu()
+    })
+    // 分屏：低频的视图切换，放悬浮菜单而非工具栏（工具栏只留高频按钮）
+    document.getElementById('menu-split-view-btn')?.addEventListener('click', () => {
+      toggleSplitView()
       closeMoreMenu()
     })
     document.getElementById('more-btn')?.addEventListener('click', (e) => {

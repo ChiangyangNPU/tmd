@@ -221,6 +221,19 @@ async function insertText(renderer, text) {
 }
 
 /**
+ * 点击悬浮菜单（⋯）里的「分屏」项。
+ * 分屏入口在 more-menu 内，先展开菜单再点项（与真实操作一致），菜单项自身会收起菜单。
+ * @param {Cdp} renderer
+ */
+async function clickSplitMenuItem(renderer) {
+  await renderer.evalJson(`(() => {
+    document.getElementById('more-btn')?.click()
+    document.getElementById('menu-split-view-btn')?.click()
+    return true
+  })()`)
+}
+
+/**
  * 读取编辑器正文纯文本。
  * @param {Cdp} renderer
  * @returns {Promise<string>}
@@ -592,12 +605,14 @@ async function main() {
     // 而不是「切入」，断言就会错位——先确保回到所见即所得
     await rendererCdp.evalJson(`(() => {
       if (document.body.classList.contains('view-source')) document.getElementById('source-mode-btn')?.click()
-      if (document.body.classList.contains('view-split')) document.getElementById('split-view-btn')?.click()
       return document.body.className
     })()`)
+    if ((await rendererCdp.evalJson(`document.body.classList.contains('view-split')`)) === true) {
+      await clickSplitMenuItem(rendererCdp)
+    }
     await sleep(500)
 
-    await rendererCdp.evalJson(`document.getElementById('split-view-btn')?.click()`)
+    await clickSplitMenuItem(rendererCdp)
     /** @type {Record<string, unknown> | null} */
     let splitState = null
     for (let i = 0; i < 40; i++) {
@@ -718,7 +733,7 @@ async function main() {
     )
 
     // 再点一次退出分屏
-    await rendererCdp.evalJson(`document.getElementById('split-view-btn')?.click()`)
+    await clickSplitMenuItem(rendererCdp)
     await sleep(600)
     const closedState = JSON.parse(
       /** @type {string} */ (
