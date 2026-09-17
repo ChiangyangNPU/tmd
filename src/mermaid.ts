@@ -102,6 +102,8 @@ const mermaidSchema = $nodeSchema('mermaid', () => ({
 // ---------------------------------------------------------------------------
 
 const RENDER_DEBOUNCE_MS = 400
+/** 视口预取边距：提前一屏（约 600px）渲染，滚动时不会看到空白等待 */
+const VIEWPORT_MARGIN = '600px'
 
 /** 全部存活的 mermaid 视图，主题切换时统一原地重渲（不重建编辑器） */
 const mermaidViews = new Set<MermaidView>()
@@ -126,10 +128,18 @@ class MermaidView implements NodeView {
   private lastCode: string | null = null
   private renderSeq = 0
   private timer: number | undefined
+  /** 是否已入过视口并渲染过（懒渲染的开启标志，主题重渲也据此跳过视口外的图） */
+  private rendered = false
+  /** 视口观察器：进入视口即断开，不再观察 */
+  private observer: IntersectionObserver | null = null
 
   /**
    * 构造 mermaid 节点视图：创建渲染区、错误提示、占位提示与源码区 DOM，
-   * 绑定渲染区点击进入源码编辑，注册到全局视图集合，并按节点源码首次调度渲染
+   * 绑定渲染区点击进入源码编辑，注册到全局视图集合，并开始观察是否进入视口
+   *
+   * 不在此处直接渲染：打开含数十张图的文档时，若每个节点视图都立即排队渲染，
+   * 会为视口外的图表白白烧掉约 1 秒主线程（实测 30 张图约 1030ms）。
+   * 渲染推迟到进入视口（含一屏预取边距）时触发。
    *
    * @param node - 对应的 ProseMirror mermaid 节点
    * @param view - 所属编辑器视图
@@ -165,12 +175,43 @@ class MermaidView implements NodeView {
     this.renderArea.addEventListener('click', () => this.enterEdit())
     mermaidViews.add(this)
     this.syncEditing(node)
-    this.scheduleRender(node.textContent)
+    // 先记下源码：update() 的变更比对与进入视口后的首次渲染都依赖它
+    this.lastCode = node.textContent
+    this.observeVisibility()
   }
 
-  /** 主题切换：用当前源码重画 SVG（绕过防抖；renderSeq 守卫丢弃过期结果） */
+  /**
+   * 观察本块是否进入视口（含预取边距），进入后立即渲染并停止观察
+   *
+   * 不环境退化：无 IntersectionObserver 时退回「构造即渲染」的旧行为。
+   */
+  private observeVisibility() {
+    if (typeof IntersectionObserver !== 'function') {
+      void this.renderNow(this.lastCode ?? '')
+      return
+    }
+    this.observer = new IntersectionObserver(
+      (entries) => {
+        if (!entries.some((entry) => entry.isIntersecting)) return
+        this.disconnectObserver()
+        // 首次入视口立即渲染（不走防抖）：跳转/滚动到图表处应当马上出图
+        void this.renderNow(this.lastCode ?? '')
+      },
+      { rootMargin: VIEWPORT_MARGIN },
+    )
+    this.observer.observe(this.dom)
+  }
+
+  /** 断开视口观察（已渲染或视图销毁后不再需要） */
+  private disconnectObserver() {
+    this.observer?.disconnect()
+    this.observer = null
+  }
+
+  /** 主题切换：用当前源码重画 SVG（绕过防抖；renderSeq 守卫丢弃过期结果）
+   *  只重画入过视口的图，避免主题切换把视口外的图表全部唤醒 */
   reTheme() {
-    if (this.lastCode != null) void this.renderNow(this.lastCode)
+    if (this.rendered && this.lastCode != null) void this.renderNow(this.lastCode)
   }
 
   /** 光标位于本块的内容范围内即视为编辑态（显示源码、隐藏图表） */
@@ -217,6 +258,7 @@ class MermaidView implements NodeView {
    */
   private async renderNow(code: string, retry = 0) {
     this.lastCode = code
+    this.rendered = true
     const seq = ++this.renderSeq
 
     if (!code.trim()) {
@@ -260,7 +302,8 @@ class MermaidView implements NodeView {
    * ProseMirror 在节点（或装饰）更新时调用
    *
    * 节点类型不符时返回 false 让 ProseMirror 重建视图；否则同步一次编辑态，
-   * 并在源码文本变化时防抖重渲。
+   * 并在源码文本变化时防抖重渲——但仅限已入过视口的图：仍在视口外的只更新
+   * 记录的源码，等进入视口时用最新内容一次性渲染，不为看不见的图做无用功。
    *
    * @param node - 更新后的节点
    * @param _decorations - 本次生效的装饰集（本视图不依赖，未使用）
@@ -269,7 +312,10 @@ class MermaidView implements NodeView {
   update(node: ProseNode, _decorations: readonly Decoration[]): boolean {
     if (node.type.name !== 'mermaid') return false
     this.syncEditing(node)
-    if (node.textContent !== this.lastCode) this.scheduleRender(node.textContent)
+    if (node.textContent !== this.lastCode) {
+      this.lastCode = node.textContent
+      if (this.rendered) this.scheduleRender(node.textContent)
+    }
     return true
   }
 
@@ -299,9 +345,10 @@ class MermaidView implements NodeView {
     return this.renderArea.contains(event.target as Node)
   }
 
-  /** 视图销毁：清理未触发的渲染定时器，并从全局视图集合移除自身 */
+  /** 视图销毁：清理未触发的渲染定时器与视口观察器，并从全局视图集合移除自身 */
   destroy() {
     window.clearTimeout(this.timer)
+    this.disconnectObserver()
     mermaidViews.delete(this)
   }
 }

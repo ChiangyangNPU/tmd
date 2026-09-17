@@ -11,6 +11,7 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "test:desktop": "node scripts/desktop-app-check.mjs && node scripts/desktop-export-check.mjs",
+    "bench": "node scripts/desktop-bench.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

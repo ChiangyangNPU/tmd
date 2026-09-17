@@ -16,6 +16,7 @@ npm run dev            # 浏览器模式：http://localhost:5173
 npm run dev:electron   # 桌面模式：同时启动 vite 和 Electron 窗口
 npm run build          # 类型检查 + 生产构建
 npm run test:desktop   # 桌面端端到端验证（需先 build；真实 Electron + 真实菜单，串行覆盖主链路与导出链路）
+npm run bench          # 大文档性能基准（需先 build；MB 级纯文本 / 数十 Mermaid 图 / 图文混排，带回归门禁）
 npm run dist:dir       # 打包为本地目录应用（不生成安装包）
 npm run dist           # 打包安装包（mac: dmg / win: nsis）
 ```
@@ -90,6 +91,7 @@ electron/preload.cjs  受控 API 暴露（contextBridge）
 scripts/lib/desktop-harness.mjs  桌面 E2E 共享驱动（CDP 客户端 / 隔离启动 / 进程组回收）
 scripts/desktop-app-check.mjs    主链路 + 可靠性 + 历史版本桌面 E2E（17 断言）
 scripts/desktop-export-check.mjs 导出 Word / 长图桌面 E2E
+scripts/desktop-bench.mjs        大文档性能基准（打开 / 输入 / 滚动 / 长任务，带回归门禁）
 scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
 src/main.ts           应用启动与全局装配（boot / hooks 注入 / 快捷键 / 菜单回调）
 src/editor-core.ts    编辑器枢纽（创建/重建/源码模式/内容取回）

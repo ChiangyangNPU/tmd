@@ -16,6 +16,7 @@ npm run dev            # Browser mode: http://localhost:5173
 npm run dev:electron   # Desktop mode: starts vite and the Electron window together
 npm run build          # Type check + production build
 npm run test:desktop   # Desktop end-to-end check (run build first; real Electron + real menus; runs the main-flow and export-flow suites in sequence)
+npm run bench          # Large-document performance benchmark (run build first; MB-scale text / dozens of Mermaid charts / mixed, with regression gates)
 npm run dist:dir       # Package as a local directory app (no installer generated)
 npm run dist           # Build installer (mac: dmg / win: nsis)
 ```
@@ -90,6 +91,7 @@ electron/preload.cjs      Controlled API exposure (contextBridge)
 scripts/lib/desktop-harness.mjs  Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
 scripts/desktop-app-check.mjs    Main-flow, reliability & version-history desktop E2E (17 assertions)
 scripts/desktop-export-check.mjs Word / long-image export desktop E2E
+scripts/desktop-bench.mjs        Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
 src/main.ts               App startup & global wiring (boot / hooks injection / shortcuts / menu callbacks)
 src/editor-core.ts        Editor hub (create / rebuild / source mode / content retrieval)
