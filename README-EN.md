@@ -15,7 +15,7 @@ npm install   # Install dependencies first (see note below if the Electron binar
 npm run dev            # Browser mode: http://localhost:5173
 npm run dev:electron   # Desktop mode: starts vite and the Electron window together
 npm run build          # Type check + production build
-npm run test:desktop   # Desktop end-to-end check (run build first; real Electron + real menus, covers the export flows)
+npm run test:desktop   # Desktop end-to-end check (run build first; real Electron + real menus; runs the main-flow and export-flow suites in sequence)
 npm run dist:dir       # Package as a local directory app (no installer generated)
 npm run dist           # Build installer (mac: dmg / win: nsis)
 ```
@@ -57,11 +57,13 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
 - Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 11 third-party components
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
+- **Local crash capture & logs (zero telemetry)**: crashReporter writes minidumps only to `~/.tmd/crash-dumps` (no upload, no server, no crash dialog); JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
+- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering 10 scenarios: open / edit / dirty flag / save / save-as / unsaved-close interception / error persistence / renderer & main process crash recovery
 - **Electron desktop shell** (`electron/`):
   - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
   - Native open / save / save-as dialogs; File menu shortcuts Cmd/Ctrl+O / S / Shift+S
   - File association (double-click a .md file to open) + single-instance lock (running instance receives the file)
-  - Crash recovery (every content change is written to a localStorage recovery copy)
+  - Crash recovery (every content change is written to a localStorage recovery copy; native minidumps and logs land in `~/.tmd/`, fully local with zero telemetry)
   - The renderer keeps pure web logic; Node capabilities are exposed in a controlled way via preload (contextIsolation)
   - Automatic degradation in browser mode: file picking uses `<input type=file>`, saving becomes a download
   - Slim installers: an afterPack hook trims Electron's non-Chinese/English locale packs and WebGL/Vulkan rendering components; the Windows installer is about 93MB
@@ -80,8 +82,12 @@ electron/main.cjs         Electron main process (window, menu, IPC file read/wri
 electron/search.cjs       Full-text search scanning & matching (pure Node, independently verifiable)
 electron/themes.cjs       File-based theme folder scanning & safety checks (pure Node, independently verifiable)
 electron/exporter.cjs     Offscreen export service (hidden window / serial task queue / capture & read-image primitives)
+electron/logger.cjs       Local JSONL logging & minidump scanning (pure Node, independently verifiable)
 electron/ipc.cjs          IPC channel name constants (shared by main process and preload)
 electron/preload.cjs      Controlled API exposure (contextBridge)
+scripts/lib/desktop-harness.mjs  Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
+scripts/desktop-app-check.mjs    Main-flow & reliability desktop E2E (10 scenarios)
+scripts/desktop-export-check.mjs Word / long-image export desktop E2E
 scripts/trim-runtime.cjs  Pack hook: trims redundant Electron runtime files (locales / WebGL DLLs)
 src/main.ts               App startup & global wiring (boot / hooks injection / shortcuts / menu callbacks)
 src/editor-core.ts        Editor hub (create / rebuild / source mode / content retrieval)
@@ -91,6 +97,7 @@ src/theme-presets.ts      Theme presets, file-based themes & custom CSS injectio
 src/shortcuts.ts          Shortcut configuration (definitions / read-write / validation / display formatting)
 src/search.ts             Cross-file search panel (debounce / grouped rendering / jump & locate)
 src/fs-path.ts            Filesystem path utilities (normalize / dirname / identity check)
+src/error-report.ts       Renderer uncaught-error / Promise-rejection capture & IPC reporting
 src/export-doc.ts         Export document core (render pipeline / styles / image-ref classification, shared by all four formats)
 src/export-word.ts        Word export adapter (region capture rasterization + OOXML conversion)
 src/export-image.ts       Long-image export (segment planning + canvas stitching)

@@ -19,6 +19,7 @@ const {
   app,
   BrowserWindow,
   Menu,
+  crashReporter,
   dialog,
   ipcMain,
   nativeTheme,
@@ -41,6 +42,14 @@ const {
   ensureThemesDirWithSample,
 } = require('./themes.cjs')
 const { createExporter } = require('./exporter.cjs')
+const {
+  tmdHome,
+  logsDir,
+  crashDumpsDir,
+  createLogger,
+  normalizeRendererReport,
+  scanNewDumps,
+} = require('./logger.cjs')
 const os = require('node:os')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -66,6 +75,48 @@ const GITHUB_SOURCE = {
 }
 
 const DEV_SERVER_URL = process.env.ELECTRON_RENDERER_URL
+
+// ---------- 崩溃捕获与本地日志（零遥传） ----------
+// crashReporter 必须在 app ready 之前启动：crashpad 捕获原生崩溃后把 minidump
+// 写入 ~/.tmd/crash-dumps。uploadToServer:false 且不设 submitURL——只落盘、绝不上传，
+// 尊重开源无遥传原则。TMD_HOME_DIR 可重定位资产根目录（E2E 隔离 / 便携版）。
+const tmdRoot = tmdHome()
+// 崩溃目录重定位到 ~/.tmd/crash-dumps：Electron 44 已移除 start 的
+// crashesDirectory 选项，正式做法是 ready 前 app.setPath('crashDumps', dir)
+const crashDumpDir = crashDumpsDir(tmdRoot)
+fsSync.mkdirSync(crashDumpDir, { recursive: true })
+app.setPath('crashDumps', crashDumpDir)
+crashReporter.start({
+  // uploadToServer:false ——崩溃报告只收集进崩溃目录，绝不上传
+  uploadToServer: false,
+  compress: true,
+})
+const logger = createLogger({ home: tmdRoot })
+
+// 主进程 JS 异常：落盘后保持 Electron 默认语义（不主动退出），仅补本地记录。
+// 注意写盘失败已在 logger 内部静默，不会递归进入本钩子。
+process.on('uncaughtException', (err) => {
+  logger.log(
+    'error',
+    'main',
+    err instanceof Error ? err.message : String(err),
+    err instanceof Error ? err.stack : undefined,
+  )
+})
+process.on('unhandledRejection', (reason) => {
+  logger.log(
+    'error',
+    'main',
+    reason instanceof Error ? reason.message : String(reason),
+    reason instanceof Error ? reason.stack : undefined,
+  )
+})
+
+// 子进程（渲染器 / GPU / utility）消失事件：离屏导出窗口在 exporter.cjs 另有
+// 自身的任务 reject 与窗口重建处理，此处负责主窗口等其余进程的崩溃留痕。
+app.on('child-process-gone', (_event, details) => {
+  logger.logChildProcessGone(details)
+})
 
 /** @type {import('electron').BrowserWindow | null} */
 let mainWindow = null
@@ -522,6 +573,13 @@ function createWindow() {
     event.preventDefault()
   })
 
+  // 渲染进程消失（崩溃 / 被杀 / OOM）：这是渲染器维度的权威事件。
+  // app 级 child-process-gone 主要覆盖 GPU / utility，forcefullyCrashRenderer 等
+  // 场景只触发本事件；details 无 type 字段，补 'renderer' 与日志函数入参形状对齐。
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.logChildProcessGone({ type: 'renderer', ...details })
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })
@@ -780,6 +838,38 @@ ipcMain.handle(IPC.themesOpenDir, async () => {
     return !error
   } catch (err) {
     console.error('[tmd] 打开主题目录失败', err)
+    return false
+  }
+})
+
+// ---------- IPC：日志与诊断（零遥传，仅本地落盘） ----------
+
+/**
+ * 渲染层未捕获异常上报：经白名单归一化后落盘。
+ * 级别固定 error、来源固定 renderer（不接受客户端指定），载荷只取
+ * message/stack/代码位置，任何文档内容都不会进入日志。
+ * @param {unknown} _event
+ * @param {unknown} payload
+ */
+ipcMain.on(IPC.logReport, (_event, payload) => {
+  const entry = normalizeRendererReport(payload)
+  if (!entry) return
+  logger.log('error', 'renderer', entry.message, entry.stack, {
+    filename: entry.filename,
+    lineno: entry.lineno,
+    colno: entry.colno,
+  })
+})
+
+/** 在系统文件管理器中打开日志目录：不存在则创建（空目录即可，不写示例文件） */
+ipcMain.handle(IPC.logOpenDir, async () => {
+  try {
+    const dir = logsDir(tmdRoot)
+    await fs.mkdir(dir, { recursive: true })
+    const error = await shell.openPath(dir)
+    return !error
+  } catch (err) {
+    console.warn('[tmd] 打开日志目录失败', err)
     return false
   }
 })
@@ -1153,6 +1243,9 @@ app.whenReady().then(() => {
   createWindow()
   // 离屏导出服务：注册隐藏窗口的分区 CSP 与 4 条服务通道（窗口按需懒创建）
   exporter.register()
+  // 登记上次运行可能留下的原生崩溃 minidump（主进程自身崩溃时来不及写日志行，
+  // 只能在下次启动时于日志中补一条线索，并更新 .seen-dumps 清单避免重复登记）
+  void scanNewDumps(logger, tmdRoot)
   // 装配自动更新事件监听（autoCheckUpdateEnabled 由渲染层经 IPC 同步）
   setupAutoUpdater()
 

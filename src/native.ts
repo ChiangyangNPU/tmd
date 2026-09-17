@@ -104,6 +104,10 @@ export interface NativeFileAPI {
   readTheme(name: string): Promise<string | null>
   /** 文件式主题：系统文件管理器打开主题目录（空目录时创建并写入示例主题） */
   openThemesDir(): Promise<boolean>
+  /** 上报渲染层未捕获异常（仅写入本机日志；级别/来源由主进程固定，不接受客户端指定） */
+  reportError(entry: import('./error-report').RendererErrorInfo): void
+  /** 系统文件管理器打开日志目录（不存在则创建），返回是否成功 */
+  openLogsDir(): Promise<boolean>
   /**
    * Word / 长图离屏导出：主进程先弹保存框（取消返回 null），
    * 再把任务下发给隐藏导出窗口执行并写入目标文件。
@@ -257,4 +261,8 @@ export interface IpcChannels {
   exporterCapture: string
   /** 离屏导出页原语：白名单读取本地图片为 data URI */
   exporterReadImage: string
+  /** 渲染层上报未捕获异常（仅本地落盘，零遥传） */
+  logReport: string
+  /** 在系统文件管理器中打开日志目录 */
+  logOpenDir: string
 }

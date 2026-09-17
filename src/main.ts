@@ -77,6 +77,7 @@ import { applyTypography } from './typography'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
 import { saveDoc, loadDoc, clearDoc, getTheme, recentList } from './store'
 import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
+import { installErrorReport } from './error-report'
 
 // ---------------------------------------------------------------------------
 // 应用常量
@@ -117,6 +118,8 @@ function toggleSidebar(which: 'outline' | 'files') {
 /** 启动装配：i18n、平台类、主题恢复、编辑器挂载、工具栏/标签栏/快捷键/菜单事件绑定 */
 async function boot() {
   try {
+    // 全局错误捕获最先安装：启动期任意阶段抛错都能经主进程落到本机日志
+    installErrorReport()
     applyDomTexts()
     // Mac 隐藏标题栏：工具栏让出红绿灯按钮的空间
     if (navigator.userAgent.includes('Macintosh')) {

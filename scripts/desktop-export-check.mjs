@@ -26,13 +26,22 @@
  *
  * 退出码：0 全部通过；1 有断言失败；2 脚本自身异常。
  */
-import { spawn, spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { mkdir, rm, writeFile, readFile, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+// CDP 客户端 / 应用启停 / 进程组清理为各桌面检查脚本共享，见 harness 模块
+import {
+  Cdp,
+  cleanupElectron,
+  killTree,
+  sleep,
+  spawnApp,
+  waitForPortsFree,
+  waitForTarget,
+} from './lib/desktop-harness.mjs'
 
 /** 仓库根目录（本文件位于 scripts/ 下） */
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -56,80 +65,6 @@ function check(name, passed, detail = '') {
 function diag(name, detail) {
   results.push({ name, passed: true, detail, diagnostic: true })
   if (VERBOSE) console.log(`DIAG  ${name} :: ${detail}`)
-}
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
-
-/** 极简 CDP 客户端（Node 内置 WebSocket） */
-class Cdp {
-  constructor(wsUrl) {
-    this.wsUrl = wsUrl
-    this.id = 0
-    this.pending = new Map()
-  }
-  async connect() {
-    this.ws = new WebSocket(this.wsUrl)
-    await new Promise((resolve, reject) => {
-      this.ws.onopen = resolve
-      this.ws.onerror = (e) => reject(new Error('ws error: ' + e?.message))
-    })
-    this.ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data)
-      const p = this.pending.get(msg.id)
-      if (!p) return
-      this.pending.delete(msg.id)
-      // 协议错误与正常结果走同一个 id，按 msg.error 分流
-      if (msg.error) p.reject(new Error(JSON.stringify(msg.error)))
-      else p.resolve(msg.result)
-    }
-  }
-  send(method, params = {}) {
-    const id = ++this.id
-    return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject })
-      this.ws.send(JSON.stringify({ id, method, params }))
-      setTimeout(() => {
-        if (this.pending.has(id)) {
-          this.pending.delete(id)
-          reject(new Error(`CDP 超时: ${method}`))
-        }
-      }, 60000)
-    })
-  }
-  /** 求值并取回 JSON 值（主进程侧用于 stub 对话框与检查产物） */
-  async evalJson(expression) {
-    const r = await this.send('Runtime.evaluate', {
-      expression,
-      awaitPromise: true,
-      returnByValue: true,
-    })
-    if (r.exceptionDetails) {
-      throw new Error('求值异常: ' + JSON.stringify(r.exceptionDetails.exception?.description))
-    }
-    return r.result.value
-  }
-  close() {
-    try {
-      this.ws.close()
-    } catch {
-      /* 忽略 */
-    }
-  }
-}
-
-async function waitForTarget(port, predicate, timeoutMs = 30000) {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    try {
-      const res = await fetch(`http://127.0.0.1:${port}/json/list`)
-      const list = await res.json()
-      const hit = list.find(predicate)
-      if (hit?.webSocketDebuggerUrl) return hit
-    } catch {
-      /* 端口未就绪，继续等 */
-    }
-    await sleep(300)
-  }
-  throw new Error(`等待调试目标超时（port ${port}）`)
 }
 
 /** 生成测试文档：覆盖全部语法 + 相对路径图片 */
@@ -254,8 +189,8 @@ async function main() {
   }
 
   // 先清理上一轮残留（.bin/electron 是包装脚本，杀包装层不会杀掉真正的 Electron）
-  spawnSync('pkill', ['-f', 'tmd/node_modules/electron'])
-  await sleep(1500)
+  cleanupElectron()
+  await waitForPortsFree()
 
   await rm(WORK, { recursive: true, force: true })
   await mkdir(join(WORK, 'docs', 'assets'), { recursive: true })
@@ -263,14 +198,7 @@ async function main() {
   await writeFile(mdPath, buildSampleMarkdown(), 'utf-8')
   await writeFile(join(WORK, 'docs', 'assets', 'pic.png'), makePng(80, 40, [220, 60, 60, 255]))
 
-  const electronBin = join(REPO, 'node_modules', '.bin', 'electron')
-  if (!existsSync(electronBin)) throw new Error('未找到 electron 可执行文件')
-
-  const child = spawn(
-    electronBin,
-    ['.', '--remote-debugging-port=9222', '--inspect=9229', `--user-data-dir=${PROFILE}`],
-    { cwd: REPO, stdio: ['ignore', 'pipe', 'pipe'], detached: true },
-  )
+  const child = spawnApp({ repo: REPO, profile: PROFILE })
   const logs = []
   child.stdout.on('data', (d) => logs.push('OUT ' + d.toString()))
   child.stderr.on('data', (d) => logs.push('ERR ' + d.toString()))
@@ -668,16 +596,8 @@ async function main() {
     check('渲染层无记录到的异常', errs === '[]' || errs === undefined, errs)
   } finally {
     // 杀整个进程组：Electron 由包装脚本派生出孙进程，只杀 child 会留下孤儿
-    try {
-      process.kill(-child.pid, 'SIGKILL')
-    } catch {
-      try {
-        child.kill('SIGKILL')
-      } catch {
-        /* 忽略 */
-      }
-    }
-    spawnSync('pkill', ['-f', 'tmd/node_modules/electron'])
+    killTree(child)
+    cleanupElectron()
     main?.close()
     renderer?.close()
   }

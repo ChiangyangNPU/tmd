@@ -15,7 +15,7 @@ npm install   # 首次安装依赖（国内网络 Electron 二进制下载失败
 npm run dev            # 浏览器模式：http://localhost:5173
 npm run dev:electron   # 桌面模式：同时启动 vite 和 Electron 窗口
 npm run build          # 类型检查 + 生产构建
-npm run test:desktop   # 桌面端端到端验证（需先 build；真实 Electron + 真实菜单，覆盖导出链路）
+npm run test:desktop   # 桌面端端到端验证（需先 build；真实 Electron + 真实菜单，串行覆盖主链路与导出链路）
 npm run dist:dir       # 打包为本地目录应用（不生成安装包）
 npm run dist           # 打包安装包（mac: dmg / win: nsis）
 ```
@@ -57,11 +57,13 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 多语言界面（简体中文 / 繁體中文（台港用词）/ English，跟随系统，设置面板可切换）
 - 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 11 个第三方组件的许可证声明与直达链接
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
+- **本地崩溃捕获与日志（零遥传）**：crashReporter 只把崩溃转储写入 `~/.tmd/crash-dumps`（不上传、无服务端、无崩溃弹窗）；主/渲染进程 JS 异常与渲染器崩溃统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
+- **主链路端到端测试**：真实构建产物 + Chrome DevTools 协议驱动（无额外测试框架），覆盖打开/编辑/脏标记/保存/另存为/未保存关闭拦截/异常落盘/渲染器与主进程崩溃恢复共 10 个场景
 - **Electron 桌面壳**（`electron/`）：
   - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
   - 原生打开/保存/另存为对话框，文件菜单快捷键 Cmd/Ctrl+O / S / Shift+S
   - 文件关联（双击 .md 直接打开）+ 单实例锁（已运行时转交现有窗口）
-  - 崩溃恢复（文档内容每次变更即写 localStorage 恢复副本）
+  - 崩溃恢复（文档内容每次变更即写 localStorage 恢复副本；原生崩溃转储与日志落盘 `~/.tmd/`，纯本地零遥传）
   - 渲染层保持纯网页逻辑，Node 能力经 preload 受控暴露（contextIsolation）
   - 浏览器模式自动降级：文件选择用 `<input type=file>`，保存为下载
   - 安装包瘦身：打包时经 afterPack 钩子裁剪 Electron 的非中英文语言包与 WebGL/Vulkan 渲染组件，Windows 安装包约 93MB
@@ -80,8 +82,12 @@ electron/main.cjs     Electron 主进程（窗口、菜单、IPC 文件读写、
 electron/search.cjs   全文搜索的扫描与匹配（纯 Node，可独立验证）
 electron/themes.cjs   文件式主题目录扫描与安全校验（纯 Node，可独立验证）
 electron/exporter.cjs 离屏导出服务（隐藏窗口 / 串行队列 / 截图与读图原语）
+electron/logger.cjs   本地 JSONL 日志与崩溃转储扫描（纯 Node，可独立验证）
 electron/ipc.cjs      IPC 通道名常量（主进程与 preload 共用）
 electron/preload.cjs  受控 API 暴露（contextBridge）
+scripts/lib/desktop-harness.mjs  桌面 E2E 共享驱动（CDP 客户端 / 隔离启动 / 进程组回收）
+scripts/desktop-app-check.mjs    主链路 + 可靠性桌面 E2E（10 场景）
+scripts/desktop-export-check.mjs 导出 Word / 长图桌面 E2E
 scripts/trim-runtime.cjs  打包钩子：裁剪 Electron 运行时冗余文件（语言包 / WebGL DLL）
 src/main.ts           应用启动与全局装配（boot / hooks 注入 / 快捷键 / 菜单回调）
 src/editor-core.ts    编辑器枢纽（创建/重建/源码模式/内容取回）
@@ -91,6 +97,7 @@ src/theme-presets.ts  主题预设、文件式主题与自定义 CSS 注入
 src/shortcuts.ts      快捷键配置（定义 / 读写 / 校验 / 显示格式化）
 src/search.ts         跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
 src/fs-path.ts        文件系统路径工具（规范化 / 取目录 / 同一性判断）
+src/error-report.ts   渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
 src/export-doc.ts     导出文档核心（渲染管线 / 样式 / 图片引用分类，四载体共用）
 src/export-word.ts    Word 导出适配（区域截帧栅格化 + OOXML 转换）
 src/export-image.ts   长图导出（分段计划 + canvas 拼接）

@@ -60,6 +60,9 @@ const channels = {
   exporterDone: 'tmd:exporter-done',
   exporterCapture: 'tmd:exporter-capture',
   exporterReadImage: 'tmd:exporter-read-image',
+  // 日志与诊断：渲染层异常上报（仅本地落盘）/ 在文件管理器中打开日志目录
+  logReport: 'tmd:log-report',
+  logOpenDir: 'tmd:log-open-dir',
 }
 
 module.exports = channels

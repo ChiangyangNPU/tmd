@@ -126,6 +126,10 @@ const api = {
   readTheme: (name) => ipcRenderer.invoke(IPC.themesRead, name),
   /** 文件式主题：在系统文件管理器中打开主题目录（空目录时创建并写入示例） */
   openThemesDir: () => ipcRenderer.invoke(IPC.themesOpenDir),
+  /** 渲染层未捕获异常上报：仅写入本机日志，级别/来源由主进程固定 */
+  reportError: (entry) => ipcRenderer.send(IPC.logReport, entry),
+  /** 在系统文件管理器中打开日志目录（不存在则创建） */
+  openLogsDir: () => ipcRenderer.invoke(IPC.logOpenDir),
   /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
   exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
 }

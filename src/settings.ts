@@ -484,6 +484,13 @@ export function wireSettings() {
   document.getElementById('themes-refresh-btn')?.addEventListener('click', () => {
     void refreshFileThemes()
   })
+  // 日志与诊断：整个小节仅桌面环境存在（浏览器无本地目录 / IPC）
+  if (!native) document.getElementById('logs-section')?.setAttribute('hidden', '')
+  document.getElementById('logs-open-dir-btn')?.addEventListener('click', () => {
+    void native?.openLogsDir().then((ok) => {
+      if (!ok) showToast(t('settings.logsOpenFailed'))
+    })
+  })
   // 自定义 CSS：输入即应用（防抖交给 input 事件天然节流），「恢复默认」清空
   const cssBox = document.getElementById('set-custom-css') as HTMLTextAreaElement | null
   if (cssBox) {
