@@ -3,7 +3,13 @@
 # - 产物上传到 GitHub Release（electron-builder --publish always）
 # - 元数据 (latest*.yml) 推到 Gitee 仓库 releases/ 目录（供 generic provider raw URL 读取）
 # - 大文件 (dmg/exe/blockmap) 上传到 Gitee Release 附件
-# 注意：Gitee 需在仓库 Settings → Secrets 配置 GITEE_TOKEN
+#
+# 注意：
+# - Gitee 需在仓库 Settings → Secrets 配置 GITEE_TOKEN
+# - Gitee 仓库默认分支是 master，内容/Release API 的 branch 与 target_commitish
+#   都必须用 master（用 main 会静默失败，releases/*.yml 永远写不进去）
+# - Gitee 附件单文件上限 100MB（免费版配额），超限会被服务端拒绝；
+#   附件上传失败一律让 job 失败，避免「CI 全绿但产物缺失」
 
 name: Release
 
@@ -76,14 +82,15 @@ jobs:
           GITEE_REPO: tmd
         run: |
           if [ -z "$GITEE_TOKEN" ]; then
-            echo "GITEE_TOKEN not set, skipping Gitee upload"
-            exit 0
+            echo "::error::GITEE_TOKEN is not set, cannot publish to Gitee (see repo Settings → Secrets)"
+            exit 1
           fi
 
           TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
           echo "Publishing to Gitee tag: $TAG"
 
           # 1. 上传元数据 (latest*.yml) 到仓库 releases/ 目录
+          #    分支必须用 master：Gitee 仓库默认分支不是 main，写错会静默失败
           for yml in release/latest*.yml; do
             [ -f "$yml" ] || continue
             name=$(basename "$yml")
@@ -94,16 +101,20 @@ jobs:
               -F "access_token=$GITEE_TOKEN" \
               -F "message=chore: update $name for $TAG" \
               -F "content=$CONTENT" \
-              -F "branch=main")
+              -F "branch=master")
             if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
               echo "Update failed ($HTTP_CODE), trying create..."
-              curl -s -X POST \
+              CREATE_CODE=$(curl -s -o /tmp/create-resp.json -w "%{http_code}" -X POST \
                 "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/contents" \
                 -F "access_token=$GITEE_TOKEN" \
                 -F "message=chore: add $name for $TAG" \
                 -F "content=$CONTENT" \
-                -F "branch=main" \
-                -F "path=releases/$name"
+                -F "branch=master" \
+                -F "path=releases/$name")
+              if [ "$CREATE_CODE" != "200" ] && [ "$CREATE_CODE" != "201" ]; then
+                echo "::error::Failed to publish $name to Gitee releases/ (HTTP $CREATE_CODE): $(cat /tmp/create-resp.json)"
+                exit 1
+              fi
             fi
           done
 
@@ -115,7 +126,7 @@ jobs:
             -F "tag_name=$TAG" \
             -F "name=$TAG" \
             --form-string "body=$RELEASE_BODY" \
-            -F "target_commitish=main")
+            -F "target_commitish=master")
           RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
           if [ -z "$RELEASE_ID" ]; then
             echo "Failed to create Gitee Release, response: $RELEASE_RESP"
@@ -124,13 +135,29 @@ jobs:
           echo "Created Gitee Release ID: $RELEASE_ID"
 
           # 3. 上传大文件到 Release 附件
+          #    Gitee 附件单文件上限 100MB：超限会被服务端拒绝。此处必须显性失败，
+          #    否则会出现「CI 全绿但产物静默缺失」（曾发生 dmg 116MB 被丢弃却无人察觉）
+          ATTACH_FAILED=0
           for f in release/*.dmg release/*.exe release/*.blockmap; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
-            echo "Uploading $name to Gitee Release"
-            curl -s -X POST \
+            size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
+            echo "Uploading $name (${size_mb}MB) to Gitee Release"
+            HTTP_CODE=$(curl -s -o /tmp/attach-resp.json -w "%{http_code}" -X POST \
               "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
               -F "access_token=$GITEE_TOKEN" \
-              -F "file=@$f" > /dev/null
+              -F "file=@$f")
+            HTTP_CODE=${HTTP_CODE:-000}
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              echo "::error::Gitee attach failed for $name (HTTP $HTTP_CODE): $(cat /tmp/attach-resp.json)"
+              if [ "$size_mb" -gt 100 ]; then
+                echo "::error::$name is ${size_mb}MB, exceeds Gitee's 100MB per-attachment limit"
+              fi
+              ATTACH_FAILED=1
+            fi
           done
+          if [ "$ATTACH_FAILED" -ne 0 ]; then
+            echo "::error::One or more assets were not attached to the Gitee Release"
+            exit 1
+          fi
           echo "Gitee upload complete"

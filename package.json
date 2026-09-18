@@ -111,7 +111,7 @@
     "publish": [
       {
         "provider": "generic",
-        "url": "https://gitee.com/chiangyangNPU/tmd/raw/main/releases/",
+        "url": "https://gitee.com/chiangyangNPU/tmd/raw/master/releases/",
         "channel": "latest"
       },
       {
