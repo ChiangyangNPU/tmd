@@ -120,7 +120,8 @@
     "quote": "引用區塊",
     "codeBlock": "程式碼區塊",
     "bulletList": "無序清單",
-    "orderedList": "有序清單"
+    "orderedList": "有序清單",
+    "settings": "設定…"
   },
   "linkBar": {
     "placeholder": "輸入連結網址，按 Enter 確認",
@@ -180,6 +181,10 @@
   },
   "settings": {
     "title": "設定",
+    "navAppearance": "外觀",
+    "navEditor": "編輯器",
+    "navFiles": "檔案與圖片",
+    "navSystem": "系統",
     "language": "介面語言",
     "languageHint": "切換後立即生效",
     "theme": "佈景主題外觀",

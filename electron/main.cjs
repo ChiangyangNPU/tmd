@@ -254,6 +254,8 @@ const DEFAULT_MENU_LABELS = {
   codeBlock: '代码块',
   bulletList: '无序列表',
   orderedList: '有序列表',
+  history: '历史版本',
+  settings: '设置…',
 }
 /** @type {Record<string, string>} */
 let menuLabels = { ...DEFAULT_MENU_LABELS }
@@ -414,6 +416,14 @@ function buildMenu() {
             autosaveEnabled = item.checked
             sendToRenderer(IPC.autosave, item.checked)
           },
+        },
+        { type: 'separator' },
+        // 设置面板：菜单文案与窗口装饰同源于渲染层；accelerator 走系统惯例
+        // Cmd/Ctrl+，不进快捷键自定义表（平台惯例键位，自定义收益为零）
+        {
+          label: L('settings'),
+          accelerator: 'CmdOrCtrl+,',
+          click: () => sendToRenderer(IPC.menu, 'open-settings'),
         },
         { type: 'separator' },
         isMac ? { role: 'close' } : { role: 'quit' },

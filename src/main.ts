@@ -313,7 +313,13 @@ async function boot() {
       if (!mod) return
       const shortcuts = loadShortcuts()
       const acc = eventToAccelerator(e)
-      if (isSameAccelerator(acc, shortcuts['quick-switch'])) {
+      if (isSameAccelerator(acc, 'CmdOrCtrl+,')) {
+        // 设置面板：平台惯例键位（macOS Cmd+, / Windows Ctrl+,）。
+        // 浏览器模式无菜单栏，这里是唯一入口；Electron 下菜单 accelerator
+        // 先消费按键，此分支不会重复触发
+        e.preventDefault()
+        openSettings()
+      } else if (isSameAccelerator(acc, shortcuts['quick-switch'])) {
         e.preventDefault()
         openQuickSwitch()
       } else if (isSameAccelerator(acc, shortcuts['search-files'])) {
@@ -352,6 +358,7 @@ async function boot() {
         save: () => void saveDocument(),
         'save-as': () => void saveDocument(true),
         history: () => void openHistory(),
+        'open-settings': () => openSettings(),
         'new-tab': () => createNewTab(),
         'close-tab': () => {
           const id = getActiveTabId()

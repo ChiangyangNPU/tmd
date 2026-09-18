@@ -1,5 +1,6 @@
 /**
- * 设置面板：配置反射、语言/主题/自动保存/图片策略的事件装配。
+ * 设置面板：配置反射、语言/主题/自动保存/图片策略的事件装配，
+ * 以及「左侧分类导航 + 右侧连续滚动内容」的双栏导航联动。
  *
  * 图片策略的状态由本模块持有（粘贴上下文经 getCurrentImageStrategy 读取）。
  */
@@ -377,6 +378,71 @@ async function refreshFileThemes(): Promise<void> {
   applyFileTheme(css)
 }
 
+// ---------------------------------------------------------------------------
+// 设置面板分类导航
+// ---------------------------------------------------------------------------
+
+/** 导航分类 → 该类包含的区块 id（按 DOM 顺序排列；点击定位到首个区块） */
+const NAV_SECTIONS: { target: string; sections: string[] }[] = [
+  { target: 'sec-theme', sections: ['sec-theme', 'sec-css', 'sec-lang'] },
+  { target: 'sec-typography', sections: ['sec-typography'] },
+  { target: 'sec-linenos', sections: ['sec-linenos', 'sec-writing'] },
+  { target: 'sec-autosave', sections: ['sec-autosave', 'sec-image', 'picgo-config-section'] },
+  { target: 'sec-shortcuts', sections: ['sec-shortcuts'] },
+  { target: 'sec-update', sections: ['sec-update', 'logs-section'] },
+  { target: 'sec-about', sections: ['sec-about'] },
+]
+
+/**
+ * 装配分类导航：点击平滑定位，滚动时左侧高亮自动跟随。
+ * 跟随判定取「顶部已越过内容窗顶部（32px 容差）」的最后一个区块；
+ * display:none 的区块（图床配置按策略显隐、浏览器下日志区隐藏）不参与定位。
+ * 滚到底部时末尾区块可能够不到顶部阈值（下方内容不足一屏），强制落末类。
+ */
+function wireSettingsNav() {
+  const content = document.getElementById('settings-content')
+  const items = Array.from(
+    document.querySelectorAll<HTMLButtonElement>('#settings-nav .settings-nav-item'),
+  )
+  if (!content || !items.length) return
+  const sectionEls = NAV_SECTIONS.flatMap((cat) => cat.sections)
+    .map((id) => document.getElementById(id))
+    .filter((el): el is HTMLElement => !!el)
+  const categoryOf = new Map<string, string>()
+  for (const cat of NAV_SECTIONS) for (const sid of cat.sections) categoryOf.set(sid, cat.target)
+  const setActive = (target: string) =>
+    items.forEach((it) => it.classList.toggle('active', it.dataset.navTarget === target))
+
+  items.forEach((it) => {
+    it.addEventListener('click', () => {
+      const target = it.dataset.navTarget
+      const el = target ? document.getElementById(target) : null
+      if (!el || !target) return
+      setActive(target)
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  })
+
+  content.addEventListener('scroll', () => {
+    let current = NAV_SECTIONS[0].target
+    for (const s of sectionEls) {
+      if (!s.offsetParent) continue
+      if (s.offsetTop - content.scrollTop > 32) break
+      current = categoryOf.get(s.id) ?? current
+    }
+    const atBottom = content.scrollTop + content.clientHeight >= content.scrollHeight - 4
+    if (atBottom) {
+      for (let i = sectionEls.length - 1; i >= 0; i--) {
+        if (sectionEls[i].offsetParent) {
+          current = categoryOf.get(sectionEls[i].id) ?? current
+          break
+        }
+      }
+    }
+    setActive(current)
+  })
+}
+
 /** 打开设置面板并反映当前配置值 */
 export function openSettings() {
   const overlay = document.getElementById('settings-overlay')
@@ -433,6 +499,13 @@ export function openSettings() {
   // 快捷键列表：按当前配置渲染
   renderShortcuts()
 
+  // 打开时回到顶部并高亮第一类：保留上次滚动位置会显得面板「没刷新」
+  const content = document.getElementById('settings-content')
+  if (content) content.scrollTop = 0
+  document.querySelectorAll('#settings-nav .settings-nav-item').forEach((it, idx) => {
+    it.classList.toggle('active', idx === 0)
+  })
+
   overlay.hidden = false
 }
 
@@ -446,6 +519,8 @@ export function closeSettings() {
 export function wireSettings() {
   // 排版区控件由 typography 模块自装
   wireTypography()
+  // 分类导航：点击定位 + 滚动高亮跟随
+  wireSettingsNav()
   document.getElementById('settings-close')?.addEventListener('click', closeSettings)
   document.getElementById('settings-overlay')?.addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeSettings()

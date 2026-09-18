@@ -120,7 +120,8 @@
     "quote": "引用",
     "codeBlock": "代码块",
     "bulletList": "无序列表",
-    "orderedList": "有序列表"
+    "orderedList": "有序列表",
+    "settings": "设置…"
   },
   "linkBar": {
     "placeholder": "输入链接地址，回车确认",
@@ -180,6 +181,10 @@
   },
   "settings": {
     "title": "设置",
+    "navAppearance": "外观",
+    "navEditor": "编辑器",
+    "navFiles": "文件与图片",
+    "navSystem": "系统",
     "language": "界面语言",
     "languageHint": "切换后立即生效",
     "theme": "主题外观",

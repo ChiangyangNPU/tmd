@@ -5,6 +5,8 @@
   --muted: #6a737d;
   --border: #e2e6ea;
   --accent: #4a7cd4;
+  /* 控件 hover 底色（按钮 / 按键框 / 导航项共用） */
+  --bg-hover: #eff2f5;
   --code-bg: #f3f4f6;
   --pre-bg: #f6f8fa;
   --quote-bg: transparent;
@@ -23,6 +25,7 @@ html.dark {
   --muted: #8a9099;
   --border: #343a42;
   --accent: #7aa2e8;
+  --bg-hover: #2a2e36;
   --code-bg: #2a2e36;
   --pre-bg: #24272e;
   --quote-bg: transparent;
@@ -219,51 +222,94 @@ html.win .win-controls {
 }
 
 .settings-modal {
-  width: 460px;
+  width: 680px;
   max-width: calc(100vw - 48px);
   max-height: calc(100vh - 96px);
-  overflow-y: auto;
+  /* 双栏布局：标题栏 + 导航列 + 滚动内容列。
+     滚动发生在 .settings-content 内层，标题栏天然固定，
+     不再需要旧单列布局的吸顶负 margin hack */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
-  padding: 20px 24px;
 }
 
-/* 细圆角滚动条：默认方形轨道会压住弹窗的圆角，看起来像被裁切 */
-.settings-modal::-webkit-scrollbar {
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* 左侧分类导航：点击定位 + 滚动高亮跟随 */
+.settings-nav {
+  width: 128px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  background: var(--bg-hover);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--fg);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.settings-nav-item:hover {
+  background: var(--code-bg);
+}
+
+.settings-nav-item.active {
+  background: var(--code-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 右侧滚动内容列：细圆角滚动条（轨道留出上下圆角空间） */
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow-y: auto;
+}
+
+.settings-content::-webkit-scrollbar {
   width: 8px;
 }
 
-.settings-modal::-webkit-scrollbar-track {
+.settings-content::-webkit-scrollbar-track {
   background: transparent;
-  /* 上下留出 12px 圆角区，滑块滚到两端时不再压住圆角 */
-  margin: 12px 0;
 }
 
-.settings-modal::-webkit-scrollbar-thumb {
+.settings-content::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 4px;
 }
 
-.settings-modal::-webkit-scrollbar-thumb:hover {
+.settings-content::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
-}
-
-.settings-header {
-  /* 吸顶标题栏：top 用负值抵消弹窗顶部内边距——
-     否则吸附点在内容盒顶部，上面会留出 20px 的缝露出滚过的内容 */
-  position: sticky;
-  top: -20px;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  background: var(--bg);
-  /* 负外边距突破弹窗内边距，让标题栏铺满到圆角边缘 */
-  margin: -20px -24px 2px;
-  padding: 5px 24px 5px;
-  border-radius: 12px 12px 0 0;
 }
 
 .settings-title {
@@ -272,7 +318,7 @@ html.win .win-controls {
 }
 
 .settings-section {
-  padding: 14px 0;
+  padding: 12px 18px 14px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -299,6 +345,157 @@ html.win .win-controls {
   font-size: 12px;
   color: var(--muted);
   margin-top: 6px;
+}
+
+/* 主题色卡：单选本体隐藏，选中态经 :has(input:checked) 高亮整卡。
+   预览色固定不随当前主题变化——它描绘的是「选中后会长什么样」 */
+.theme-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.theme-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.theme-card:hover {
+  border-color: var(--muted);
+}
+
+.theme-card:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-weak, rgba(74, 124, 212, 0.18));
+}
+
+.theme-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-preview {
+  width: 52px;
+  height: 34px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+}
+
+.theme-preview i {
+  display: block;
+  height: 3.5px;
+  border-radius: 2px;
+}
+
+.theme-preview i:first-child {
+  width: 55%;
+  height: 4.5px;
+}
+
+.theme-preview i:nth-child(2) {
+  width: 90%;
+}
+
+.theme-preview i:nth-child(3) {
+  width: 75%;
+}
+
+.tp-default {
+  background: #ffffff;
+}
+
+.tp-default i {
+  background: #d3d7dc;
+}
+
+.tp-default i:first-child {
+  background: #8a9099;
+}
+
+.tp-dark {
+  background: #1e2127;
+}
+
+.tp-dark i {
+  background: #3a4046;
+}
+
+.tp-dark i:first-child {
+  background: #cfd6dd;
+}
+
+.tp-sepia {
+  background: #f6efdd;
+}
+
+.tp-sepia i {
+  background: #dccfae;
+}
+
+.tp-sepia i:first-child {
+  background: #8a7a55;
+}
+
+.tp-green {
+  background: #e2ecd8;
+}
+
+.tp-green i {
+  background: #bfd2a9;
+}
+
+.tp-green i:first-child {
+  background: #5f7a43;
+}
+
+.theme-card-name {
+  font-size: 12.5px;
+  color: var(--fg);
+}
+
+/* 短选项横排 chips（≤4 个短文案的选择组）：单选本体隐藏，样式落在兄弟 span 上 */
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip span {
+  display: inline-block;
+  font-size: 12.5px;
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.chip span:hover {
+  background: var(--bg-hover);
+}
+
+.chip input:checked + span {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* 关于面板：键值行布局 */
@@ -335,17 +532,45 @@ html.win .win-controls {
   text-decoration: underline;
 }
 
-/* 第三方组件许可证列表 */
+/* 第三方组件许可证列表：details 折叠，默认收起（低频信息不占版面） */
 .about-thirdparty {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid var(--border, #e5e7eb);
+  border-top: 1px solid var(--border);
 }
 
-.about-thirdparty-title {
+.about-thirdparty > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+/* 去 webkit 默认三角，自绘 ▸/▾ */
+.about-thirdparty > summary::-webkit-details-marker {
+  display: none;
+}
+
+.about-thirdparty > summary::before {
+  content: '▸';
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+.about-thirdparty[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.about-thirdparty[open] > summary {
   margin-bottom: 6px;
+}
+
+.about-thirdparty > summary:hover {
+  color: var(--fg);
 }
 
 .license-list {
@@ -445,6 +670,27 @@ html.win .win-controls {
   background: var(--bg-hover);
 }
 
+/* 设置面板统一按钮的两档变体：主操作（强调）与禁用态 */
+.settings-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.settings-btn.primary:hover {
+  opacity: 0.9;
+  background: var(--accent);
+}
+
+.settings-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.settings-btn[hidden] {
+  display: none;
+}
+
 .picgo-fields {
   margin-top: 6px;
 }
@@ -518,40 +764,17 @@ html.win .win-controls {
   margin-top: 10px;
 }
 
-.update-check-btn {
-  padding: 5px 14px;
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--fg);
-  cursor: pointer;
-}
-
-.update-check-btn:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
 .update-status {
   font-size: 12px;
   color: var(--muted);
   min-height: 18px;
 }
 
-.update-install-btn {
-  margin-top: 10px;
-  padding: 6px 14px;
-  font-size: 13px;
-  border: none;
-  border-radius: 6px;
-  background: var(--fg);
-  color: var(--bg);
-  cursor: pointer;
-}
-
-.update-install-btn[hidden] {
-  display: none;
+/* 窄窗口（浏览器模式小窗等）收起导航列，退化为单列滚动 */
+@media (max-width: 640px) {
+  .settings-nav {
+    display: none;
+  }
 }
 
 /* 轻提示（设置占位等） */

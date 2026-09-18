@@ -110,6 +110,7 @@ export function menuLabels(): Record<string, string> {
     codeBlock: t('menu.codeBlock'),
     bulletList: t('menu.bulletList'),
     orderedList: t('menu.orderedList'),
+    settings: t('menu.settings'),
   }
 }
 

@@ -120,7 +120,8 @@
     "quote": "Blockquote",
     "codeBlock": "Code Block",
     "bulletList": "Bullet List",
-    "orderedList": "Ordered List"
+    "orderedList": "Ordered List",
+    "settings": "Settings…"
   },
   "linkBar": {
     "placeholder": "Enter the link URL, press Enter to apply",
@@ -180,6 +181,10 @@
   },
   "settings": {
     "title": "Settings",
+    "navAppearance": "Appearance",
+    "navEditor": "Editor",
+    "navFiles": "Files & Images",
+    "navSystem": "System",
     "language": "Language",
     "languageHint": "Applies immediately",
     "theme": "Theme",

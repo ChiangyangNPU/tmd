@@ -265,464 +265,541 @@
           </button>
         </div>
 
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.language">界面语言</div>
-          <label class="settings-option"
-            ><input type="radio" name="set-lang" value="zh-CN" /><span>中文</span></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-lang" value="zh-Hant" /><span>繁體中文</span></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-lang" value="en" /><span>English</span></label
-          >
-          <div class="settings-hint" data-i18n="settings.languageHint">切换后立即生效</div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.themePreset">主题</div>
-          <label class="settings-option"
-            ><input type="radio" name="set-preset" value="default" /><span
-              data-i18n="settings.presetDefault"
-              >简约白（默认）</span
-            ></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-preset" value="dark" /><span
-              data-i18n="settings.presetDark"
-              >深色</span
-            ></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-preset" value="sepia" /><span
-              data-i18n="settings.presetSepia"
-              >护眼米黄</span
-            ></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-preset" value="green" /><span
-              data-i18n="settings.presetGreen"
-              >护眼绿</span
-            ></label
-          >
-          <div class="settings-hint" data-i18n="settings.themePresetHint">
-            选择预设会同时应用其深浅模式；工具栏按钮可随时切换深浅
-          </div>
-          <div id="set-file-theme-area" hidden>
-            <div id="set-file-themes"></div>
-            <div class="settings-hint settings-row">
-              <span data-i18n="settings.fileThemeHint"
-                >把自制 .css 文件放入主题文件夹，文件名即主题名</span
-              >
-              <span>
-                <button
-                  id="themes-open-dir-btn"
-                  class="tool-btn"
-                  data-i18n="settings.themesOpenDir"
-                >
-                  打开主题文件夹
-                </button>
-                <button id="themes-refresh-btn" class="tool-btn" data-i18n="settings.themesRefresh">
-                  刷新
-                </button>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.customCss">自定义 CSS</div>
-          <textarea
-            id="set-custom-css"
-            class="settings-textarea"
-            rows="6"
-            data-i18n-placeholder="settings.customCssPlaceholder"
-            placeholder="/* 自定义样式，例如：body { font-size: 18px; } */"
-          ></textarea>
-          <div class="settings-hint settings-row">
-            <span data-i18n="settings.customCssHint">即时生效，保存后全局持久</span>
-            <button id="css-reset-btn" class="tool-btn" data-i18n="settings.cssReset">
-              恢复默认
-            </button>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label">
-            <label class="settings-option">
-              <input type="checkbox" id="set-linenos" />
-              <span data-i18n="settings.lineNumbers">显示行号</span>
-            </label>
-          </div>
-          <div class="settings-hint" data-i18n="settings.lineNumbersHint">
-            源码模式左侧的行号与折叠标记（关闭后立即生效）
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.typography">排版</div>
-
-          <div class="settings-sub" data-i18n="settings.font">字体</div>
-          <div class="settings-options">
-            <label class="settings-option"
-              ><input type="radio" name="set-font" value="default" /><span
-                data-i18n="settings.fontDefault"
-                >默认</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-font" value="song" /><span
-                data-i18n="settings.fontSong"
-                >宋体</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-font" value="hei" /><span data-i18n="settings.fontHei"
-                >黑体</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-font" value="kai" /><span data-i18n="settings.fontKai"
-                >楷体</span
-              ></label
-            >
-          </div>
-          <input
-            id="set-font-custom"
-            class="settings-input"
-            data-i18n-placeholder="settings.fontCustomPlaceholder"
-            placeholder="自定义字体栈，如：'仿宋', FangSong, serif"
-          />
-
-          <div class="settings-sub" data-i18n="settings.fontSize">字号</div>
-          <div class="settings-options">
-            <label class="settings-option"
-              ><input type="radio" name="set-fs" value="14" /><span>14</span></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-fs" value="15" /><span>15</span></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-fs" value="" /><span
-                data-i18n="settings.fontSizeDefault"
-                >16（默认）</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-fs" value="17" /><span>17</span></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-fs" value="18" /><span>18</span></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-fs" value="20" /><span>20</span></label
-            >
-          </div>
-
-          <div class="settings-sub" data-i18n="settings.lineHeight">行距</div>
-          <div class="settings-options">
-            <label class="settings-option"
-              ><input type="radio" name="set-lh" value="1.5" /><span>1.5</span></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-lh" value="" /><span
-                data-i18n="settings.lineHeightDefault"
-                >1.75（默认）</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-lh" value="2" /><span>2.0</span></label
-            >
-          </div>
-
-          <div class="settings-sub" data-i18n="settings.pageWidth">编辑区宽度</div>
-          <div class="settings-options">
-            <label class="settings-option"
-              ><input type="radio" name="set-pw" value="720" /><span
-                data-i18n="settings.widthNarrow"
-                >窄</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-pw" value="" /><span data-i18n="settings.widthDefault"
-                >标准（默认）</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-pw" value="980" /><span data-i18n="settings.widthWide"
-                >宽</span
-              ></label
-            >
-            <label class="settings-option"
-              ><input type="radio" name="set-pw" value="full" /><span data-i18n="settings.widthFull"
-                >全宽</span
-              ></label
-            >
-          </div>
-
-          <label class="settings-option">
-            <input type="checkbox" id="set-wrap" />
-            <span data-i18n="settings.wrap">自动换行</span>
-          </label>
-          <div class="settings-hint" data-i18n="settings.typographyHint">
-            字号同时作用于源码模式，其余仅作用于正文；即时生效，关闭自动换行后长行横向滚动
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.writingModes">写作模式</div>
-          <label class="settings-option">
-            <input type="checkbox" id="set-focus-mode" />
-            <span data-i18n="settings.focusMode">专注模式</span>
-          </label>
-          <div class="settings-hint" data-i18n="settings.focusModeHint">
-            仅当前段落高亮，其余内容变暗（仅所见即所得模式）
-          </div>
-          <label class="settings-option">
-            <input type="checkbox" id="set-typewriter-mode" />
-            <span data-i18n="settings.typewriterMode">打字机模式</span>
-          </label>
-          <div class="settings-hint" data-i18n="settings.typewriterModeHint">
-            输入时光标始终保持在编辑区垂直中央（所见即所得与源码模式均生效）
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label">
-            <label class="settings-option">
-              <input type="checkbox" id="set-autosave" />
-              <span data-i18n="settings.autosave">自动保存到文件</span>
-            </label>
-          </div>
-          <div class="settings-hint" data-i18n="settings.autosaveHint">
-            每 5 秒将已保存过的文件自动写回磁盘（桌面版可用）
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.shortcuts">快捷键</div>
-          <div class="settings-hint" data-i18n="settings.shortcutsHint">
-            点击按键框后按下新的组合键即可修改（需包含 Ctrl/Cmd 或 Alt）
-          </div>
-          <div id="shortcuts-list" class="shortcuts-list"></div>
-          <div class="settings-row">
+        <div class="settings-body">
+          <nav id="settings-nav" class="settings-nav" aria-label="设置分类">
             <button
-              id="shortcuts-reset-btn"
-              class="settings-btn"
-              data-i18n="settings.shortcutsReset"
+              type="button"
+              class="settings-nav-item active"
+              data-nav-target="sec-theme"
+              data-i18n="settings.navAppearance"
             >
-              恢复默认
+              外观
             </button>
-            <span id="shortcuts-status" class="settings-hint"></span>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.imageStrategy">粘贴图片存储方式</div>
-          <label class="settings-option"
-            ><input type="radio" name="set-img" value="inline" /><span
-              data-i18n="settings.imageInline"
-              >内联到文档（data URL，无需保存文件）</span
-            ></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-img" value="assets" /><span
-              data-i18n="settings.imageAssets"
-              >保存到文档同目录 assets/ 文件夹（需先将文档保存）</span
-            ></label
-          >
-          <label class="settings-option"
-            ><input type="radio" name="set-img" value="hosting" /><span
-              data-i18n="settings.imageHosting"
-              >上传到图床（PicGo，适合分享到网络）</span
-            ></label
-          >
-          <div class="settings-hint" data-i18n="settings.imageAssetsHint">
-            选择 assets 模式时，未保存过的文档会自动降级为内联模式
-          </div>
-          <div class="settings-hint" data-i18n="settings.imageHostingHint">
-            选择图床模式时，上传失败会自动降级为内联模式
-          </div>
-        </div>
-
-        <div class="settings-section" id="picgo-config-section">
-          <div class="settings-label" data-i18n="settings.picgoConfig">图床配置</div>
-          <div class="settings-row">
-            <label
-              class="settings-row-label"
-              for="picgo-uploader"
-              data-i18n="settings.picgoUploader"
-              >图床类型</label
+            <button
+              type="button"
+              class="settings-nav-item"
+              data-nav-target="sec-typography"
+              data-i18n="settings.typography"
             >
-            <select id="picgo-uploader" class="settings-select">
-              <option value="smms">SM.MS (S.EE)</option>
-              <option value="github">GitHub</option>
-              <option value="qiniu">七牛云</option>
-              <option value="upyun">又拍云</option>
-              <option value="tcyun">腾讯云 COS</option>
-              <option value="aliyun">阿里云 OSS</option>
-              <option value="imgur">Imgur</option>
-            </select>
-          </div>
-          <div id="picgo-fields" class="picgo-fields"></div>
-          <div class="settings-row">
-            <button id="picgo-save-btn" class="settings-btn" data-i18n="settings.picgoSave">
-              保存图床配置
+              排版
             </button>
-            <span id="picgo-save-status" class="settings-hint"></span>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.update">更新</div>
-          <label class="settings-option">
-            <input type="checkbox" id="set-auto-check-update" />
-            <span data-i18n="settings.updateAutoCheck">启动时自动检查更新</span>
-          </label>
-          <div class="settings-hint" data-i18n="settings.updateAutoCheckHint">
-            启动应用后自动检查新版本
-          </div>
-          <div class="settings-update-row">
-            <button id="update-check-btn" class="update-check-btn" data-i18n="settings.updateCheck">
-              检查更新
-            </button>
-            <span id="update-status" class="update-status"></span>
-          </div>
-          <button
-            id="update-install-btn"
-            class="update-install-btn"
-            data-i18n="settings.updateInstall"
-            hidden
-          >
-            立即重启
-          </button>
-        </div>
-
-        <div class="settings-section" id="logs-section">
-          <div class="settings-label" data-i18n="settings.logs">日志与诊断</div>
-          <div class="settings-hint" data-i18n="settings.logsHint">
-            日志与崩溃记录仅保存在本机，不会上传。
-          </div>
-          <button id="logs-open-dir-btn" class="settings-btn" data-i18n="settings.logsOpenDir">
-            打开日志文件夹
-          </button>
-        </div>
-
-        <div class="settings-section">
-          <div class="settings-label" data-i18n="settings.about">关于</div>
-          <div class="about-row">
-            <span class="about-key" data-i18n="settings.aboutName">软件</span>
-            <span class="about-val" id="about-name">TMD</span>
-          </div>
-          <div class="about-row">
-            <span class="about-key" data-i18n="settings.aboutVersion">版本</span>
-            <span class="about-val" id="about-version">0.1.0</span>
-          </div>
-          <div class="about-row">
-            <span class="about-key" data-i18n="settings.aboutCopyright">版权</span>
-            <span class="about-val" id="about-copyright">© 2026 chiangyang</span>
-          </div>
-          <div class="about-row">
-            <span class="about-key" data-i18n="settings.aboutEmail">邮箱</span>
-            <a class="about-link" href="mailto:chiangyangnpu@163.com" data-external
-              >chiangyangnpu@163.com</a
+            <button
+              type="button"
+              class="settings-nav-item"
+              data-nav-target="sec-linenos"
+              data-i18n="settings.navEditor"
             >
-          </div>
-          <div class="about-row">
-            <span class="about-key" data-i18n="settings.aboutHomepage">主页</span>
-            <span class="about-links">
-              <a class="about-link" href="https://github.com/ChiangyangNPU/tmd" data-external
-                >GitHub</a
+              编辑器
+            </button>
+            <button
+              type="button"
+              class="settings-nav-item"
+              data-nav-target="sec-autosave"
+              data-i18n="settings.navFiles"
+            >
+              文件与图片
+            </button>
+            <button
+              type="button"
+              class="settings-nav-item"
+              data-nav-target="sec-shortcuts"
+              data-i18n="settings.shortcuts"
+            >
+              快捷键
+            </button>
+            <button
+              type="button"
+              class="settings-nav-item"
+              data-nav-target="sec-update"
+              data-i18n="settings.navSystem"
+            >
+              系统
+            </button>
+            <button
+              type="button"
+              class="settings-nav-item"
+              data-nav-target="sec-about"
+              data-i18n="settings.about"
+            >
+              关于
+            </button>
+          </nav>
+
+          <div id="settings-content" class="settings-content">
+            <section id="sec-theme" class="settings-section">
+              <div class="settings-label" data-i18n="settings.themePreset">主题</div>
+              <div class="theme-cards">
+                <label class="theme-card">
+                  <input type="radio" name="set-preset" value="default" />
+                  <span class="theme-preview tp-default"><i></i><i></i><i></i></span>
+                  <span class="theme-card-name" data-i18n="settings.presetDefault"
+                    >简约白（默认）</span
+                  >
+                </label>
+                <label class="theme-card">
+                  <input type="radio" name="set-preset" value="dark" />
+                  <span class="theme-preview tp-dark"><i></i><i></i><i></i></span>
+                  <span class="theme-card-name" data-i18n="settings.presetDark">深色</span>
+                </label>
+                <label class="theme-card">
+                  <input type="radio" name="set-preset" value="sepia" />
+                  <span class="theme-preview tp-sepia"><i></i><i></i><i></i></span>
+                  <span class="theme-card-name" data-i18n="settings.presetSepia">护眼米黄</span>
+                </label>
+                <label class="theme-card">
+                  <input type="radio" name="set-preset" value="green" />
+                  <span class="theme-preview tp-green"><i></i><i></i><i></i></span>
+                  <span class="theme-card-name" data-i18n="settings.presetGreen">护眼绿</span>
+                </label>
+              </div>
+              <div class="settings-hint" data-i18n="settings.themePresetHint">
+                选择预设会同时应用其深浅模式；工具栏按钮可随时切换深浅
+              </div>
+              <div id="set-file-theme-area" hidden>
+                <div id="set-file-themes"></div>
+                <div class="settings-hint settings-row">
+                  <span data-i18n="settings.fileThemeHint"
+                    >把自制 .css 文件放入主题文件夹，文件名即主题名</span
+                  >
+                  <span>
+                    <button
+                      id="themes-open-dir-btn"
+                      class="settings-btn"
+                      data-i18n="settings.themesOpenDir"
+                    >
+                      打开主题文件夹
+                    </button>
+                    <button
+                      id="themes-refresh-btn"
+                      class="settings-btn"
+                      data-i18n="settings.themesRefresh"
+                    >
+                      刷新
+                    </button>
+                  </span>
+                </div>
+              </div>
+            </section>
+
+            <section id="sec-css" class="settings-section">
+              <div class="settings-label" data-i18n="settings.customCss">自定义 CSS</div>
+              <textarea
+                id="set-custom-css"
+                class="settings-textarea"
+                rows="6"
+                data-i18n-placeholder="settings.customCssPlaceholder"
+                placeholder="/* 自定义样式，例如：body { font-size: 18px; } */"
+              ></textarea>
+              <div class="settings-hint settings-row">
+                <span data-i18n="settings.customCssHint">即时生效，保存后全局持久</span>
+                <button id="css-reset-btn" class="settings-btn" data-i18n="settings.cssReset">
+                  恢复默认
+                </button>
+              </div>
+            </section>
+
+            <section id="sec-lang" class="settings-section">
+              <div class="settings-label" data-i18n="settings.language">界面语言</div>
+              <div class="chip-group">
+                <label class="chip"
+                  ><input type="radio" name="set-lang" value="zh-CN" /><span>中文</span></label
+                >
+                <label class="chip"
+                  ><input type="radio" name="set-lang" value="zh-Hant" /><span
+                    >繁體中文</span
+                  ></label
+                >
+                <label class="chip"
+                  ><input type="radio" name="set-lang" value="en" /><span>English</span></label
+                >
+              </div>
+              <div class="settings-hint" data-i18n="settings.languageHint">切换后立即生效</div>
+            </section>
+
+            <section id="sec-typography" class="settings-section">
+              <div class="settings-label" data-i18n="settings.typography">排版</div>
+
+              <div class="settings-sub" data-i18n="settings.font">字体</div>
+              <div class="settings-options">
+                <label class="settings-option"
+                  ><input type="radio" name="set-font" value="default" /><span
+                    data-i18n="settings.fontDefault"
+                    >默认</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-font" value="song" /><span
+                    data-i18n="settings.fontSong"
+                    >宋体</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-font" value="hei" /><span
+                    data-i18n="settings.fontHei"
+                    >黑体</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-font" value="kai" /><span
+                    data-i18n="settings.fontKai"
+                    >楷体</span
+                  ></label
+                >
+              </div>
+              <input
+                id="set-font-custom"
+                class="settings-input"
+                data-i18n-placeholder="settings.fontCustomPlaceholder"
+                placeholder="自定义字体栈，如：'仿宋', FangSong, serif"
+              />
+
+              <div class="settings-sub" data-i18n="settings.fontSize">字号</div>
+              <div class="settings-options">
+                <label class="settings-option"
+                  ><input type="radio" name="set-fs" value="14" /><span>14</span></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-fs" value="15" /><span>15</span></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-fs" value="" /><span
+                    data-i18n="settings.fontSizeDefault"
+                    >16（默认）</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-fs" value="17" /><span>17</span></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-fs" value="18" /><span>18</span></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-fs" value="20" /><span>20</span></label
+                >
+              </div>
+
+              <div class="settings-sub" data-i18n="settings.lineHeight">行距</div>
+              <div class="settings-options">
+                <label class="settings-option"
+                  ><input type="radio" name="set-lh" value="1.5" /><span>1.5</span></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-lh" value="" /><span
+                    data-i18n="settings.lineHeightDefault"
+                    >1.75（默认）</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-lh" value="2" /><span>2.0</span></label
+                >
+              </div>
+
+              <div class="settings-sub" data-i18n="settings.pageWidth">编辑区宽度</div>
+              <div class="settings-options">
+                <label class="settings-option"
+                  ><input type="radio" name="set-pw" value="720" /><span
+                    data-i18n="settings.widthNarrow"
+                    >窄</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-pw" value="" /><span
+                    data-i18n="settings.widthDefault"
+                    >标准（默认）</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-pw" value="980" /><span
+                    data-i18n="settings.widthWide"
+                    >宽</span
+                  ></label
+                >
+                <label class="settings-option"
+                  ><input type="radio" name="set-pw" value="full" /><span
+                    data-i18n="settings.widthFull"
+                    >全宽</span
+                  ></label
+                >
+              </div>
+
+              <label class="settings-option">
+                <input type="checkbox" id="set-wrap" />
+                <span data-i18n="settings.wrap">自动换行</span>
+              </label>
+              <div class="settings-hint" data-i18n="settings.typographyHint">
+                字号同时作用于源码模式，其余仅作用于正文；即时生效，关闭自动换行后长行横向滚动
+              </div>
+            </section>
+
+            <section id="sec-linenos" class="settings-section">
+              <div class="settings-label">
+                <label class="settings-option">
+                  <input type="checkbox" id="set-linenos" />
+                  <span data-i18n="settings.lineNumbers">显示行号</span>
+                </label>
+              </div>
+              <div class="settings-hint" data-i18n="settings.lineNumbersHint">
+                源码模式左侧的行号与折叠标记（关闭后立即生效）
+              </div>
+            </section>
+
+            <section id="sec-writing" class="settings-section">
+              <div class="settings-label" data-i18n="settings.writingModes">写作模式</div>
+              <label class="settings-option">
+                <input type="checkbox" id="set-focus-mode" />
+                <span data-i18n="settings.focusMode">专注模式</span>
+              </label>
+              <div class="settings-hint" data-i18n="settings.focusModeHint">
+                仅当前段落高亮，其余内容变暗（仅所见即所得模式）
+              </div>
+              <label class="settings-option">
+                <input type="checkbox" id="set-typewriter-mode" />
+                <span data-i18n="settings.typewriterMode">打字机模式</span>
+              </label>
+              <div class="settings-hint" data-i18n="settings.typewriterModeHint">
+                输入时光标始终保持在编辑区垂直中央（所见即所得与源码模式均生效）
+              </div>
+            </section>
+
+            <section id="sec-autosave" class="settings-section">
+              <div class="settings-label">
+                <label class="settings-option">
+                  <input type="checkbox" id="set-autosave" />
+                  <span data-i18n="settings.autosave">自动保存到文件</span>
+                </label>
+              </div>
+              <div class="settings-hint" data-i18n="settings.autosaveHint">
+                每 5 秒将已保存过的文件自动写回磁盘（桌面版可用）
+              </div>
+            </section>
+
+            <section id="sec-image" class="settings-section">
+              <div class="settings-label" data-i18n="settings.imageStrategy">粘贴图片存储方式</div>
+              <label class="settings-option"
+                ><input type="radio" name="set-img" value="inline" /><span
+                  data-i18n="settings.imageInline"
+                  >内联到文档（data URL，无需保存文件）</span
+                ></label
               >
-              <a class="about-link" href="https://gitee.com/ChiangyangNPU/tmd" data-external
-                >Gitee</a
+              <label class="settings-option"
+                ><input type="radio" name="set-img" value="assets" /><span
+                  data-i18n="settings.imageAssets"
+                  >保存到文档同目录 assets/ 文件夹（需先将文档保存）</span
+                ></label
               >
-            </span>
-          </div>
-          <div class="about-row">
-            <span class="about-key" data-i18n="settings.aboutLicense">许可</span>
-            <a class="about-link" href="https://opensource.org/licenses/MIT" data-external
-              >MIT License</a
-            >
-          </div>
-          <div class="about-thirdparty">
-            <div class="about-thirdparty-title" data-i18n="settings.aboutThirdParty">
-              第三方组件
-            </div>
-            <div class="license-list">
-              <div class="license-item">
-                <a href="https://github.com/electron/electron/blob/main/LICENSE" data-external
-                  >Electron</a
-                ><span class="license-type">MIT</span>
+              <label class="settings-option"
+                ><input type="radio" name="set-img" value="hosting" /><span
+                  data-i18n="settings.imageHosting"
+                  >上传到图床（PicGo，适合分享到网络）</span
+                ></label
+              >
+              <div class="settings-hint" data-i18n="settings.imageAssetsHint">
+                选择 assets 模式时，未保存过的文档会自动降级为内联模式
               </div>
-              <div class="license-item">
-                <a
-                  href="https://chromium.googlesource.com/chromium/src/+/main/LICENSE"
-                  data-external
-                  >Chromium</a
-                ><span class="license-type">BSD-3-Clause</span>
+              <div class="settings-hint" data-i18n="settings.imageHostingHint">
+                选择图床模式时，上传失败会自动降级为内联模式
               </div>
-              <div class="license-item">
-                <a href="https://github.com/nodejs/node/blob/main/LICENSE" data-external>Node.js</a
-                ><span class="license-type">MIT</span>
+            </section>
+
+            <section id="picgo-config-section" class="settings-section">
+              <div class="settings-label" data-i18n="settings.picgoConfig">图床配置</div>
+              <div class="settings-row">
+                <label
+                  class="settings-row-label"
+                  for="picgo-uploader"
+                  data-i18n="settings.picgoUploader"
+                  >图床类型</label
+                >
+                <select id="picgo-uploader" class="settings-select">
+                  <option value="smms">SM.MS (S.EE)</option>
+                  <option value="github">GitHub</option>
+                  <option value="qiniu">七牛云</option>
+                  <option value="upyun">又拍云</option>
+                  <option value="tcyun">腾讯云 COS</option>
+                  <option value="aliyun">阿里云 OSS</option>
+                  <option value="imgur">Imgur</option>
+                </select>
               </div>
-              <div class="license-item">
-                <a href="https://github.com/Milkdown/milkdown/blob/main/LICENSE" data-external
-                  >Milkdown</a
-                ><span class="license-type">MIT</span>
+              <div id="picgo-fields" class="picgo-fields"></div>
+              <div class="settings-row">
+                <button id="picgo-save-btn" class="settings-btn" data-i18n="settings.picgoSave">
+                  保存图床配置
+                </button>
+                <span id="picgo-save-status" class="settings-hint"></span>
               </div>
-              <div class="license-item">
-                <a href="https://github.com/codemirror/dev/blob/main/LICENSE" data-external
-                  >CodeMirror</a
-                ><span class="license-type">MIT</span>
+            </section>
+
+            <section id="sec-shortcuts" class="settings-section">
+              <div class="settings-label" data-i18n="settings.shortcuts">快捷键</div>
+              <div class="settings-hint" data-i18n="settings.shortcutsHint">
+                点击按键框后按下新的组合键即可修改（需包含 Ctrl/Cmd 或 Alt）
               </div>
-              <div class="license-item">
-                <a
-                  href="https://github.com/markdown-it/markdown-it/blob/master/LICENSE"
-                  data-external
-                  >Markdown-It</a
-                ><span class="license-type">MIT</span>
+              <div id="shortcuts-list" class="shortcuts-list"></div>
+              <div class="settings-row">
+                <button
+                  id="shortcuts-reset-btn"
+                  class="settings-btn"
+                  data-i18n="settings.shortcutsReset"
+                >
+                  恢复默认
+                </button>
+                <span id="shortcuts-status" class="settings-hint"></span>
               </div>
-              <div class="license-item">
-                <a href="https://github.com/mermaid-js/mermaid/blob/develop/LICENSE" data-external
-                  >Mermaid</a
-                ><span class="license-type">MIT</span>
+            </section>
+
+            <section id="sec-update" class="settings-section">
+              <div class="settings-label" data-i18n="settings.update">更新</div>
+              <label class="settings-option">
+                <input type="checkbox" id="set-auto-check-update" />
+                <span data-i18n="settings.updateAutoCheck">启动时自动检查更新</span>
+              </label>
+              <div class="settings-hint" data-i18n="settings.updateAutoCheckHint">
+                启动应用后自动检查新版本
               </div>
-              <div class="license-item">
-                <a href="https://github.com/KaTeX/KaTeX/blob/main/LICENSE" data-external
-                  >KaTeX</a
-                ><span class="license-type">MIT</span>
+              <div class="settings-update-row">
+                <button id="update-check-btn" class="settings-btn" data-i18n="settings.updateCheck">
+                  检查更新
+                </button>
+                <span id="update-status" class="update-status"></span>
               </div>
-              <div class="license-item">
-                <a href="https://github.com/wooorm/refractor/blob/main/license" data-external
-                  >Refractor</a
-                ><span class="license-type">MIT</span>
+              <button
+                id="update-install-btn"
+                class="settings-btn primary"
+                data-i18n="settings.updateInstall"
+                hidden
+              >
+                立即重启
+              </button>
+            </section>
+
+            <section id="logs-section" class="settings-section">
+              <div class="settings-label" data-i18n="settings.logs">日志与诊断</div>
+              <div class="settings-hint" data-i18n="settings.logsHint">
+                日志与崩溃记录仅保存在本机，不会上传。
               </div>
-              <div class="license-item">
-                <a
-                  href="https://github.com/remarkjs/remark-frontmatter/blob/main/license"
-                  data-external
-                  >remark-frontmatter</a
-                ><span class="license-type">MIT</span>
+              <button id="logs-open-dir-btn" class="settings-btn" data-i18n="settings.logsOpenDir">
+                打开日志文件夹
+              </button>
+            </section>
+
+            <section id="sec-about" class="settings-section">
+              <div class="settings-label" data-i18n="settings.about">关于</div>
+              <div class="about-row">
+                <span class="about-key" data-i18n="settings.aboutName">软件</span>
+                <span class="about-val" id="about-name">TMD</span>
               </div>
-              <div class="license-item">
-                <a href="https://github.com/PicGo/PicGo-Core/blob/dev/License" data-external
-                  >PicGo-Core</a
-                ><span class="license-type">MIT</span>
+              <div class="about-row">
+                <span class="about-key" data-i18n="settings.aboutVersion">版本</span>
+                <span class="about-val" id="about-version">0.1.0</span>
               </div>
-              <div class="license-item">
-                <a
-                  href="https://github.com/electron-userland/electron-builder/blob/master/LICENSE"
-                  data-external
-                  >electron-updater</a
-                ><span class="license-type">MIT</span>
+              <div class="about-row">
+                <span class="about-key" data-i18n="settings.aboutCopyright">版权</span>
+                <span class="about-val" id="about-copyright">© 2026 chiangyang</span>
               </div>
-              <div class="license-item">
-                <a href="https://github.com/floodtide/dom-docx/blob/main/LICENSE" data-external
-                  >dom-docx</a
-                ><span class="license-type">MIT</span>
+              <div class="about-row">
+                <span class="about-key" data-i18n="settings.aboutEmail">邮箱</span>
+                <a class="about-link" href="mailto:chiangyangnpu@163.com" data-external
+                  >chiangyangnpu@163.com</a
+                >
               </div>
-            </div>
+              <div class="about-row">
+                <span class="about-key" data-i18n="settings.aboutHomepage">主页</span>
+                <span class="about-links">
+                  <a class="about-link" href="https://github.com/ChiangyangNPU/tmd" data-external
+                    >GitHub</a
+                  >
+                  <a class="about-link" href="https://gitee.com/ChiangyangNPU/tmd" data-external
+                    >Gitee</a
+                  >
+                </span>
+              </div>
+              <div class="about-row">
+                <span class="about-key" data-i18n="settings.aboutLicense">许可</span>
+                <a class="about-link" href="https://opensource.org/licenses/MIT" data-external
+                  >MIT License</a
+                >
+              </div>
+              <details class="about-thirdparty">
+                <summary data-i18n="settings.aboutThirdParty">第三方组件</summary>
+                <div class="license-list">
+                  <div class="license-item">
+                    <a href="https://github.com/electron/electron/blob/main/LICENSE" data-external
+                      >Electron</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a
+                      href="https://chromium.googlesource.com/chromium/src/+/main/LICENSE"
+                      data-external
+                      >Chromium</a
+                    ><span class="license-type">BSD-3-Clause</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/nodejs/node/blob/main/LICENSE" data-external
+                      >Node.js</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/Milkdown/milkdown/blob/main/LICENSE" data-external
+                      >Milkdown</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/codemirror/dev/blob/main/LICENSE" data-external
+                      >CodeMirror</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a
+                      href="https://github.com/markdown-it/markdown-it/blob/master/LICENSE"
+                      data-external
+                      >Markdown-It</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a
+                      href="https://github.com/mermaid-js/mermaid/blob/develop/LICENSE"
+                      data-external
+                      >Mermaid</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/KaTeX/KaTeX/blob/main/LICENSE" data-external
+                      >KaTeX</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/wooorm/refractor/blob/main/license" data-external
+                      >Refractor</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a
+                      href="https://github.com/remarkjs/remark-frontmatter/blob/main/license"
+                      data-external
+                      >remark-frontmatter</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/PicGo/PicGo-Core/blob/dev/License" data-external
+                      >PicGo-Core</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a
+                      href="https://github.com/electron-userland/electron-builder/blob/master/LICENSE"
+                      data-external
+                      >electron-updater</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                  <div class="license-item">
+                    <a href="https://github.com/floodtide/dom-docx/blob/main/LICENSE" data-external
+                      >dom-docx</a
+                    ><span class="license-type">MIT</span>
+                  </div>
+                </div>
+              </details>
+            </section>
           </div>
         </div>
       </div>
