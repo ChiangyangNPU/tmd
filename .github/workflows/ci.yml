@@ -1,0 +1,48 @@
+# 日常 CI：push 到 master/main 或提交 PR 时跑 lint / 类型检查 / 单测 / 构建。
+# 与 release.yml（tag 触发的发布链路）互补：发布工作流保证"打 tag 时产物可构建"，
+# 这里保证"主干随时可用"——质量门禁不依赖开发者本地自觉。
+#
+# 注意：
+# - 单 ubuntu job 即可：lint / tsc / vitest 均平台无关，双平台差异只在打包阶段，
+#   由 release.yml 的 mac + win matrix 覆盖；
+# - 桌面 E2E（test:desktop）与性能基准（bench）依赖真实 Electron 窗口，仍走本地
+#   执行（见 README），不进 CI；
+# - 构建步骤用 npx vite build：tsc 已在「类型检查」步骤通过，避免重复跑一遍
+#   （npm run build = tsc && vite build）。
+
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 同分支连续 push 时只跑最新一次，省排队与配额
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm test
+      - name: Build
+        run: npx vite build
