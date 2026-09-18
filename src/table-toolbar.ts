@@ -10,7 +10,8 @@
  * - 列宽拖拽由 gfm 预设内置的 columnResizing 插件提供（colwidth 存入 cell
  *   attrs；GFM 纯文本不含宽度，重新打开后恢复默认——格式限制）
  * - 显隐与定位：PluginView 每次 transaction 更新；监听滚动重定位；
- *   源码模式下 PM 未挂载，自然不出现
+ *   源码模式下所见即所得区被隐藏（PM 实例仍在，只是不可见），此时表格 DOM
+ *   无布局尺寸，据其判定不显示——否则工具栏会落到左上角兜底位置压住顶部按钮
  *
  * @author chiangyang
  */
@@ -166,7 +167,48 @@ export function wireTableToolbar(getView: () => EditorView | null): void {
 // 悬浮工具栏显隐与定位（PluginView）
 // ---------------------------------------------------------------------------
 
+/** 工具栏与视口边缘的最小留白（像素） */
 const VIEWPORT_MARGIN = 8
+
+/** 工具栏与表格上边缘之间的间距（像素） */
+const TOOLBAR_GAP = 6
+
+/**
+ * 判断锚点（表格 DOM）是否具备布局尺寸。
+ *
+ * 源码模式下所见即所得区被 `hidden` 隐藏，其内元素 getBoundingClientRect()
+ * 的宽高全为 0；此时若照常定位，工具栏会被夹到左上角兜底位置，正好压住顶部
+ * 工具栏按钮（「源码/编辑」等点不动），故据此判定不显示。
+ *
+ * @param rect - 锚点元素的视口矩形
+ * @returns 宽或高任一大于 0 视为可见
+ */
+export function isAnchorVisible(rect: { width: number; height: number }): boolean {
+  return rect.width > 0 || rect.height > 0
+}
+
+/**
+ * 计算悬浮工具栏落位：位于表格上方水平居中，并夹在视口内（导出供单测）。
+ *
+ * @param anchor - 表格 DOM 的视口矩形
+ * @param toolbarWidth - 工具栏自身宽度
+ * @param toolbarHeight - 工具栏自身高度
+ * @param viewportWidth - 视口宽度
+ * @returns 工具栏的 left/top（相对视口）
+ */
+export function computeToolbarPlacement(
+  anchor: { left: number; top: number; width: number; height: number },
+  toolbarWidth: number,
+  toolbarHeight: number,
+  viewportWidth: number,
+): { left: number; top: number } {
+  const left = anchor.left + anchor.width / 2 - toolbarWidth / 2
+  const top = anchor.top - toolbarHeight - TOOLBAR_GAP
+  return {
+    left: Math.max(VIEWPORT_MARGIN, Math.min(left, viewportWidth - toolbarWidth - VIEWPORT_MARGIN)),
+    top: Math.max(VIEWPORT_MARGIN, top),
+  }
+}
 
 class TableToolbarView {
   #view: EditorView
@@ -196,25 +238,32 @@ class TableToolbarView {
     this.#render()
   }
 
-  /** 光标在表格内则显示并定位到表格上方居中，否则隐藏 */
+  /**
+   * 光标在表格内、且编辑器可见时显示并定位到表格上方居中，否则隐藏。
+   *
+   * 除「光标不在表格内」外，编辑器整体不可见（源码模式下所见即所得区被隐藏）
+   * 同样要隐藏——此时表格 DOM 无布局尺寸，硬定位会落到左上角兜底位置压住
+   * 顶部工具栏按钮（详见 isAnchorVisible）。
+   */
   #render(): void {
     if (!this.#el) return
     const ctx = findTableContext(this.#view.state)
-    if (!ctx) {
+    const dom = ctx ? (this.#view.nodeDOM(ctx.tablePos) as HTMLElement | null) : null
+    const rect = dom?.getBoundingClientRect() ?? null
+    if (!rect || !isAnchorVisible(rect)) {
       this.#el.hidden = true
       return
     }
-    const dom = this.#view.nodeDOM(ctx.tablePos) as HTMLElement | null
-    if (!dom) {
-      this.#el.hidden = true
-      return
-    }
-    const rect = dom.getBoundingClientRect()
+    // 先取消隐藏再读 offsetWidth/offsetHeight：display:none 时二者恒为 0
     this.#el.hidden = false
-    const left = rect.left + rect.width / 2 - this.#el.offsetWidth / 2
-    const top = rect.top - this.#el.offsetHeight - 6
-    this.#el.style.left = `${Math.max(VIEWPORT_MARGIN, Math.min(left, window.innerWidth - this.#el.offsetWidth - VIEWPORT_MARGIN))}px`
-    this.#el.style.top = `${Math.max(VIEWPORT_MARGIN, top)}px`
+    const { left, top } = computeToolbarPlacement(
+      rect,
+      this.#el.offsetWidth,
+      this.#el.offsetHeight,
+      window.innerWidth,
+    )
+    this.#el.style.left = `${left}px`
+    this.#el.style.top = `${top}px`
   }
 
   /** 视图销毁：移除滚动/缩放监听，并隐藏工具栏（切源码模式、换标签页时避免残留） */

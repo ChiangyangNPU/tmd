@@ -5,7 +5,7 @@ import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
 import type { Transaction } from '@milkdown/kit/prose/state'
 import { CellSelection, TableMap } from '@milkdown/kit/prose/tables'
 import { history, undo } from '@milkdown/kit/prose/history'
-import { findTableContext, runTableAction } from '../table-toolbar'
+import { findTableContext, isAnchorVisible, computeToolbarPlacement, runTableAction } from '../table-toolbar'
 import { tableFromPipeRow } from '../table-input'
 import type { EditorView } from '@milkdown/kit/prose/view'
 
@@ -126,6 +126,47 @@ describe('findTableContext', () => {
       selection: TextSelection.create(doc, 1),
     })
     expect(findTableContext(state)).toBeNull()
+  })
+})
+
+describe('悬浮工具栏显隐与定位', () => {
+  /** 表格 DOM 的视口矩形 */
+  const anchor = (left: number, top: number, width: number, height: number) => ({
+    left,
+    top,
+    width,
+    height,
+  })
+
+  it('源码模式下表格 DOM 无布局尺寸（宽高全 0）→ 不显示', () => {
+    // 所见即所得区被 hidden 时其内元素矩形全为 0，工具栏若照常定位会
+    // 落到左上角兜底位置压住顶部工具栏按钮
+    expect(isAnchorVisible(anchor(0, 0, 0, 0))).toBe(false)
+  })
+
+  it('表格有布局尺寸即可见（宽或高任一大于 0）', () => {
+    expect(isAnchorVisible(anchor(100, 200, 200, 50))).toBe(true)
+    expect(isAnchorVisible(anchor(0, 0, 1, 0))).toBe(true)
+    expect(isAnchorVisible(anchor(0, 0, 0, 1))).toBe(true)
+  })
+
+  it('落位：表格上方居中，与表格上边缘留 6px 间距', () => {
+    // 表格水平中心 200，工具栏宽 100 → left = 200 - 50 = 150
+    expect(computeToolbarPlacement(anchor(100, 200, 200, 50), 100, 30, 800)).toEqual({
+      left: 150,
+      top: 164, // 200 - 30 - 6
+    })
+  })
+
+  it('落位：左越界夹到视口留白、右越界夹到视口内', () => {
+    // 表格贴左边缘 → 居中后为负，夹到 8
+    expect(computeToolbarPlacement(anchor(0, 100, 40, 20), 200, 30, 800).left).toBe(8)
+    // 表格贴右边缘 → 夹到 800 - 200 - 8 = 592
+    expect(computeToolbarPlacement(anchor(700, 100, 100, 20), 200, 30, 800).left).toBe(592)
+  })
+
+  it('落位：表格贴近视口顶部时工具栏下移，不越出上边界', () => {
+    expect(computeToolbarPlacement(anchor(100, 10, 200, 50), 100, 30, 800).top).toBe(8)
   })
 })
 
