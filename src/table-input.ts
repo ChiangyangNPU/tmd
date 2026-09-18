@@ -9,6 +9,10 @@
  *   ⏎                  → 即时转为真表格（表头 + 一行空数据行），
  *                        光标进入第一个数据单元格
  *
+ * 另支持网格速记 `|3x5|`（整段恰好是 列x行 数字）按回车生成 3 列 5 行
+ * 全空表格——与 gfm 预设 `|3x5|␣`（空格触发）同语义的建表结果；
+ * gfm 原生规则只认空格结尾，Enter 路径由本插件补齐。
+ *
  * 与 Typora 一致：不需要手动输入分隔行 `| -- | -- |`，表头行回车即成表，
  * 分隔行在序列化时由 mdast 自动生成。
  *
@@ -81,6 +85,26 @@ export function parseDelimiterRow(line: string): CellAlign[] | null {
   return aligns
 }
 
+/** 网格表速记形态：整段恰为 `|列x行|`（大小写 x 均可），允许首尾空白 */
+const GRID_SPEC_RE = /^\|(\d+)[xX](\d+)\|$/
+
+/**
+ * 解析 `|3x5|` 网格表速记（导出供单测）。
+ *
+ * 与 gfm 预设 insertTableInputRule 同语义：x 前为列数、x 后为行数，
+ * 行数下限 2（gfm 的表格至少含表头行 + 一行数据行）。
+ * 该速记由本插件的 Enter 键处理——gfm 原生规则以空白结尾触发（|3x5|␣），
+ * 按 Enter 时会先被 tableFromPipeRow 拦截，故在此补齐 Enter 路径。
+ *
+ * @param text - 段落纯文本
+ * @returns 列数与行数；非网格速记形态返回 null
+ */
+export function parseGridSpec(text: string): { cols: number; rows: number } | null {
+  const m = text.trim().match(GRID_SPEC_RE)
+  if (!m) return null
+  return { cols: Number(m[1]), rows: Math.max(Number(m[2]), 2) }
+}
+
 // ---------------------------------------------------------------------------
 // Enter 键规则：管道行段末回车 → 当前段落即时转真表格
 // ---------------------------------------------------------------------------
@@ -117,10 +141,41 @@ function buildTableNode(state: EditorState, headers: string[], aligns: CellAlign
 }
 
 /**
+ * 按行列数构造全空网格表（表头行 + rows-1 行空数据行，与 gfm 预设的
+ * createTable 结构一致，空表头对齐 Typora 的 |NxM| 行为）。
+ */
+function buildGridTableNode(state: EditorState, rows: number, cols: number) {
+  const { schema } = state
+  // createAndFill 在 schema 合法时必返回节点（cell 内容为 block+，自动补段落），
+  // 但类型上为 Node | null，故先收集再用类型守卫收窄，与 buildTableNode 同一写法
+  const isNode = (n: Node | null): n is Node => n !== null
+
+  const headerCells = Array.from({ length: cols }, () =>
+    schema.nodes[N.header].createAndFill({ alignment: null }),
+  )
+  if (!headerCells.every(isNode)) return null
+
+  const dataRows: Node[] = []
+  for (let i = 0; i < rows - 1; i++) {
+    const cells = Array.from({ length: cols }, () =>
+      schema.nodes[N.cell].createAndFill({ alignment: null }),
+    )
+    if (!cells.every(isNode)) return null
+    dataRows.push(schema.nodes[N.dataRow].create(null, cells))
+  }
+
+  const headerRow = schema.nodes[N.headerRow].create(null, headerCells)
+  return schema.nodes[N.table].create(null, [headerRow, ...dataRows])
+}
+
+/**
  * 管道行段末回车：当前段落含管道符且非分隔行时，替换为表格（导出供单测）。
  *
- * 与之前版本的区别：不再需要「上一段表头 + 当前分隔行」两行才触发，
- * 只要当前段落是管道行（如 `| a | b |`）按回车即成表，对齐默认 null。
+ * 两种触发形态：
+ * - 网格速记 `|3x5|`（整段恰好是 列x行 数字）：生成对应行列的全空表格，
+ *   对齐 gfm 预设 `|3x5|␣`（空格触发）的建表结果，补齐 Enter 路径；
+ * - 普通管道行 `| a | b |`：表头文本入格生成 表头行 + 一行空数据行，
+ *   对齐默认 null（成表后可用表格工具栏设置）。
  */
 export function tableFromPipeRow(
   state: EditorState,
@@ -140,14 +195,17 @@ export function tableFromPipeRow(
   // 分隔行格式不作为表头触发（| -- | -- | 不成表）
   if (parseDelimiterRow(text)) return false
 
+  // 网格速记优先：|3x5| 是「3 列 5 行空表」而非表头文字
+  const grid = parseGridSpec(text)
+
   const headers = splitPipeRow(text)
   if (headers.length < 1) return false
 
   if (!dispatch) return true
 
-  // 对齐全为 null（默认左对齐），成表后可用表格工具栏设置
-  const aligns: CellAlign[] = headers.map(() => null)
-  const table = buildTableNode(state, headers, aligns)
+  const table = grid
+    ? buildGridTableNode(state, grid.rows, grid.cols)
+    : buildTableNode(state, headers, headers.map(() => null))
   if (!table) return false
 
   // 替换当前段落为表格
@@ -158,17 +216,22 @@ export function tableFromPipeRow(
   // 连续输入与成表并成一组，一次 Cmd+Z 把敲好的表头文本一起撤没
   const tr = closeHistory(state.tr.replaceWith(rangeStart, rangeEnd, table))
 
-  // 光标进入第一行数据单元格的空段落（row=1：0 是表头行）
-  // TableMap 的偏移相对 table 内容起点：cell 前 = tablePos+1+rel，
-  // 再越过 cell 开 token(+1) 与 paragraph 开 token(+1) 到段落内
-  const inserted = tr.doc.nodeAt(rangeStart)
-  if (inserted) {
-    const rel = TableMap.get(inserted).positionAt(1, 0, inserted)
-    const firstDataCellInner = rangeStart + 1 + rel + 2
-    tr.setSelection(TextSelection.create(tr.doc, firstDataCellInner)).scrollIntoView()
-  }
+  moveCaretIntoFirstDataCell(tr, rangeStart)
   dispatch(tr)
   return true
+}
+
+/**
+ * 成表后把光标放进第一行数据单元格的空段落（row=1：0 是表头行）。
+ * TableMap 的偏移相对 table 内容起点：cell 前 = tablePos+1+rel，
+ * 再越过 cell 开 token(+1) 与 paragraph 开 token(+1) 到段落内。
+ */
+function moveCaretIntoFirstDataCell(tr: Transaction, tablePos: number): void {
+  const inserted = tr.doc.nodeAt(tablePos)
+  if (!inserted) return
+  const rel = TableMap.get(inserted).positionAt(1, 0, inserted)
+  const firstDataCellInner = tablePos + 1 + rel + 2
+  tr.setSelection(TextSelection.create(tr.doc, firstDataCellInner)).scrollIntoView()
 }
 
 /**

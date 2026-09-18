@@ -6,6 +6,7 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import {
   splitPipeRow,
   parseDelimiterRow,
+  parseGridSpec,
   tableFromPipeRow,
   addRowOnModEnter,
 } from '../table-input'
@@ -62,6 +63,30 @@ describe('parseDelimiterRow', () => {
     expect(parseDelimiterRow('| : |')).toBeNull()
     expect(parseDelimiterRow('|')).toBeNull()
     expect(parseDelimiterRow('')).toBeNull()
+  })
+})
+
+describe('parseGridSpec（|NxM| 网格表速记）', () => {
+  it('标准形态：x 前为列数、x 后为行数', () => {
+    expect(parseGridSpec('|3x5|')).toEqual({ cols: 3, rows: 5 })
+    expect(parseGridSpec('|5x2|')).toEqual({ cols: 5, rows: 2 })
+  })
+
+  it('大小写 x 与首尾空白均可', () => {
+    expect(parseGridSpec('|2X3|')).toEqual({ cols: 2, rows: 3 })
+    expect(parseGridSpec('  |3x5| ')).toEqual({ cols: 3, rows: 5 })
+  })
+
+  it('行数下限 2（表格至少表头行 + 一行数据行）', () => {
+    expect(parseGridSpec('|3x1|')).toEqual({ cols: 3, rows: 2 })
+  })
+
+  it('非纯数字、缺管道、数字间夹空白均不触发', () => {
+    expect(parseGridSpec('|axb|')).toBeNull()
+    expect(parseGridSpec('|3x|')).toBeNull()
+    expect(parseGridSpec('|x5|')).toBeNull()
+    expect(parseGridSpec('3x5')).toBeNull()
+    expect(parseGridSpec('| 3 x 5 |')).toBeNull()
   })
 })
 
@@ -183,6 +208,44 @@ describe('tableFromPipeRow', () => {
     const { result, state } = run(stateAtParaEnd([p('| a | b | c |')], 0))
     expect(result).toBe(true)
     expect(state.doc.firstChild!.child(0).childCount).toBe(3)
+  })
+
+  it('网格速记 |3x5| 段末回车：生成 3 列 5 行全空表格', () => {
+    const { result, dispatched, state } = run(stateAtParaEnd([p('|3x5|')], 0))
+    expect(result).toBe(true)
+    expect(dispatched).toBe(true)
+
+    const table = state.doc.firstChild!
+    expect(table.type.name).toBe('table')
+    expect(table.childCount).toBe(5)
+
+    const headerRow = table.child(0)
+    expect(headerRow.type.name).toBe('table_header_row')
+    expect(headerRow.childCount).toBe(3)
+    expect(headerRow.child(0).textContent).toBe('')
+
+    for (let i = 1; i < 5; i++) {
+      const row = table.child(i)
+      expect(row.type.name).toBe('table_row')
+      expect(row.childCount).toBe(3)
+    }
+  })
+
+  it('网格速记行数下限 2：|3x1| 生成表头 + 一行数据', () => {
+    const { state } = run(stateAtParaEnd([p('|3x1|')], 0))
+    const table = state.doc.firstChild!
+    expect(table.childCount).toBe(2)
+  })
+
+  it('网格速记成表后光标落在第一行数据单元格内', () => {
+    const { state } = run(stateAtParaEnd([p('|3x5|')], 0))
+    const { $from } = state.selection
+    expect($from.node($from.depth - 1).type.name).toBe('table_cell')
+  })
+
+  it('网格速记无 dispatch 时仅查询可用性', () => {
+    const before = stateAtParaEnd([p('|3x5|')], 0)
+    expect(tableFromPipeRow(before)).toBe(true)
   })
 
   it('分隔行格式不触发（| -- | -- | 不作为表头）', () => {
