@@ -63,10 +63,12 @@ const { autoUpdater } = require('electron-updater')
 // 注意：Gitee raw 有 CDN 缓存（约 5 分钟）。不在此处用查询参数 ?t=xxx 绕过——
 // electron-updater 的 generic provider 会把 url 与 latest.yml 拼接，
 // 加查询参数会变成 .../releases/?t=xxx/latest.yml 导致 404，故直接接受缓存延迟。
+// 分支名必须是 master：Gitee 仓库默认分支不是 main，写成 main 会 404（元数据也写在
+// master 上，见 CI 工作流的 contents API 与 docs/打包发布.md §7.2）。
 /** @type {import('builder-util-runtime').GenericServerOptions} */
 const GITEE_SOURCE = {
   provider: 'generic',
-  url: 'https://gitee.com/chiangyangNPU/tmd/raw/main/releases/',
+  url: 'https://gitee.com/chiangyangNPU/tmd/raw/master/releases/',
 }
 /** @type {import('builder-util-runtime').GithubOptions} */
 const GITHUB_SOURCE = {
