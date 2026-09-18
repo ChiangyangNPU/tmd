@@ -78,7 +78,14 @@
       "!**/vitest.config.*",
       "!**/test/**",
       "!**/tests/**",
-      "!**/*.test.js"
+      "!**/*.test.js",
+      "!**/node_modules/rxjs/src/**",
+      "!**/node_modules/rxjs/_esm5/**",
+      "!**/node_modules/rxjs/_esm2015/**",
+      "!**/node_modules/rxjs/bundles/**",
+      "!**/node_modules/rxjs/migrations/**",
+      "!**/node_modules/lodash/fp/**",
+      "!**/node_modules/lodash/*.min.js"
     ],
     "fileAssociations": [
       {
