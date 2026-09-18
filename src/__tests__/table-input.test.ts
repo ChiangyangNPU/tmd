@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { Schema } from '@milkdown/kit/prose/model'
 import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
-import { splitPipeRow, parseDelimiterRow, tableFromPipeRow } from '../table-input'
+import { TableMap } from '@milkdown/kit/prose/tables'
+import type { Node as ProseNode } from '@milkdown/kit/prose/model'
+import {
+  splitPipeRow,
+  parseDelimiterRow,
+  tableFromPipeRow,
+  addRowOnModEnter,
+} from '../table-input'
 
 // ---------------------------------------------------------------------------
 // 纯函数：管道行解析
@@ -216,5 +223,82 @@ describe('tableFromPipeRow', () => {
   it('无 dispatch 时仅查询：返回 true 且文档不变', () => {
     const before = stateAtParaEnd([p('| a | b |')], 0)
     expect(tableFromPipeRow(before)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Mod-Enter 行为：表格内当前行下方插入空行，表格外放行
+// ---------------------------------------------------------------------------
+
+/** 表头单元格 */
+const hcell = (text: string) => schema.node('table_header', null, [p(text)])
+/** 数据单元格（默认空） */
+const dcell = (text = '') => schema.node('table_cell', null, [p(text)])
+
+/** 构造两列表格：表头 a/b + 一行数据 1/2 */
+function sampleTable(): ProseNode {
+  return schema.node('table', null, [
+    schema.node('table_header_row', null, [hcell('a'), hcell('b')]),
+    schema.node('table_row', null, [dcell('1'), dcell('2')]),
+  ])
+}
+
+/**
+ * 光标落在表格第 row 行（0 为表头行）、第 col 列单元格的段落起始处。
+ * 位置口径与 tableFromPipeRow 一致：tablePos+1 越过表格开 token，
+ * rel 为单元格偏移，再 +2 越过单元格与段落开 token。
+ */
+function stateInCell(table: ProseNode, row: number, col: number): EditorState {
+  const doc = schema.node('doc', null, [table])
+  const rel = TableMap.get(table).positionAt(row, col, table)
+  const inner = 1 + rel + 2
+  return EditorState.create({ doc, selection: TextSelection.create(doc, inner) })
+}
+
+const runAddRow = (state: EditorState) => {
+  let dispatched = false
+  const result = addRowOnModEnter(state, (tr) => {
+    dispatched = true
+    state = state.apply(tr)
+  })
+  return { result, dispatched, state }
+}
+
+describe('addRowOnModEnter', () => {
+  it('数据行内 Mod-Enter：当前行下方插入一空数据行', () => {
+    const { result, dispatched, state } = runAddRow(stateInCell(sampleTable(), 1, 0))
+    expect(result).toBe(true)
+    expect(dispatched).toBe(true)
+
+    const table = state.doc.firstChild!
+    expect(table.childCount).toBe(3) // 表头行 + 原数据行 + 新数据行
+    // 原行保留在原位，新行紧随其后且两格均为空
+    expect(table.child(1).type.name).toBe('table_row')
+    expect(table.child(1).child(0).textContent).toBe('1')
+    expect(table.child(2).type.name).toBe('table_row')
+    expect(table.child(2).child(0).textContent).toBe('')
+    expect(table.child(2).child(1).textContent).toBe('')
+  })
+
+  it('表头行内 Mod-Enter 同样在下方插入数据行', () => {
+    const { result, state } = runAddRow(stateInCell(sampleTable(), 0, 1))
+    expect(result).toBe(true)
+    const table = state.doc.firstChild!
+    expect(table.childCount).toBe(3)
+    expect(table.child(1).type.name).toBe('table_row')
+    expect(table.child(1).child(0).textContent).toBe('')
+  })
+
+  it('表格外 Mod-Enter 放行：返回 false 且不分发事务', () => {
+    const before = stateAtParaEnd([p('普通文本')], 0)
+    const { result, dispatched } = runAddRow(before)
+    expect(result).toBe(false)
+    expect(dispatched).toBe(false)
+  })
+
+  it('无 dispatch 时仅查询：表格内返回 true 且文档不变', () => {
+    const before = stateInCell(sampleTable(), 1, 0)
+    expect(addRowOnModEnter(before)).toBe(true)
+    expect(before.doc.firstChild!.childCount).toBe(2)
   })
 })

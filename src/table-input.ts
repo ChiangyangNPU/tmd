@@ -23,6 +23,11 @@
  * - 光标在段尾（段中回车走正常分段，不触发）；
  * - 段落不含硬换行（一段多物理行时不转换）。
  *
+ * 同一插件还处理 Mod-Enter（Windows/Linux 为 Ctrl+Enter，macOS 为 Cmd+Enter）：
+ * 光标在表格内时在当前行下方插入一空行（对齐 Typora 的 Command/Ctrl+Enter）；
+ * 表格外直接放行，保持原行为。裸 Enter 仍按 gfm 预设语义跳出表格，
+ * 单元格内换行统一走 Shift+Enter（插入 <br />）。
+ *
  * 首版限制：
  * - 表头按纯文本入格（行内标记如 **粗体** 保留字面，成表后可再加标记）；
  * - 对齐方式默认为 null（左对齐），成表后可用表格工具栏设置 :-- / :-: / --:。
@@ -32,7 +37,7 @@
 import { $prose } from '@milkdown/kit/utils'
 import { keymap } from '@milkdown/kit/prose/keymap'
 import { TextSelection } from '@milkdown/kit/prose/state'
-import { TableMap } from '@milkdown/kit/prose/tables'
+import { TableMap, addRowAfter } from '@milkdown/kit/prose/tables'
 import { closeHistory } from '@milkdown/kit/prose/history'
 import type { Node } from '@milkdown/kit/prose/model'
 import type { EditorState, Transaction } from '@milkdown/kit/prose/state'
@@ -166,5 +171,41 @@ export function tableFromPipeRow(
   return true
 }
 
-/** 表格输入插件（晚于 gfm 注册；只在顶层段落生效，不影响表格内 Enter） */
-export const tableInputPlugin = $prose(() => keymap({ Enter: tableFromPipeRow }))
+/**
+ * 表格内 Mod-Enter：在当前行下方插入一空行（导出供单测）。
+ *
+ * 作用域门闩：仅当光标位于表格内时拦截按键，委托 prosemirror-tables 的
+ * addRowAfter（与表格悬浮工具栏「下方加行」同一命令）；表格外返回 false
+ * 交还按键链，保持 Mod-Enter 原行为不变。Mod 在 Windows/Linux 为 Ctrl、
+ * macOS 为 Cmd，一个绑定双平台生效。
+ *
+ * @param state - 当前编辑器状态
+ * @param dispatch - 事务分发函数；省略时仅查询命令是否可用
+ * @returns 表格内且插行成功返回 true；表格外返回 false
+ */
+export function addRowOnModEnter(
+  state: EditorState,
+  dispatch?: (tr: Transaction) => void,
+): boolean {
+  const { $from } = state.selection
+  // 向上遍历祖先链判定是否处于表格内（单元格内深度至少为 doc>table>row>cell）
+  let inTable = false
+  for (let d = $from.depth; d > 0; d--) {
+    if ($from.node(d).type.name === N.table) {
+      inTable = true
+      break
+    }
+  }
+  if (!inTable) return false
+  return addRowAfter(state, dispatch)
+}
+
+/**
+ * 表格按键插件（晚于 gfm 注册）：
+ * - Enter：顶层段落管道行段末回车即时成表；表格内 depth≠1 放行，
+ *   由 gfm 的 ExitTable 处理（跳出表格）
+ * - Mod-Enter：表格内在当前行下方插入空行；表格外放行
+ */
+export const tableInputPlugin = $prose(() =>
+  keymap({ Enter: tableFromPipeRow, 'Mod-Enter': addRowOnModEnter }),
+)
