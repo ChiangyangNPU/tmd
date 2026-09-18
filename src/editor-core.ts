@@ -6,7 +6,7 @@
  * onDocUpdate（大纲刷新），由 main.ts 装配，避免与 tabs 等模块循环依赖。
  */
 import { Editor, defaultValueCtx, editorViewCtx, parserCtx, rootCtx } from '@milkdown/kit/core'
-import { commonmark } from '@milkdown/kit/preset/commonmark'
+import { commonmark, hardbreakFilterNodes } from '@milkdown/kit/preset/commonmark'
 import { gfm } from '@milkdown/kit/preset/gfm'
 import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
@@ -29,7 +29,7 @@ import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
 import { tableToolbar } from './table-toolbar'
 import { tableInputPlugin } from './table-input'
-import { normalizeEmptyTableCells } from './table-markdown'
+import { normalizeEmptyTableCells, patchTableHardbreak, tableHardbreakPlugin } from './table-markdown'
 import { patchTextEscaping, pipeBreakEscapingRemark } from './text-escaping'
 import { formatKeymap } from './format'
 import { focusPlugin } from './writing-modes'
@@ -115,7 +115,10 @@ export function updateWordCount(markdown: string) {
  * 创建 Milkdown 编辑器实例并挂载到 #editor。
  *
  * 插件清单：frontmatter 输入规则（单独最先注册：--- 先于水平线规则）、
- * commonmark（基础语法）、gfm（表格/任务列表/脚注）、
+ * tableHardbreak（表格单元格 hardbreak ⇄ <br /> 双向转换，须早于 commonmark：
+ * 先于其空行占位回收把格内 <br> 还原为 break）、
+ * commonmark（基础语法；配置 hardbreakFilterNodes 放开表格内 Shift+Enter
+ * 硬换行）、gfm（表格/任务列表/脚注）、
  * pipeBreakEscaping（取消段落行首 | 的保守转义，须晚于 gfm）、
  * history（撤销重做）、
  * listener（内容监听）、mermaid（自研图表插件）、prism（代码高亮）、
@@ -138,6 +141,14 @@ async function createEditor(markdown: string): Promise<Editor> {
         ctx.set(defaultValueCtx, markdown)
         // 恢复文本转义：milkdown 的 text handler 早退捷径会漏转义表格单元格里的 `|`
         patchTextEscaping(ctx)
+        // 表格单元格内 hardbreak 序列化为 <br />（默认 break handler 的物理换行
+        // 会被 gfm-table 压扁成空格）；格内 <br> 解析还原由 tableHardbreakPlugin 处理
+        patchTableHardbreak(ctx)
+        // 允许表格单元格内 Shift+Enter 插入硬换行：commonmark 的 hardbreakFilterPlugin
+        // 默认把 table 列为禁区（filterTransaction 直接丢弃插入事务），从过滤名单移除
+        // table；code_block 仍保留（代码块内硬换行无意义，由代码块自行处理按键）
+        // $ctx 产物是 plugin 函数，SliceType 挂在其 .key 上（update 第二参为 updater）
+        ctx.update(hardbreakFilterNodes.key, () => ['code_block'])
         ctx.get(listenerCtx).markdownUpdated((_ctx, md, _prev) => {
           // 分屏且所见即所得为编辑侧时，把改动同步给只读的源码栏
           syncPmToSource(md)
@@ -151,6 +162,10 @@ async function createEditor(markdown: string): Promise<Editor> {
       // （二者同匹配 ---，InputRule 按注册顺序首个生效）。schema 等其余部分
       // 不能提前：frontmatter 是 block 节点，先注册会被空文档自动补块误选
       .use(frontmatterInputRule)
+      // 表格单元格硬换行双向转换（break ⇄ <br />）。必须早于 commonmark 注册：
+      // 其 remarkPreserveEmptyLinePlugin 会删除所有 <br> html 节点，本插件需先
+      // 把表格内有内容单元格的 <br> 还原为 break（详见 table-markdown.ts）
+      .use(tableHardbreakPlugin)
       .use(commonmark)
       .use(gfm)
       // 取消普通段落行首「| 」的保守反斜杠转义（须晚于 gfm：过滤其注册的
