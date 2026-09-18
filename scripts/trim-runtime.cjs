@@ -9,8 +9,13 @@
  *    不影响运行时功能。注意：若需严格遵守 Chromium 许可证展示义务，
  *    可在应用「关于」页面另行提供许可证链接。
  * 3. GPU 渲染相关 DLL（Windows）：纯文本编辑器不需要 WebGL/Vulkan 渲染，
- *    移除 dxcompiler.dll、vk_swiftshader.dll、d3dcompiler_47.dll、dxil.dll
+ *    移除 dxcompiler.dll、vk_swiftshader.dll、dxil.dll
  *    （释放约 35 MB）。
+ * 4. GPU 渲染相关库（macOS）：纯文本编辑器不需要 Vulkan 渲染，
+ *    移除 Electron Framework.framework/Versions/A/Libraries/ 下的
+ *    libvk_swiftshader.dylib、vk_swiftshader_icd.json
+ *    （释放约 16 MB）。
+ *    注意：libffmpeg.dylib 是 Electron Framework 的 dyld 强依赖，不能删除。
  *
  * @param {import('electron-builder').AfterPackContext} context - electron-builder 上下文
  * @author chiangyang
@@ -18,10 +23,14 @@
 const fs = require('fs')
 const path = require('path')
 
-/** 需要保留的语言包（Windows 的 .pak 名称） */
-const KEEP_LOCALES_WIN = new Set(['en-US', 'zh-CN'])
-/** 需要保留的语言包（macOS 的 .lproj 名称） */
-const KEEP_LOCALES_MAC = new Set(['en', 'zh_CN'])
+/** 需要保留的语言包（Windows 的 .pak 名称）。
+ *  与 src/i18n.ts 支持的语言一一对应：en-US、zh-CN、zh-TW。
+ */
+const KEEP_LOCALES_WIN = new Set(['en-US', 'zh-CN', 'zh-TW'])
+/** 需要保留的语言包（macOS 的 .lproj 名称）。
+ *  与 src/i18n.ts 支持的语言一一对应：en、zh-CN（zh_CN）、zh-Hant（zh_TW）。
+ */
+const KEEP_LOCALES_MAC = new Set(['en', 'zh_CN', 'zh_TW'])
 
 /** 需要删除的运行时根目录文件 */
 const REMOVE_ROOT_FILES = ['LICENSES.chromium.html']
@@ -34,6 +43,18 @@ const REMOVE_GPU_FILES_WIN = [
   'dxcompiler.dll',
   'vk_swiftshader.dll',
   'dxil.dll',
+]
+
+/** macOS 上可移除的 GPU 渲染相关库（纯文本编辑器不需要 Vulkan 渲染）。
+ *  位于 Electron Framework.framework/Versions/A/Libraries/ 下。
+ *  - libvk_swiftshader.dylib：Vulkan 软件渲染器，纯文本 UI 不需要。
+ *  - vk_swiftshader_icd.json：Vulkan ICD 加载配置，配合上面的库使用。
+ *  注意：libffmpeg.dylib 不能删，它是 Electron Framework 二进制的 dyld 强依赖，
+ *  删除后应用启动即崩溃（与 Windows 上 ffmpeg.dll 延迟加载不同）。
+ */
+const REMOVE_GPU_FILES_MAC = [
+  'libvk_swiftshader.dylib',
+  'vk_swiftshader_icd.json',
 ]
 
 /**
@@ -90,8 +111,13 @@ function findDir(root, targetName) {
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (entry.name === targetName) return path.join(root, entry.name)
-      // 只在 Frameworks 下深入搜索，避免遍历整个 .app
-      if (entry.name === 'Contents' || entry.name === 'Frameworks' || entry.name === 'Versions') {
+      // 只在 .app / Contents / Frameworks / Versions 下深入搜索，避免遍历整个 .app
+      if (
+        entry.name.endsWith('.app') ||
+        entry.name === 'Contents' ||
+        entry.name === 'Frameworks' ||
+        entry.name === 'Versions'
+      ) {
         const found = findDir(path.join(root, entry.name), targetName)
         if (found) return found
       }
@@ -196,6 +222,22 @@ exports.default = async function (context) {
       if (freed > 0) {
         console.log(`[trim-runtime] removed ${fileName} (${(freed / 1024 / 1024).toFixed(2)} MB)`)
         freedBytes += freed
+      }
+    }
+  }
+
+  // 4. 移除 GPU 渲染 / 媒体解码相关库（macOS）
+  if (platform === 'darwin') {
+    const efDir = findDir(appOutDir, 'Electron Framework.framework')
+    if (efDir) {
+      const libsDir = path.join(efDir, 'Versions', 'A', 'Libraries')
+      for (const fileName of REMOVE_GPU_FILES_MAC) {
+        const filePath = path.join(libsDir, fileName)
+        const freed = removeFile(filePath)
+        if (freed > 0) {
+          console.log(`[trim-runtime] removed ${fileName} (${(freed / 1024 / 1024).toFixed(2)} MB)`)
+          freedBytes += freed
+        }
       }
     }
   }
