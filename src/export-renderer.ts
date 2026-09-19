@@ -13,7 +13,6 @@
  */
 import 'katex/dist/katex.min.css'
 import renderMathInElement from 'katex/dist/contrib/auto-render.mjs'
-import mermaid from 'mermaid'
 import { resolveExportImageRef } from './export-doc'
 import type { ExportTask } from './export-bridge'
 import type { ExporterBridge } from './export-bridge'
@@ -90,10 +89,12 @@ function renderMath(): void {
   renderMathInElement(document.body, { delimiters: MATH_DELIMITERS })
 }
 
-/** 图表渲染：```mermaid 占位块交给本地 mermaid（离线可用，主题随深浅模式） */
+/** 图表渲染：```mermaid 占位块交给本地 mermaid（离线可用，主题随深浅模式）；
+ *  mermaid 较重且仅在文档含图表时需要，动态加载避免并入两入口共享分包 */
 async function renderMermaid(isDark: boolean): Promise<void> {
   const nodes = document.body.querySelectorAll<HTMLElement>('pre.mermaid')
   if (nodes.length === 0) return
+  const { default: mermaid } = await import('mermaid')
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',

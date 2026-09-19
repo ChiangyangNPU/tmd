@@ -22,13 +22,43 @@ import {
 import { Plugin, TextSelection } from '@milkdown/kit/prose/state'
 import { InputRule } from '@milkdown/kit/prose/inputrules'
 import { $inputRule, $nodeSchema, $prose, $remark, $view } from '@milkdown/kit/utils'
-import mermaid from 'mermaid'
 
-mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' })
+/** mermaid 模块类型（仅类型引用；运行时经 loadMermaid 动态加载） */
+type MermaidApi = (typeof import('mermaid'))['default']
 
-/** 初始化 mermaid 主题；已渲染图表的重渲由 reThemeMermaid 原地完成 */
+/** 当前主题：加载前由 setMermaidTheme 记录，首次加载时一次性应用 */
+let pendingTheme: 'default' | 'dark' = 'default'
+/** mermaid 单例加载 Promise：所有渲染/配置经此排队，重复调用共享同一次加载 */
+let mermaidPromise: Promise<MermaidApi> | null = null
+
+/**
+ * 动态加载 mermaid 并完成初始化。
+ *
+ * mermaid 核心较重且主窗口（本文件）与离屏导出页都用到——静态引用会被
+ * Rollup 归入两入口的共享分包，主窗口启动即预加载。改为首次遇到图表
+ * （渲染/主题配置）时才拉起：文档没有图表就永不加载，有图表时也只在
+ * 首次渲染等待一次模块加载（之后与静态导入无差别）。
+ */
+function loadMermaid(): Promise<MermaidApi> {
+  mermaidPromise ??= import('mermaid').then((m) => {
+    m.default.initialize({ startOnLoad: false, securityLevel: 'strict', theme: pendingTheme })
+    return m.default
+  })
+  return mermaidPromise
+}
+
+/**
+ * 初始化 mermaid 主题。
+ * 模块尚未加载时只记录目标主题（首次加载时应用），不触发加载——boot 在
+ * 任何图表存在之前就会调用本函数，若在此处加载会抵消动态导入的收益。
+ */
 export function setMermaidTheme(theme: 'default' | 'dark') {
-  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme })
+  pendingTheme = theme
+  if (mermaidPromise) {
+    void mermaidPromise.then((m) =>
+      m.initialize({ startOnLoad: false, securityLevel: 'strict', theme }),
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +301,7 @@ class MermaidView implements NodeView {
 
     try {
       const id = `tmd-mermaid-${seq}-${Math.random().toString(36).slice(2, 8)}`
+      const mermaid = await loadMermaid()
       const { svg } = await mermaid.render(id, code)
       if (seq !== this.renderSeq) return // 已有更新的渲染请求，丢弃过期结果
       this.renderArea.innerHTML = svg

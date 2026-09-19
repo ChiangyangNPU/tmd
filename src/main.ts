@@ -18,7 +18,6 @@ import { setMermaidTheme } from './mermaid'
 import { insertToc } from './toc'
 import { openFindBar, wireFindBar } from './findbar'
 import { collectOutline, renderOutline } from './outline'
-import { exportHtml, exportLongimage, exportPdf, exportWord } from './export'
 import { native } from './native'
 import { t, applyDomTexts, menuLabels, getLocale } from './i18n'
 import { setImagePasteContext } from './paste-image'
@@ -82,7 +81,15 @@ import {
 } from './settings'
 import { applyTypography } from './typography'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
-import { saveDoc, loadDoc, clearDoc, getTheme, recentList, getSidebarWidth, setSidebarWidth } from './store'
+import {
+  saveDoc,
+  loadDoc,
+  clearDoc,
+  getTheme,
+  recentList,
+  getSidebarWidth,
+  setSidebarWidth,
+} from './store'
 import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
 import { installErrorReport } from './error-report'
 
@@ -92,6 +99,22 @@ import { installErrorReport } from './error-report'
 
 /** 首次启动（无本地文档）时展示的初始内容（空文档，由用户自行输入） */
 const DEMO_DOC = ''
+
+// ---------------------------------------------------------------------------
+// 导出懒加载
+// ---------------------------------------------------------------------------
+
+/**
+ * 导出动作入口：动态加载导出模块后再执行。
+ *
+ * 导出管线（export.ts → export-doc.ts）带 markdown-it / KaTeX 等约 1.5MB 的
+ * 重型依赖，而导出是低频动作——静态引用会让主窗口启动即解析整段代码（打包
+ * 产物对 export 分包 modulepreload）。改为点击导出菜单时才拉起，主窗口启动
+ * 不加载；单测仍可静态 import './export'，不受影响。
+ */
+function runExport(run: (m: typeof import('./export')) => unknown) {
+  void import('./export').then(run)
+}
 
 // ---------------------------------------------------------------------------
 // 侧边栏
@@ -183,7 +206,9 @@ function wireSidebarResize() {
 
   // 窗口收窄时重新钳制，避免侧边栏把编辑区挤没
   window.addEventListener('resize', () => {
-    applySidebarWidth(clampSidebarWidth(Number.parseFloat(sidebar.style.width) || getSidebarWidth()))
+    applySidebarWidth(
+      clampSidebarWidth(Number.parseFloat(sidebar.style.width) || getSidebarWidth()),
+    )
   })
 }
 
@@ -272,19 +297,23 @@ async function boot() {
       closeMoreMenu()
     })
     document.getElementById('menu-export-html-btn')?.addEventListener('click', () => {
-      void exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))
+      runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')))
       closeMoreMenu()
     })
     // Word / 长图：离屏渲染导出（仅 Electron 环境可用）
     document.getElementById('menu-export-word-btn')?.addEventListener('click', () => {
-      void exportWord(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'), getActiveBaseDir())
+      runExport((m) =>
+        m.exportWord(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'), getActiveBaseDir()),
+      )
       closeMoreMenu()
     })
     document.getElementById('menu-export-longimage-btn')?.addEventListener('click', () => {
-      void exportLongimage(
-        currentMarkdown(),
-        activeTab()?.name ?? t('tab.untitled'),
-        getActiveBaseDir(),
+      runExport((m) =>
+        m.exportLongimage(
+          currentMarkdown(),
+          activeTab()?.name ?? t('tab.untitled'),
+          getActiveBaseDir(),
+        ),
       )
       closeMoreMenu()
     })
@@ -429,19 +458,23 @@ async function boot() {
           if (id) void closeTab(id)
         },
         'export-html': () =>
-          void exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')),
-        'export-pdf': () => void exportPdf(),
+          runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))),
+        'export-pdf': () => runExport((m) => m.exportPdf()),
         'export-word': () =>
-          void exportWord(
-            currentMarkdown(),
-            activeTab()?.name ?? t('tab.untitled'),
-            getActiveBaseDir(),
+          runExport((m) =>
+            m.exportWord(
+              currentMarkdown(),
+              activeTab()?.name ?? t('tab.untitled'),
+              getActiveBaseDir(),
+            ),
           ),
         'export-longimage': () =>
-          void exportLongimage(
-            currentMarkdown(),
-            activeTab()?.name ?? t('tab.untitled'),
-            getActiveBaseDir(),
+          runExport((m) =>
+            m.exportLongimage(
+              currentMarkdown(),
+              activeTab()?.name ?? t('tab.untitled'),
+              getActiveBaseDir(),
+            ),
           ),
         'clear-recent': () => clearRecentDocuments(),
       }

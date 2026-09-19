@@ -15,6 +15,12 @@
 - 修复右键菜单过宽：去掉 `.context-menu` 写死的 `min-width: 150px`，编辑区与标签栏右键菜单宽度均按最宽可见条目自适应
 - 拼写检查开关：设置面板「编辑器」分类新增开关，默认关闭——Chromium 对可编辑内容默认开启拼写检查且内置词典仅英语，专有名词/拼音/路径会被画红色波浪线；开关写在编辑区容器上经 spellcheck 属性继承覆盖所见即所得与源码模式，切换即时生效无需重建编辑器
 
+### 性能与构建
+
+- 主窗口启动 JS 减重约 34%（2.43MB → 1.6MB）：导出管线（约 1.5MB 共享分包，markdown-it/KaTeX 等）原被主窗口 modulepreload 启动即解析，改为点击导出菜单时动态加载；mermaid 核心（约 696KB）原被主窗口与离屏导出页两个入口静态共享，改为两侧首次遇到图表时动态加载，文档无图表则完全不加载
+- 移除零引用依赖 `@milkdown/plugin-diagram` 与冗余直依赖 `refractor`（为 `@milkdown/plugin-prism` 的传递依赖，无需直接声明）
+- 桌面 E2E harness 跨平台：electron 二进制改经 `require('electron')` 解析直连（原 `.bin/electron` 包装脚本在 Windows 上无法 spawn），Windows 可完整跑通 `test:desktop`（25 + 31 断言）
+
 ## [0.1.0] - 2026-09-17
 
 首个正式发布版本：跨平台（macOS / Windows）Markdown 所见即所得编辑器，交互对标 Typora，核心特性为 Mermaid 图表的实时渲染。

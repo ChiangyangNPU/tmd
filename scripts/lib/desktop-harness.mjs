@@ -16,7 +16,10 @@
  */
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { createRequire } from 'node:module'
+
+/** 在 Node 侧解析 electron 包（二进制路径）用 */
+const require = createRequire(import.meta.url)
 
 /** 渲染层远程调试端口（同一时刻仅允许一个脚本实例运行） */
 export const RENDERER_PORT = 9222
@@ -167,7 +170,11 @@ export async function waitForPortsFree(timeoutMs = 15000) {
  * @returns {import('node:child_process').ChildProcessWithoutNullStreams}
  */
 export function spawnApp({ repo, profile, extraArgs = [], env = {} }) {
-  const electronBin = join(repo, 'node_modules', '.bin', 'electron')
+  // require('electron') 在 Node 侧返回二进制真实路径（win: electron.exe / mac:
+  // Electron.app/Contents/MacOS/Electron）。不经 .bin/electron 包装脚本：Windows
+  // spawn 无扩展名的 sh 垫片会 ENOENT，且直连二进制让 detached 进程组回收直接
+  // 命中 Electron 进程本身（killTree 的兜底单独杀也随之简化）。
+  const electronBin = require('electron')
   if (!existsSync(electronBin)) throw new Error('未找到 electron 可执行文件')
   const child = spawn(
     electronBin,
