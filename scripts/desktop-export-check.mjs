@@ -1,5 +1,5 @@
 /**
- * 导出功能（HTML / PDF / Word / 长图）的桌面端端到端验证脚本。
+ * 导出功能（HTML / PDF / Word / 长图 / LaTeX）的桌面端端到端验证脚本。
  *
  * 为什么需要它：单元测试跑在 node 环境（无 DOM、无 Electron），覆盖不到导出的
  * 真实链路——隐藏窗口能否截帧、Mermaid/KaTeX 是否渲染完成、docx 是否良构、
@@ -573,6 +573,66 @@ async function main() {
     )
     const stillAlive = await renderer.evalJson(`document.querySelectorAll('.tab').length > 0`)
     check('取消后应用仍正常（渲染层存活）', stillAlive === true, String(stillAlive))
+
+    // ---------- LaTeX 导出：纯文本转换（无离屏渲染，主窗口直接落盘）----------
+    // 保存框 stub 恢复为按 filter 扩展名落盘；触发原生菜单「导出 → LaTeX」
+    await main.evalJson(`(async () => {
+      const req = typeof require === 'function' ? require : global.process.mainModule.require
+      const { dialog, Menu } = req('electron')
+      const fs = req('node:fs')
+      let n = 100
+      dialog.showSaveDialog = async (...args) => {
+        const opts = args.length > 1 ? args[1] : args[0]
+        const ext = (opts && opts.filters && opts.filters[0] && opts.filters[0].extensions[0]) || 'bin'
+        const filePath = ${JSON.stringify(WORK)} + '/latex-' + ++n + '.' + ext
+        fs.mkdirSync(${JSON.stringify(WORK)}, { recursive: true })
+        return { canceled: false, filePath }
+      }
+      const m = Menu.getApplicationMenu()
+      const exp = m.items.find(i => i.submenu && i.submenu.items.some(s => /LaTeX/.test(s.label || '')))
+      exp.submenu.items.find(i => /LaTeX/.test(i.label)).click()
+      return 'clicked'
+    })()`)
+    let texPath = null
+    for (let i = 0; i < 40; i++) {
+      await sleep(250)
+      if (existsSync(join(WORK, 'latex-101.tex'))) {
+        texPath = join(WORK, 'latex-101.tex')
+        break
+      }
+    }
+    check('LaTeX 导出产出 .tex 文件', texPath !== null, texPath ?? '未生成 latex-101.tex')
+
+    if (texPath) {
+      const tex = await readFile(texPath, 'utf-8')
+      check(
+        'LaTeX 文档结构与中文支持（ctexart + XeLaTeX magic comment）',
+        tex.includes('\\documentclass[12pt]{ctexart}') && tex.includes('% !TEX program = xelatex'),
+        tex.split('\n').slice(0, 4).join(' | '),
+      )
+      check(
+        'LaTeX 行内语法映射（高亮/删除线/上下标/外链/longtable）',
+        tex.includes('\\colorbox{yellow}{高亮}') &&
+          tex.includes('\\sout{删除线}') &&
+          tex.includes('\\textsubscript{2}') &&
+          tex.includes('\\textsuperscript{2}') &&
+          tex.includes('\\href{https://example.com}{外部链接}') &&
+          tex.includes('\\begin{longtable}[]{@{}l l@{}}'),
+        [
+          tex.includes('\\colorbox{yellow}{高亮}'),
+          tex.includes('\\sout{删除线}'),
+          tex.includes('\\textsubscript{2}'),
+          tex.includes('\\textsuperscript{2}'),
+          tex.includes('\\href{https://example.com}{外部链接}'),
+          tex.includes('\\begin{longtable}[]{@{}l l@{}}'),
+        ].join(' | '),
+      )
+      check(
+        'LaTeX 无 HTML 泄漏且 front matter 剥离',
+        !/<p>|<div|<span|<mark|title: 导出验证/.test(tex) && tex.includes('% [TMD] Mermaid'),
+        JSON.stringify({ htmlLeak: /<p>|<div|<span|<mark/.test(tex), frontMatterLeak: tex.includes('title: 导出验证') }),
+      )
+    }
 
     // ---------- 浏览器降级：无 tmdAPI 时两个入口隐藏 ----------
     const degrade = await main.evalJson(`(async () => {
