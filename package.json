@@ -96,6 +96,9 @@
         "role": "Editor"
       }
     ],
+    "dmg": {
+      "title": "TMD"
+    },
     "mac": {
       "target": "dmg",
       "category": "public.app-category.productivity",
