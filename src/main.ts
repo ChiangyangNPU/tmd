@@ -78,6 +78,7 @@ import {
   wireSettings,
   getCurrentImageStrategy,
   applySourceLineNumbers,
+  applySpellcheck,
 } from './settings'
 import { applyTypography } from './typography'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
@@ -213,6 +214,8 @@ async function boot() {
     await restoreFileTheme((name) => showToast(t('settings.themeFileMissing', { name })))
     // 源码模式行号开关：恢复持久化状态（body class，CSS 层控制）
     applySourceLineNumbers()
+    // 拼写检查开关：恢复持久化状态（#panes 容器 spellcheck 属性，可编辑根经继承获得）
+    applySpellcheck()
     // 排版设置：恢复持久化配置（CSS 变量层，不触碰编辑器实例）
     applyTypography()
     // 专注/打字机模式：恢复专注 body class，挂打字机选区监听

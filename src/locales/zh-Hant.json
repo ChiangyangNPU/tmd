@@ -214,6 +214,8 @@
     "themesOpenFailed": "無法開啟主題資料夾",
     "lineNumbers": "顯示行號",
     "lineNumbersHint": "原始碼模式左側的行號與摺疊標記（關閉後立即生效）",
+    "spellcheck": "拼字檢查",
+    "spellcheckHint": "在編輯內容下以紅色波浪線標記詞典查不到的詞（預設關閉；內建詞典僅英語，中文不檢查）",
     "typography": "排版",
     "font": "字型",
     "fontDefault": "預設",

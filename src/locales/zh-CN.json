@@ -214,6 +214,8 @@
     "themesOpenFailed": "无法打开主题文件夹",
     "lineNumbers": "显示行号",
     "lineNumbersHint": "源码模式左侧的行号与折叠标记（关闭后立即生效）",
+    "spellcheck": "拼写检查",
+    "spellcheckHint": "在编辑内容下用红色波浪线标记词典查不到的词（默认关闭；内置词典仅英语，中文不检查）",
     "typography": "排版",
     "font": "字体",
     "fontDefault": "默认",

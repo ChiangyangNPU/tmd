@@ -19,6 +19,7 @@ export const THEME_PRESET_KEY = 'tmd:theme-preset'
 export const CUSTOM_CSS_KEY = 'tmd:custom-css'
 export const THEME_FILE_KEY = 'tmd:theme-file'
 export const SOURCE_LINENOS_KEY = 'tmd:src-linenos'
+export const SPELLCHECK_KEY = 'tmd:spellcheck'
 export const SPLIT_RATIO_KEY = 'tmd:split-ratio'
 export const SIDEBAR_WIDTH_KEY = 'tmd:sidebar-width'
 export const TYPOGRAPHY_KEY = 'tmd:typography'
@@ -185,6 +186,16 @@ export function getSourceLineNumbers(): boolean {
 /** 持久化源码模式行号开关 */
 export function setSourceLineNumbers(enabled: boolean) {
   localStorage.setItem(SOURCE_LINENOS_KEY, enabled ? 'true' : 'false')
+}
+
+/** 是否开启拼写检查（默认关闭：Chromium 对可编辑内容默认开启，且内置词典仅英语） */
+export function getSpellcheckEnabled(): boolean {
+  return localStorage.getItem(SPELLCHECK_KEY) === 'true'
+}
+
+/** 持久化拼写检查开关 */
+export function setSpellcheckEnabled(enabled: boolean) {
+  localStorage.setItem(SPELLCHECK_KEY, enabled ? 'true' : 'false')
 }
 
 /** 分屏左右宽度比例（左栏占比；未设置或非法值回落 0.5，具体上下限由 split.ts 收紧） */

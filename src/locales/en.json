@@ -214,6 +214,8 @@
     "themesOpenFailed": "Failed to open the themes folder",
     "lineNumbers": "Show line numbers",
     "lineNumbersHint": "Line-number gutter in source mode (applies immediately)",
+    "spellcheck": "Spellcheck",
+    "spellcheckHint": "Flag words missing from the dictionary with a red squiggly underline (off by default; English dictionary only, Chinese is not checked)",
     "typography": "Typography",
     "font": "Font",
     "fontDefault": "Default",

@@ -19,6 +19,8 @@ import {
   setAutosaveEnabled,
   getSidebarWidth,
   setSidebarWidth,
+  getSpellcheckEnabled,
+  setSpellcheckEnabled,
 } from '../store'
 
 /** 简单内存版 localStorage（每个用例重置） */
@@ -146,5 +148,13 @@ describe('store', () => {
     expect(getSidebarWidth()).toBe(250)
     setSidebarWidth(312.4)
     expect(getSidebarWidth()).toBe(312)
+  })
+
+  it('拼写检查开关：默认关闭', () => {
+    expect(getSpellcheckEnabled()).toBe(false)
+    setSpellcheckEnabled(true)
+    expect(getSpellcheckEnabled()).toBe(true)
+    setSpellcheckEnabled(false)
+    expect(getSpellcheckEnabled()).toBe(false)
   })
 })

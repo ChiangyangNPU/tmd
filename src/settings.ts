@@ -20,6 +20,8 @@ import {
   setThemeFile,
   getSourceLineNumbers,
   setSourceLineNumbers,
+  getSpellcheckEnabled,
+  setSpellcheckEnabled,
   getFocusMode,
   getTypewriterMode,
 } from './store'
@@ -179,6 +181,15 @@ async function savePicGoConfig() {
 /** 源码模式行号开关应用到 DOM（body.src-no-linenos 经 CSS 隐藏 gutter，不触碰编辑器实例） */
 export function applySourceLineNumbers() {
   document.body.classList.toggle('src-no-linenos', !getSourceLineNumbers())
+}
+
+/**
+ * 拼写检查开关应用到 DOM：写在编辑区容器 #panes 上，动态创建的
+ * ProseMirror / CodeMirror 可编辑根经 spellcheck 属性继承获得，无需重建编辑器。
+ * Chromium 对可编辑内容默认开启，因此必须显式写 true/false，不能移除属性。
+ */
+export function applySpellcheck() {
+  document.getElementById('panes')?.setAttribute('spellcheck', String(getSpellcheckEnabled()))
 }
 
 // ---------------------------------------------------------------------------
@@ -386,7 +397,7 @@ async function refreshFileThemes(): Promise<void> {
 const NAV_SECTIONS: { target: string; sections: string[] }[] = [
   { target: 'sec-theme', sections: ['sec-theme', 'sec-css', 'sec-lang'] },
   { target: 'sec-typography', sections: ['sec-typography'] },
-  { target: 'sec-linenos', sections: ['sec-linenos', 'sec-writing'] },
+  { target: 'sec-linenos', sections: ['sec-linenos', 'sec-spellcheck', 'sec-writing'] },
   { target: 'sec-autosave', sections: ['sec-autosave', 'sec-image', 'picgo-config-section'] },
   { target: 'sec-shortcuts', sections: ['sec-shortcuts'] },
   { target: 'sec-update', sections: ['sec-update', 'logs-section'] },
@@ -471,6 +482,8 @@ export function openSettings() {
   if (autoCheckBox) autoCheckBox.checked = getAutoCheckUpdate()
   const linenoBox = document.getElementById('set-linenos') as HTMLInputElement | null
   if (linenoBox) linenoBox.checked = getSourceLineNumbers()
+  const spellcheckBox = document.getElementById('set-spellcheck') as HTMLInputElement | null
+  if (spellcheckBox) spellcheckBox.checked = getSpellcheckEnabled()
   const focusBox = document.getElementById('set-focus-mode') as HTMLInputElement | null
   if (focusBox) focusBox.checked = getFocusMode()
   const typewriterBox = document.getElementById('set-typewriter-mode') as HTMLInputElement | null
@@ -588,6 +601,11 @@ export function wireSettings() {
     const enabled = (e.target as HTMLInputElement).checked
     setSourceLineNumbers(enabled)
     document.body.classList.toggle('src-no-linenos', !enabled)
+  })
+  // 拼写检查开关：持久化 + 容器 spellcheck 属性即时生效（可编辑根经继承获得，无需重建）
+  document.getElementById('set-spellcheck')?.addEventListener('change', (e) => {
+    setSpellcheckEnabled((e.target as HTMLInputElement).checked)
+    applySpellcheck()
   })
   // 专注 / 打字机模式：writing-modes 模块自持持久化与即时生效
   document.getElementById('set-focus-mode')?.addEventListener('change', (e) => {
