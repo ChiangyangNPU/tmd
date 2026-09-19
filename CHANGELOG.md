@@ -2,46 +2,7 @@
 
 本文件记录 TMD 的版本发布历史，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## [未发布]
-
-### 界面与设置
-
-- 设置面板改版：弹窗加宽为「左侧分类导航 + 右侧内容」双栏，13 个区块归入外观 / 排版 / 编辑器 / 文件与图片 / 快捷键 / 系统 / 关于七类，点击定位、滚动高亮跟随
-- 主题选择改为色卡预览（四个内置预设各带迷你缩略图）；界面语言改为横排胶囊选项；第三方组件许可证列表默认折叠
-- 面板按钮统一为一套样式（普通 / 主操作两档）；修复 `--bg-hover` 变量未定义导致的悬停反馈失效
-- 新增设置入口：文件菜单「设置…」（三语文案）与 `Cmd/Ctrl+,` 快捷键，浏览器模式同样生效
-- 侧边栏宽度可调：侧边栏与编辑区之间新增可拖拽分隔条（悬停高亮，宽度范围 180–480px 并自动持久化）；双击分隔条恢复默认 250px，窗口收窄时自动钳制保住编辑区最小宽度
-- 标签页右键菜单：在标签上右键弹出「关闭标签页 / 关闭其他 / 关闭左侧 / 关闭右侧 / 关闭已保存的标签页 / 关闭所有标签页」，不可用的动作（如第一个标签上的「关闭左侧」）就地置灰；批量关闭在待关标签含未保存内容时整批确认一次，「关闭已保存」只清干净标签、绝不丢内容
-- 修复右键菜单过宽：去掉 `.context-menu` 写死的 `min-width: 150px`，编辑区与标签栏右键菜单宽度均按最宽可见条目自适应
-- 拼写检查开关：设置面板「编辑器」分类新增开关，默认关闭——Chromium 对可编辑内容默认开启拼写检查且内置词典仅英语，专有名词/拼音/路径会被画红色波浪线；开关写在编辑区容器上经 spellcheck 属性继承覆盖所见即所得与源码模式，切换即时生效无需重建编辑器
-
-### 导出
-
-- **新增 LaTeX 导出**：导出为独立可编译的 .tex 源码（⋯ 菜单与原生菜单「导出」区进入，不绑快捷键；浏览器模式下载）。公式 $..$ / $$..$$ 原文透传零失真（LaTeX 原生支持）；中文文档自动选用 ctexart 文档类（XeLaTeX 编译），纯西文用 article；图片输出 \includegraphics（相对路径随文件解析、width 属性映射 px 宽度、路径含空格自动 \detokenize）；表格组装为 longtable 三线表（对齐映射列格式）；脚注在引用处内联；Mermaid 图表无离线方案，以注释保留源码。实现上解析管线工厂化（createExportMarkdownIt）：LaTeX 渲染器与 HTML 共享同一解析权威（公式保护 / 图片还原 / 插件集），math_inline 独立 token 类型规避 text_join 合并导致的公式边界丢失；渲染白名单杜绝 HTML 泄漏进 .tex。25 例单测 + 桌面端 E2E 5 断言（导出链路 31→35）
-
-### 发布
-
-- **安装包再瘦身**：Chromium UI pak 裁剪与 app.asar 排除冗余构建产物（afterPack），mac dmg 从 0.1.0 的约 116MB 降至 103MB，为后续 ULMO 压缩过线铺路；修正运行时 Gitee 更新源分支名（main → master，此前元数据 404 会导致 Gitee 源自动更新失效）
-- **dmg 体积治理**：构建后自动把 dmg 从 UDBZ 转 ULMO 压缩（scripts/patch-mac-dmg.mjs，hdiutil），实测约 103MB → 85MB，过 Gitee 附件 100MB 上限——Gitee Release 从此双平台产物齐全；dmg 的差量 blockmap 随转换失效已移除（mac 未签名场景自动更新回退全量下载，无实际影响）
-- **安装窗口定制**：dmg 卷名改为干净的 "TMD"（桌面图标不再带版本号尾巴）；安装窗口改用自定义背景图——标题 "TMD"、当前版本号与拖拽箭头（构建时由脚本按 package.json 版本自动生成 SVG 并经 qlmanage 栅格化，版本变化自动跟上）；图标位经 dmg.contents 对称定于窗口中线两侧（默认坐标按 540 宽窗口设计，660 窗口下偏左）
-- **发布工作流重构**：build / publish 两 job 分离（`--publish never` 构建 + gh CLI 统一发布），消除产物后处理与 electron-builder 异步上传队列的竞态；GitHub Release 保持草稿态人工核对
-- **更新说明精准化**：releaseNotes 改由脚本从 CHANGELOG 提取当前版本小节（`.release-notes.md`），CI 以 `--strict` 前置校验——`[未发布]` 未转正则发版直接失败，更新弹窗不再出现整份变更历史
-
-### 性能与构建
-
-- 大文档输入路径低优化：逐键同步执行的全量序列化（getMarkdown）+ 恢复副本 localStorage 写入 + 字数统计 + 分屏同步，合并为防抖 800ms 的低优回调（持续输入由 5s 上限兜底、beforeunload 落盘兜底），置脏保持同步 O(1)——368K 文档上序列化单次约 80ms，真实打字期间不再占用输入帧；CPU 剖析工具 `scripts/profile-input.mjs` 入库
-- 主窗口启动 JS 减重约 34%（2.43MB → 1.6MB）：导出管线（约 1.5MB 共享分包，markdown-it/KaTeX 等）原被主窗口 modulepreload 启动即解析，改为点击导出菜单时动态加载；mermaid 核心（约 696KB）原被主窗口与离屏导出页两个入口静态共享，改为两侧首次遇到图表时动态加载，文档无图表则完全不加载
-- 移除零引用依赖 `@milkdown/plugin-diagram` 与冗余直依赖 `refractor`（为 `@milkdown/plugin-prism` 的传递依赖，无需直接声明）
-- 新增日常 CI（`.github/workflows/ci.yml`）：push master/main 与 PR 自动跑 lint / 类型检查 / 单测 / 构建（约 3 分钟），与 tag 触发的发布工作流互补——质量门禁不依赖本地自觉（详见打包发布 §8）
-- 桌面 E2E harness 跨平台：electron 二进制改经 `require('electron')` 解析直连（原 `.bin/electron` 包装脚本在 Windows 上无法 spawn），Windows 可完整跑通 `test:desktop`（25 + 31 断言）
-
-### 重构（无功能变化）
-
-- `style.css`（2300+ 行）按组件拆分为 `src/styles/01-tokens.css … 15-print.css`（编号即级联顺序），`style.css` 仅保留按原顺序的 `@import` 汇总——构建产物与拆分前逐字节一致
-- `index.html`（950+ 行）只保留首屏壳，隐藏浮层与面板（菜单 / 快速切换 / 搜索 / 历史 / 表格工具栏 / 设置 / 查找·链接栏）拆分为 `src/templates/*.html`，构建期经 Vite `?raw` 内联，boot 最早期注入到原位置的 `<template data-partial>` 占位（先于 i18n 扫描）
-- 主进程菜单构建抽为 `electron/menu.cjs` 纯数据模板工厂（零 Electron 依赖，labels/快捷键/最近文件/自动保存/平台全部注入），main.cjs 缩减约 240 行并新增 9 例模板结构单测
-
-## [0.1.0] - 2026-09-17
+## [0.1.0] - 2026-09-19
 
 首个正式发布版本：跨平台（macOS / Windows）Markdown 所见即所得编辑器，交互对标 Typora，核心特性为 Mermaid 图表的实时渲染。
 
@@ -79,6 +40,8 @@
 - **Word**：原生可编辑 .docx，标题/段落/列表/表格/行内格式/超链接均为 Word 原生元素；独占公式与 Mermaid 图表以 2x 位图嵌入
 - **长图**：单张 PNG，物理清晰度不低于 2x，超长文档按纹理上限自动分段拼接
 
+- **新增 LaTeX 导出**：导出为独立可编译的 .tex 源码（⋯ 菜单与原生菜单「导出」区进入，不绑快捷键；浏览器模式下载）。公式 $..$ / $$..$$ 原文透传零失真（LaTeX 原生支持）；中文文档自动选用 ctexart 文档类（XeLaTeX 编译），纯西文用 article；图片输出 \includegraphics（相对路径随文件解析、width 属性映射 px 宽度、路径含空格自动 \detokenize）；表格组装为 longtable 三线表（对齐映射列格式）；脚注在引用处内联；Mermaid 图表无离线方案，以注释保留源码。实现上解析管线工厂化（createExportMarkdownIt）：LaTeX 渲染器与 HTML 共享同一解析权威（公式保护 / 图片还原 / 插件集），math_inline 独立 token 类型规避 text_join 合并导致的公式边界丢失；渲染白名单杜绝 HTML 泄漏进 .tex。25 例单测 + 桌面端 E2E 5 断言（导出链路 31→35）
+
 ### 图片处理
 
 - 粘贴三策略：内联 data URL / 文档同目录 `assets/` 落盘 / 上传图床；落盘或上传失败自动降级内联
@@ -92,6 +55,15 @@
 - 多语言界面（简体中文 / 繁體中文 / English，跟随系统，设置面板可切换）
 - 快捷键自定义：31 项快捷键按「文件 / 导出 / 格式 / 编辑器」四组罗列，点击按键框后按下新组合键即可改键；带冲突检测与一键恢复默认
 - 设置面板「关于」：软件名、版本、版权、联系邮箱、主页，以及本软件与 13 个第三方组件的许可证声明与直达链接
+
+- 设置面板改版：弹窗加宽为「左侧分类导航 + 右侧内容」双栏，13 个区块归入外观 / 排版 / 编辑器 / 文件与图片 / 快捷键 / 系统 / 关于七类，点击定位、滚动高亮跟随
+- 主题选择改为色卡预览（四个内置预设各带迷你缩略图）；界面语言改为横排胶囊选项；第三方组件许可证列表默认折叠
+- 面板按钮统一为一套样式（普通 / 主操作两档）；修复 `--bg-hover` 变量未定义导致的悬停反馈失效
+- 新增设置入口：文件菜单「设置…」（三语文案）与 `Cmd/Ctrl+,` 快捷键，浏览器模式同样生效
+- 侧边栏宽度可调：侧边栏与编辑区之间新增可拖拽分隔条（悬停高亮，宽度范围 180–480px 并自动持久化）；双击分隔条恢复默认 250px，窗口收窄时自动钳制保住编辑区最小宽度
+- 标签页右键菜单：在标签上右键弹出「关闭标签页 / 关闭其他 / 关闭左侧 / 关闭右侧 / 关闭已保存的标签页 / 关闭所有标签页」，不可用的动作（如第一个标签上的「关闭左侧」）就地置灰；批量关闭在待关标签含未保存内容时整批确认一次，「关闭已保存」只清干净标签、绝不丢内容
+- 修复右键菜单过宽：去掉 `.context-menu` 写死的 `min-width: 150px`，编辑区与标签栏右键菜单宽度均按最宽可见条目自适应
+- 拼写检查开关：设置面板「编辑器」分类新增开关，默认关闭——Chromium 对可编辑内容默认开启拼写检查且内置词典仅英语，专有名词/拼音/路径会被画红色波浪线；开关写在编辑区容器上经 spellcheck 属性继承覆盖所见即所得与源码模式，切换即时生效无需重建编辑器
 
 ### 可靠性与质量
 
@@ -107,3 +79,25 @@
 - 自动更新（electron-updater 双源：Gitee 国内默认 + GitHub 备用，发现新版本弹窗询问，不静默下载）
 - 安装包瘦身：打包时经 afterPack 钩子裁剪 Electron 的非中英文语言包与 WebGL/Vulkan 渲染组件
 - 浏览器模式自动降级：文件选择用 `<input type=file>`，保存为下载
+
+- **安装包再瘦身**：Chromium UI pak 裁剪与 app.asar 排除冗余构建产物（afterPack），mac dmg 从 0.1.0 的约 116MB 降至 103MB，为后续 ULMO 压缩过线铺路；修正运行时 Gitee 更新源分支名（main → master，此前元数据 404 会导致 Gitee 源自动更新失效）
+- **dmg 体积治理**：构建后自动把 dmg 从 UDBZ 转 ULMO 压缩（scripts/patch-mac-dmg.mjs，hdiutil），实测约 103MB → 85MB，过 Gitee 附件 100MB 上限——Gitee Release 从此双平台产物齐全；dmg 的差量 blockmap 随转换失效已移除（mac 未签名场景自动更新回退全量下载，无实际影响）
+- **安装窗口定制**：dmg 卷名改为干净的 "TMD"（桌面图标不再带版本号尾巴）；安装窗口改用自定义背景图——标题 "TMD"、当前版本号与拖拽箭头（构建时由脚本按 package.json 版本自动生成 SVG 并经 qlmanage 栅格化，版本变化自动跟上）；图标位经 dmg.contents 对称定于窗口中线两侧（默认坐标按 540 宽窗口设计，660 窗口下偏左）
+- **发布工作流重构**：build / publish 两 job 分离（`--publish never` 构建 + gh CLI 统一发布），消除产物后处理与 electron-builder 异步上传队列的竞态；GitHub Release 保持草稿态人工核对
+- **更新说明精准化**：releaseNotes 改由脚本从 CHANGELOG 提取当前版本小节（`.release-notes.md`），CI 以 `--strict` 前置校验——`[未发布]` 未转正则发版直接失败，更新弹窗不再出现整份变更历史
+
+### 性能与构建
+
+
+- 大文档输入路径低优化：逐键同步执行的全量序列化（getMarkdown）+ 恢复副本 localStorage 写入 + 字数统计 + 分屏同步，合并为防抖 800ms 的低优回调（持续输入由 5s 上限兜底、beforeunload 落盘兜底），置脏保持同步 O(1)——368K 文档上序列化单次约 80ms，真实打字期间不再占用输入帧；CPU 剖析工具 `scripts/profile-input.mjs` 入库
+- 主窗口启动 JS 减重约 34%（2.43MB → 1.6MB）：导出管线（约 1.5MB 共享分包，markdown-it/KaTeX 等）原被主窗口 modulepreload 启动即解析，改为点击导出菜单时动态加载；mermaid 核心（约 696KB）原被主窗口与离屏导出页两个入口静态共享，改为两侧首次遇到图表时动态加载，文档无图表则完全不加载
+- 移除零引用依赖 `@milkdown/plugin-diagram` 与冗余直依赖 `refractor`（为 `@milkdown/plugin-prism` 的传递依赖，无需直接声明）
+- 新增日常 CI（`.github/workflows/ci.yml`）：push master/main 与 PR 自动跑 lint / 类型检查 / 单测 / 构建（约 3 分钟），与 tag 触发的发布工作流互补——质量门禁不依赖本地自觉（详见打包发布 §8）
+- 桌面 E2E harness 跨平台：electron 二进制改经 `require('electron')` 解析直连（原 `.bin/electron` 包装脚本在 Windows 上无法 spawn），Windows 可完整跑通 `test:desktop`（25 + 31 断言）
+
+### 重构（无功能变化）
+
+
+- `style.css`（2300+ 行）按组件拆分为 `src/styles/01-tokens.css … 15-print.css`（编号即级联顺序），`style.css` 仅保留按原顺序的 `@import` 汇总——构建产物与拆分前逐字节一致
+- `index.html`（950+ 行）只保留首屏壳，隐藏浮层与面板（菜单 / 快速切换 / 搜索 / 历史 / 表格工具栏 / 设置 / 查找·链接栏）拆分为 `src/templates/*.html`，构建期经 Vite `?raw` 内联，boot 最早期注入到原位置的 `<template data-partial>` 占位（先于 i18n 扫描）
+- 主进程菜单构建抽为 `electron/menu.cjs` 纯数据模板工厂（零 Electron 依赖，labels/快捷键/最近文件/自动保存/平台全部注入），main.cjs 缩减约 240 行并新增 9 例模板结构单测
