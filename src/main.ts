@@ -80,7 +80,7 @@ import {
 } from './settings'
 import { applyTypography } from './typography'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
-import { saveDoc, loadDoc, clearDoc, getTheme, recentList } from './store'
+import { saveDoc, loadDoc, clearDoc, getTheme, recentList, getSidebarWidth, setSidebarWidth } from './store'
 import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
 import { installErrorReport } from './error-report'
 
@@ -123,6 +123,66 @@ function toggleSidebar(which: 'outline' | 'files') {
   otherPanel.hidden = true
   targetPanel.hidden = !targetPanel.hidden
   sidebar.hidden = targetPanel.hidden && otherPanel.hidden
+}
+
+// ---------------------------------------------------------------------------
+// 侧边栏分隔条：拖拽调整侧边栏与编辑区的宽度分配
+// ---------------------------------------------------------------------------
+
+/** 侧边栏宽度上下限：再窄内容挤成一列、再宽编辑区没剩几列 */
+const SIDEBAR_MIN_WIDTH = 180
+const SIDEBAR_MAX_WIDTH = 480
+/** 窗口变窄时的兜底：编辑区至少保留的宽度 */
+const EDITOR_MIN_WIDTH = 320
+
+function clampSidebarWidth(width: number): number {
+  const max = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth - EDITOR_MIN_WIDTH)
+  return Math.min(SIDEBAR_MAX_WIDTH, max, Math.max(SIDEBAR_MIN_WIDTH, width))
+}
+
+/** 把宽度写到侧边栏（CSS 里的 250px 仅为未装配时的兜底） */
+function applySidebarWidth(width: number) {
+  document.getElementById('sidebar')?.style.setProperty('width', `${width}px`)
+}
+
+/**
+ * 分隔条拖拽调宽，双击恢复默认 250px，宽度持久化。
+ * 鼠标事件挂在 document 上（拖出 5px 热区不丢），与 split.ts 同一套模式。
+ */
+function wireSidebarResize() {
+  const sidebar = document.getElementById('sidebar')
+  const resizer = document.getElementById('sidebar-resizer')
+  if (!sidebar || !resizer) return
+  applySidebarWidth(clampSidebarWidth(getSidebarWidth()))
+
+  resizer.addEventListener('mousedown', (e) => {
+    e.preventDefault()
+    resizer.classList.add('dragging')
+    const left = sidebar.getBoundingClientRect().left
+    const onMove = (ev: MouseEvent) => {
+      applySidebarWidth(clampSidebarWidth(ev.clientX - left))
+    }
+    const onUp = () => {
+      resizer.classList.remove('dragging')
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      const width = Number.parseFloat(sidebar.style.width)
+      if (Number.isFinite(width)) setSidebarWidth(width)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  })
+
+  // 双击复位：回到默认宽度（同样走持久化，下次启动仍是默认值）
+  resizer.addEventListener('dblclick', () => {
+    applySidebarWidth(250)
+    setSidebarWidth(250)
+  })
+
+  // 窗口收窄时重新钳制，避免侧边栏把编辑区挤没
+  window.addEventListener('resize', () => {
+    applySidebarWidth(clampSidebarWidth(Number.parseFloat(sidebar.style.width) || getSidebarWidth()))
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -401,6 +461,8 @@ async function boot() {
     wireSearch()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
     wireSplit()
+    // 侧边栏分隔条：拖拽调宽 / 双击复位
+    wireSidebarResize()
     // 历史版本面板：恢复只把快照载入编辑器并置脏，是否覆盖磁盘由用户后续保存决定
     wireHistory({
       onRestore: async (content) => {

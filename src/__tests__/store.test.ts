@@ -17,6 +17,8 @@ import {
   setImageStrategy,
   getAutosaveEnabled,
   setAutosaveEnabled,
+  getSidebarWidth,
+  setSidebarWidth,
 } from '../store'
 
 /** 简单内存版 localStorage（每个用例重置） */
@@ -136,5 +138,13 @@ describe('store', () => {
     expect(getAutosaveEnabled()).toBe(false)
     setAutosaveEnabled(true)
     expect(getAutosaveEnabled()).toBe(true)
+  })
+
+  it('侧边栏宽度：默认 250，非法值回落，写入取整', () => {
+    expect(getSidebarWidth()).toBe(250)
+    localStorage.setItem('tmd:sidebar-width', '不是数字')
+    expect(getSidebarWidth()).toBe(250)
+    setSidebarWidth(312.4)
+    expect(getSidebarWidth()).toBe(312)
   })
 })

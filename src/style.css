@@ -1687,6 +1687,24 @@ img {
   padding: 12px;
 }
 
+/* 侧边栏分隔条：拖拽调整侧边栏宽度。默认随侧边栏隐藏，侧边栏可见时显示；
+   底色透明（侧边栏自身的 1px 右边框即视觉分隔线），悬停/拖拽时高亮 */
+.sidebar-resizer {
+  display: none;
+  flex: 0 0 5px;
+  cursor: col-resize;
+  user-select: none;
+}
+
+#sidebar:not([hidden]) + .sidebar-resizer {
+  display: block;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.dragging {
+  background: var(--muted);
+}
+
 .sidebar-title {
   font-size: 13px;
   font-weight: 600;
