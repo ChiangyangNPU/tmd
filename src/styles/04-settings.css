@@ -1,0 +1,576 @@
+/*
+ * 04-settings.css —— 设置面板：分类导航 / 色卡 / 排版 / 图床 / 快捷键自定义 / 更新
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* 设置弹窗 */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-overlay[hidden] {
+  display: none;
+}
+
+.settings-modal {
+  width: 680px;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100vh - 96px);
+  /* 双栏布局：标题栏 + 导航列 + 滚动内容列。
+     滚动发生在 .settings-content 内层，标题栏天然固定，
+     不再需要旧单列布局的吸顶负 margin hack */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+}
+
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: none;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* 左侧分类导航：点击定位 + 滚动高亮跟随 */
+.settings-nav {
+  width: 128px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  background: var(--bg-hover);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.settings-nav-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 12.5px;
+  color: var(--fg);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.settings-nav-item:hover {
+  background: var(--code-bg);
+}
+
+.settings-nav-item.active {
+  background: var(--code-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 右侧滚动内容列：细圆角滚动条（轨道留出上下圆角空间） */
+.settings-content {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  overflow-y: auto;
+}
+
+.settings-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+.settings-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.settings-section {
+  padding: 12px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section:last-child {
+  border-bottom: none;
+}
+
+.settings-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.settings-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 3px 0;
+  cursor: pointer;
+}
+
+.settings-hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+/* 主题色卡：单选本体隐藏，选中态经 :has(input:checked) 高亮整卡。
+   预览色固定不随当前主题变化——它描绘的是「选中后会长什么样」 */
+.theme-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.theme-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.theme-card:hover {
+  border-color: var(--muted);
+}
+
+.theme-card:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-weak, rgba(74, 124, 212, 0.18));
+}
+
+.theme-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.theme-preview {
+  width: 52px;
+  height: 34px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+}
+
+.theme-preview i {
+  display: block;
+  height: 3.5px;
+  border-radius: 2px;
+}
+
+.theme-preview i:first-child {
+  width: 55%;
+  height: 4.5px;
+}
+
+.theme-preview i:nth-child(2) {
+  width: 90%;
+}
+
+.theme-preview i:nth-child(3) {
+  width: 75%;
+}
+
+.tp-default {
+  background: #ffffff;
+}
+
+.tp-default i {
+  background: #d3d7dc;
+}
+
+.tp-default i:first-child {
+  background: #8a9099;
+}
+
+.tp-dark {
+  background: #1e2127;
+}
+
+.tp-dark i {
+  background: #3a4046;
+}
+
+.tp-dark i:first-child {
+  background: #cfd6dd;
+}
+
+.tp-sepia {
+  background: #f6efdd;
+}
+
+.tp-sepia i {
+  background: #dccfae;
+}
+
+.tp-sepia i:first-child {
+  background: #8a7a55;
+}
+
+.tp-green {
+  background: #e2ecd8;
+}
+
+.tp-green i {
+  background: #bfd2a9;
+}
+
+.tp-green i:first-child {
+  background: #5f7a43;
+}
+
+.theme-card-name {
+  font-size: 12.5px;
+  color: var(--fg);
+}
+
+/* 短选项横排 chips（≤4 个短文案的选择组）：单选本体隐藏，样式落在兄弟 span 上 */
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.chip span {
+  display: inline-block;
+  font-size: 12.5px;
+  padding: 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--fg);
+  cursor: pointer;
+}
+
+.chip span:hover {
+  background: var(--bg-hover);
+}
+
+.chip input:checked + span {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 关于面板：键值行布局 */
+.about-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 13px;
+  padding: 3px 0;
+}
+
+.about-key {
+  flex-shrink: 0;
+  width: 48px;
+  color: var(--muted);
+}
+
+.about-val {
+  color: var(--fg);
+}
+
+.about-links {
+  display: flex;
+  gap: 12px;
+}
+
+.about-link {
+  color: var(--accent, #4a90d9);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.about-link:hover {
+  text-decoration: underline;
+}
+
+/* 第三方组件许可证列表：details 折叠，默认收起（低频信息不占版面） */
+.about-thirdparty {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.about-thirdparty > summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+}
+
+/* 去 webkit 默认三角，自绘 ▸/▾ */
+.about-thirdparty > summary::-webkit-details-marker {
+  display: none;
+}
+
+.about-thirdparty > summary::before {
+  content: '▸';
+  font-size: 10px;
+  transition: transform 0.15s ease;
+}
+
+.about-thirdparty[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.about-thirdparty[open] > summary {
+  margin-bottom: 6px;
+}
+
+.about-thirdparty > summary:hover {
+  color: var(--fg);
+}
+
+.license-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.license-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.license-item a {
+  color: var(--accent, #4a90d9);
+  text-decoration: none;
+}
+
+.license-item a:hover {
+  text-decoration: underline;
+}
+
+.license-type {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* 排版区小节标题：弱于 settings-label 一级 */
+.settings-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 10px 0 2px;
+}
+
+/* 排版档位横排选项：档位多（字号 6 档），纵排会把面板拉得过长 */
+.settings-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+}
+
+/* 排版区自定义字体输入框 */
+.settings-input {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+/* 图床配置区：label + 控件横排 */
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.settings-row-label {
+  flex: 0 0 90px;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+.settings-row .settings-input {
+  margin-top: 0;
+  flex: 1;
+}
+
+.settings-select {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.settings-btn {
+  padding: 5px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-btn:hover {
+  background: var(--bg-hover);
+}
+
+/* 设置面板统一按钮的两档变体：主操作（强调）与禁用态 */
+.settings-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+}
+
+.settings-btn.primary:hover {
+  opacity: 0.9;
+  background: var(--accent);
+}
+
+.settings-btn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.settings-btn[hidden] {
+  display: none;
+}
+
+.picgo-fields {
+  margin-top: 6px;
+}
+
+/* 快捷键自定义：按分组罗列，右侧为可点击的按键框 */
+.shortcuts-list {
+  margin-top: 8px;
+}
+
+.shortcut-group + .shortcut-group {
+  margin-top: 12px;
+}
+
+.shortcut-group-title {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.shortcut-label {
+  flex: 1;
+  font-size: 12px;
+  color: var(--fg);
+}
+
+/* 行内错误提示（非法组合/键位冲突）：紧贴按键框左侧，避免被挤到面板底部 */
+.shortcut-error {
+  flex: 0 1 auto;
+  font-size: 11px;
+  color: var(--error-fg);
+  text-align: right;
+}
+
+.shortcut-key {
+  min-width: 96px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.shortcut-key:hover {
+  background: var(--bg-hover);
+}
+
+/* 捕获态：高亮边框提示等待用户按下组合键 */
+.shortcut-key.capturing {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+/* 更新区块：检查按钮 + 状态文字 + 重启按钮 */
+.settings-update-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.update-status {
+  font-size: 12px;
+  color: var(--muted);
+  min-height: 18px;
+}
+
+/* 窄窗口（浏览器模式小窗等）收起导航列，退化为单列滚动 */
+@media (max-width: 640px) {
+  .settings-nav {
+    display: none;
+  }
+}

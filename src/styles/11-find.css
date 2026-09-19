@@ -1,0 +1,61 @@
+/*
+ * 11-find.css —— 查找替换栏
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ---------------- 查找替换栏 ---------------- */
+
+.find-bar {
+  position: sticky;
+  top: 45px;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--toolbar-bg);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+/* display:flex 会覆盖 hidden 属性的 UA 样式，必须显式关闭 */
+.find-bar[hidden] {
+  display: none;
+}
+
+.find-input {
+  width: 160px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+/* 链接栏地址输入框：URL 较长，比查找输入框宽 */
+.link-input {
+  width: 300px;
+}
+
+.find-count {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: center;
+}
+
+.find-hit {
+  background: rgba(255, 213, 0, 0.4);
+}
+
+html.dark .find-hit {
+  background: rgba(255, 213, 0, 0.25);
+}
+
+.find-current {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 2px;
+}

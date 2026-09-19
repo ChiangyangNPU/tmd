@@ -1,0 +1,112 @@
+/*
+ * 05-platform.css —— 平台与状态：轻提示 toast / Mac·Windows 顶栏变体 / 窄窗适配
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* 轻提示（设置占位等） */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  transform: translateX(-50%);
+  z-index: 30;
+  padding: 8px 18px;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 8px;
+  font-size: 13px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Mac 隐藏标题栏：红绿灯按钮浮在工具栏左侧，功能按钮组让位靠右 */
+html.mac .toolbar {
+  padding-left: 80px;
+}
+
+html.mac .toolbar-left {
+  margin-left: auto;
+}
+
+/* Windows：功能按钮组靠左且视觉顺序反转（主题 ⋯ 保存 打开 源码 大纲 字数），
+   自绘窗口按钮独占右缘，与 Mac 左右镜像；中段空白为拖拽区 */
+html.win .toolbar {
+  padding-left: 12px;
+  padding-right: 0;
+}
+
+html.win .toolbar-left {
+  flex-direction: row-reverse;
+  margin-right: auto;
+}
+
+/* Windows：⋯ 溢出菜单贴左缘弹出（与功能按钮组对齐） */
+html.win .more-menu {
+  right: auto;
+  left: 12px;
+}
+
+html.win .win-controls {
+  margin-left: auto;
+}
+
+.win-title {
+  /* 绝对定位于工具栏正中：不受右侧按钮数量影响，始终居中 */
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 40%;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* 窗口过窄时隐藏居中文件名，避免与两侧控件重叠（Typora 同策略） */
+@media (max-width: 860px) {
+  .win-title {
+    display: none;
+  }
+}
+
+.logo {
+  display: none;
+}
+
+.word-count {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tool-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.tool-btn:hover {
+  background: var(--code-bg);
+}
+
+.theme-toggle {
+  border: 1px solid var(--border);
+  background: transparent;
+  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.theme-toggle:hover {
+  background: var(--code-bg);
+}

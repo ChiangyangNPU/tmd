@@ -1,0 +1,62 @@
+/*
+ * 15-print.css —— 打印 / 导出 PDF（@media print）
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ---------------- 打印 / 导出 PDF ---------------- */
+
+/* 隐藏应用 chrome，解除滚动裁剪链（overflow hidden/auto 会让打印只输出可视区）；
+   配色不强制浅色——主进程 printBackground 已开，深浅主题原样打印（跟随主题）。
+   页眉页脚与纸张参数由系统打印对话框控制 */
+@media print {
+  @page {
+    margin: 18mm;
+  }
+
+  .toolbar,
+  .sidebar,
+  .tab-bar,
+  #more-menu,
+  #context-menu,
+  #qs-overlay,
+  #table-toolbar,
+  #settings-overlay,
+  #find-bar,
+  #link-bar {
+    display: none !important;
+  }
+
+  html,
+  body {
+    height: auto;
+    overflow: visible;
+  }
+
+  .workbench,
+  .content,
+  .page-scroll {
+    height: auto;
+    overflow: visible;
+  }
+
+  /* 页面宽度交给 @page 边距，不再受排版设置的编辑区宽度限制 */
+  .page {
+    max-width: none;
+  }
+
+  /* 源码模式打印：CodeMirror 滚动容器同样解除裁剪 */
+  #src-editor .cm-editor {
+    height: auto !important;
+  }
+
+  #src-editor .cm-scroller {
+    overflow: visible;
+  }
+
+  /* 代码块与 mermaid 图表不跨页断开 */
+  pre,
+  .mermaid-block {
+    break-inside: avoid;
+  }
+}

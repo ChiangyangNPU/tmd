@@ -51,6 +51,8 @@ const {
   scanNewDumps,
 } = require('./logger.cjs')
 const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./history.cjs')
+// 应用菜单模板：纯数据工厂（零 Electron 依赖，独立单测），状态与副作用注入见 buildMenu
+const { DEFAULT_MENU_LABELS, buildMenuTemplate } = require('./menu.cjs')
 const os = require('node:os')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -187,26 +189,6 @@ function normalizeRecent(raw) {
   return out
 }
 
-/** 「打开最近文件」子菜单：有条目则附分隔线与清空项，空列表为禁用占位项
- * @returns {import('electron').MenuItemConstructorOptions[]} */
-function recentSubmenu() {
-  if (!recentDocs.length) {
-    return [{ label: L('recentEmpty'), enabled: false }]
-  }
-  return [
-    ...recentDocs.map((entry) => ({
-      label: entry.name,
-      click: () => sendToRenderer(IPC.recentOpen, entry.path),
-    })),
-    { type: 'separator' },
-    {
-      label: L('clearRecent'),
-      // 清空动作交给渲染层执行（localStorage 是唯一权威），走统一菜单消息通道
-      click: () => sendToRenderer(IPC.menu, 'clear-recent'),
-    },
-  ]
-}
-
 // ---------- 自动更新状态 ----------
 /** @type {'gitee' | 'github'} */
 let currentUpdateSource = 'gitee'
@@ -215,48 +197,7 @@ let autoCheckUpdateEnabled = false
 /** 是否已因出错切换过源（避免 error 事件中无限切换重试） */
 let updateSourceSwitched = false
 
-// 菜单文案：默认中文，渲染层启动后把当前语言的文案经 IPC 发来并重建菜单
-/** @type {Record<string, string>} */
-const DEFAULT_MENU_LABELS = {
-  file: '文件',
-  open: '打开',
-  openFolder: '打开文件夹',
-  openRecent: '打开最近文件',
-  recentEmpty: '（无最近文件）',
-  clearRecent: '清空最近文件',
-  save: '保存',
-  saveAs: '另存为',
-  newTab: '新标签页',
-  closeTab: '关闭标签页',
-  autosave: '自动保存到文件',
-  export: '导出',
-  exportHtml: '导出 HTML',
-  exportPdf: '打印 / 导出 PDF',
-  exportWord: '导出 Word',
-  exportLongimage: '导出长图',
-  format: '格式',
-  bold: '加粗',
-  italic: '斜体',
-  strike: '删除线',
-  inlineCode: '行内代码',
-  highlight: '高亮',
-  superscript: '上标',
-  subscript: '下标',
-  link: '链接…',
-  h1: '一级标题',
-  h2: '二级标题',
-  h3: '三级标题',
-  h4: '四级标题',
-  h5: '五级标题',
-  h6: '六级标题',
-  paragraph: '正文',
-  quote: '引用',
-  codeBlock: '代码块',
-  bulletList: '无序列表',
-  orderedList: '有序列表',
-  history: '历史版本',
-  settings: '设置…',
-}
+// 菜单文案：默认中文（默认表在 menu.cjs），渲染层启动后把当前语言的文案经 IPC 发来并重建菜单
 /** @type {Record<string, string>} */
 let menuLabels = { ...DEFAULT_MENU_LABELS }
 
@@ -277,19 +218,6 @@ let sortLocale = ''
  * @type {Record<string, string>}
  */
 let customShortcuts = {}
-
-/** @param {string} key @returns {string} */
-const L = (key) => menuLabels[key] ?? DEFAULT_MENU_LABELS[key]
-
-/**
- * 获取菜单项的 accelerator：优先使用用户自定义配置，否则用默认值。
- * @param {string} action - 动作标识（与渲染层 shortcuts.ts 的 SHORTCUT_DEFS 对齐）
- * @param {string} fallback - 默认 accelerator
- * @returns {string}
- */
-function acc(action, fallback) {
-  return customShortcuts[action] ?? fallback
-}
 
 // 文件关联：Finder 双击 .md 时 macOS 通过 open-file 事件传入路径；
 // 渲染层未就绪时先排队，收到 ready 信号后再发给渲染层
@@ -357,186 +285,22 @@ const exporter = createExporter({
  * 未自定义时回落到内置默认值。渲染层切换语言或改动快捷键后会再次调用本函数重建。
  */
 function buildMenu() {
-  const isMac = process.platform === 'darwin'
-  /** @type {import('electron').MenuItemConstructorOptions[]} */
-  const macAppMenu = [{ role: 'appMenu' }]
-  /** @type {import('electron').MenuItemConstructorOptions[]} */
-  const template = [
-    ...(isMac ? macAppMenu : []),
-    {
-      label: L('file'),
-      submenu: [
-        {
-          label: L('open'),
-          accelerator: acc('open', 'CmdOrCtrl+O'),
-          click: () => sendToRenderer(IPC.menu, 'open'),
-        },
-        {
-          label: L('openFolder'),
-          accelerator: acc('open-folder', 'CmdOrCtrl+Shift+O'),
-          click: () => sendToRenderer(IPC.menu, 'open-folder'),
-        },
-        {
-          label: L('openRecent'),
-          submenu: recentSubmenu(),
-        },
-        {
-          label: L('save'),
-          accelerator: acc('save', 'CmdOrCtrl+S'),
-          click: () => sendToRenderer(IPC.menu, 'save'),
-        },
-        {
-          label: L('saveAs'),
-          accelerator: acc('save-as', 'CmdOrCtrl+Shift+S'),
-          click: () => sendToRenderer(IPC.menu, 'save-as'),
-        },
-        // 历史版本：低频查阅，不绑快捷键（避免与保存类操作抢键位）
-        {
-          label: L('history'),
-          click: () => sendToRenderer(IPC.menu, 'history'),
-        },
-        { type: 'separator' },
-        {
-          label: L('newTab'),
-          accelerator: acc('new-tab', 'CmdOrCtrl+T'),
-          click: () => sendToRenderer(IPC.menu, 'new-tab'),
-        },
-        {
-          label: L('closeTab'),
-          accelerator: acc('close-tab', 'CmdOrCtrl+W'),
-          click: () => sendToRenderer(IPC.menu, 'close-tab'),
-        },
-        { type: 'separator' },
-        {
-          id: 'autosave',
-          label: L('autosave'),
-          type: 'checkbox',
-          checked: autosaveEnabled,
-          click: (item) => {
-            autosaveEnabled = item.checked
-            sendToRenderer(IPC.autosave, item.checked)
-          },
-        },
-        { type: 'separator' },
-        // 设置面板：菜单文案与窗口装饰同源于渲染层；accelerator 走系统惯例
-        // Cmd/Ctrl+，不进快捷键自定义表（平台惯例键位，自定义收益为零）
-        {
-          label: L('settings'),
-          accelerator: 'CmdOrCtrl+,',
-          click: () => sendToRenderer(IPC.menu, 'open-settings'),
-        },
-        { type: 'separator' },
-        isMac ? { role: 'close' } : { role: 'quit' },
-      ],
+  // 模板构建抽至 menu.cjs（纯数据工厂，可独立单测）；本函数只注入状态与副作用：
+  // - labels/shortcuts/recents/autosaveEnabled 为 main.cjs 持有的可变状态快照
+  // - 三个回调把「动作分发 / 最近文件打开 / 自动保存开关」反转回主进程 IPC
+  const template = buildMenuTemplate({
+    labels: menuLabels,
+    shortcuts: customShortcuts,
+    recents: recentDocs,
+    autosaveEnabled,
+    isMac: process.platform === 'darwin',
+    onAction: (action) => sendToRenderer(IPC.menu, action),
+    onRecentOpen: (path) => sendToRenderer(IPC.recentOpen, path),
+    onAutosaveToggle: (enabled) => {
+      autosaveEnabled = enabled
+      sendToRenderer(IPC.autosave, enabled)
     },
-    {
-      label: L('export'),
-      submenu: [
-        {
-          label: L('exportHtml'),
-          accelerator: acc('export-html', 'CmdOrCtrl+Shift+H'),
-          click: () => sendToRenderer(IPC.menu, 'export-html'),
-        },
-        {
-          label: L('exportPdf'),
-          // Ctrl/Cmd+P 已让位给快速切换面板（高频优先），PDF 改 Shift+Mod+P
-          accelerator: acc('export-pdf', 'CmdOrCtrl+Shift+P'),
-          click: () => sendToRenderer(IPC.menu, 'export-pdf'),
-        },
-        { type: 'separator' },
-        // Word / 长图走离屏渲染，耗时明显长于 HTML/PDF，故不绑定快捷键
-        // （避免误触触发重任务），仅从菜单与工具栏 ⋯ 菜单进入
-        {
-          label: L('exportWord'),
-          click: () => sendToRenderer(IPC.menu, 'export-word'),
-        },
-        {
-          label: L('exportLongimage'),
-          click: () => sendToRenderer(IPC.menu, 'export-longimage'),
-        },
-      ],
-    },
-    {
-      // 格式栏：与渲染层 ProseMirror keymap 同一套命令（fmt-* action）。
-      // accelerator 由菜单消费，不会同时触发渲染层 keymap；
-      // mac 上 Cmd+Q 是退出应用，引用改用 Ctrl+Q（keymap 亦绑 Ctrl+q 兜底）
-      label: L('format'),
-      submenu: [
-        {
-          label: L('bold'),
-          accelerator: acc('fmt-bold', 'CmdOrCtrl+B'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-bold'),
-        },
-        {
-          label: L('italic'),
-          accelerator: acc('fmt-italic', 'CmdOrCtrl+I'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-italic'),
-        },
-        {
-          label: L('strike'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-strike'),
-        },
-        {
-          label: L('inlineCode'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-code'),
-        },
-        {
-          label: L('highlight'),
-          accelerator: acc('fmt-mark', 'CmdOrCtrl+Shift+H'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-mark'),
-        },
-        {
-          label: L('superscript'),
-          accelerator: acc('fmt-sup', 'CmdOrCtrl+Shift+='),
-          click: () => sendToRenderer(IPC.menu, 'fmt-sup'),
-        },
-        {
-          label: L('subscript'),
-          accelerator: acc('fmt-sub', 'CmdOrCtrl+Shift+-'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-sub'),
-        },
-        {
-          label: L('link'),
-          accelerator: acc('fmt-link', 'CmdOrCtrl+K'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-link'),
-        },
-        { type: 'separator' },
-        ...[1, 2, 3, 4, 5, 6].map((level) => ({
-          label: L(`h${level}`),
-          accelerator: acc(`fmt-h${level}`, `CmdOrCtrl+${level}`),
-          click: () => sendToRenderer(IPC.menu, `fmt-h${level}`),
-        })),
-        {
-          label: L('paragraph'),
-          accelerator: acc('fmt-paragraph', 'CmdOrCtrl+0'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-paragraph'),
-        },
-        { type: 'separator' },
-        {
-          label: L('quote'),
-          accelerator: acc('fmt-quote', isMac ? 'Ctrl+Q' : 'CmdOrCtrl+Q'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-quote'),
-        },
-        {
-          label: L('codeBlock'),
-          accelerator: acc('fmt-codeblock', 'CmdOrCtrl+Shift+K'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-codeblock'),
-        },
-        {
-          label: L('bulletList'),
-          accelerator: acc('fmt-bullet', 'CmdOrCtrl+Shift+8'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-bullet'),
-        },
-        {
-          label: L('orderedList'),
-          accelerator: acc('fmt-ordered', 'CmdOrCtrl+Shift+9'),
-          click: () => sendToRenderer(IPC.menu, 'fmt-ordered'),
-        },
-      ],
-    },
-    { role: 'editMenu' },
-    { role: 'viewMenu' },
-  ]
+  })
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
   autosaveMenuItem = Menu.getApplicationMenu()?.getMenuItemById('autosave') ?? null
 }

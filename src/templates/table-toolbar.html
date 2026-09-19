@@ -1,0 +1,85 @@
+    <div id="table-toolbar" class="table-toolbar" hidden>
+      <button
+        class="tt-btn"
+        data-tt-action="row-after"
+        data-i18n="tt.rowAdd"
+        data-i18n-title="tt.rowAddTitle"
+      >
+        行+
+      </button>
+      <button
+        class="tt-btn"
+        data-tt-action="row-delete"
+        data-i18n="tt.rowDel"
+        data-i18n-title="tt.rowDelTitle"
+      >
+        行−
+      </button>
+      <button
+        class="tt-btn"
+        data-tt-action="col-after"
+        data-i18n="tt.colAdd"
+        data-i18n-title="tt.colAddTitle"
+      >
+        列+
+      </button>
+      <button
+        class="tt-btn"
+        data-tt-action="col-delete"
+        data-i18n="tt.colDel"
+        data-i18n-title="tt.colDelTitle"
+      >
+        列−
+      </button>
+      <div class="menu-sep"></div>
+      <button
+        class="tt-btn"
+        data-tt-action="align-left"
+        data-i18n="tt.alignLeft"
+        data-i18n-title="tt.alignLeftTitle"
+      >
+        左
+      </button>
+      <button
+        class="tt-btn"
+        data-tt-action="align-center"
+        data-i18n="tt.alignCenter"
+        data-i18n-title="tt.alignCenterTitle"
+      >
+        中
+      </button>
+      <button
+        class="tt-btn"
+        data-tt-action="align-right"
+        data-i18n="tt.alignRight"
+        data-i18n-title="tt.alignRightTitle"
+      >
+        右
+      </button>
+      <div class="menu-sep"></div>
+      <!-- 图标按钮：无 data-i18n（会覆盖 textContent 清掉 SVG），仅用 title 提示 -->
+      <button
+        class="tt-btn tt-danger"
+        data-tt-action="table-delete"
+        data-i18n-title="tt.tableDelTitle"
+        aria-label="删除表格"
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M3 6h18" />
+          <path d="M8 6V4h8v2" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
+      </button>
+    </div>

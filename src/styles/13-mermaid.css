@@ -1,0 +1,78 @@
+/*
+ * 13-mermaid.css —— Mermaid 图表块
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ---------------- Mermaid 块 ---------------- */
+
+.mermaid-block {
+  position: relative;
+}
+
+.mermaid-render {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border: 1px dashed transparent;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mermaid-render:hover {
+  border-color: var(--border);
+  background: var(--pre-bg);
+}
+
+.mermaid-render svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.mermaid-placeholder {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.mermaid-error {
+  color: var(--error-fg);
+  background: var(--error-bg);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+/* 编辑态：光标在块内 → 显示源码、隐藏图表 */
+.mermaid-block .mermaid-src {
+  display: none;
+}
+
+.mermaid-block.editing .mermaid-src {
+  display: block;
+}
+
+.mermaid-block.editing .mermaid-render,
+.mermaid-block.editing .mermaid-placeholder,
+.mermaid-block.editing .mermaid-error {
+  display: none;
+}
+
+/* 点击图表前的提示 */
+.mermaid-block:not(.editing) .mermaid-render::after {
+  content: '点击编辑源码';
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.mermaid-block:not(.editing) .mermaid-render:hover::after {
+  opacity: 1;
+}

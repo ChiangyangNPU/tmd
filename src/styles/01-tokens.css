@@ -1,0 +1,60 @@
+/*
+ * 01-tokens.css —— 设计令牌：颜色 / 字体等 CSS 变量（浅色默认 + html.dark 深色覆盖）
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --fg: #24292f;
+  --muted: #6a737d;
+  --border: #e2e6ea;
+  --accent: #4a7cd4;
+  /* 控件 hover 底色（按钮 / 按键框 / 导航项共用） */
+  --bg-hover: #eff2f5;
+  --code-bg: #f3f4f6;
+  --pre-bg: #f6f8fa;
+  --quote-bg: transparent;
+  --toolbar-bg: rgba(255, 255, 255, 0.85);
+  --error-fg: #d1242f;
+  --error-bg: #fff1f0;
+}
+
+html.dark {
+  /* 深色类挂在 <html> 上：index.html 首帧防闪内联脚本同挂载点；
+     CSS 变量经继承作用于全体后代 */
+  /* 原生控件（滚动条、单选框、复选框等）跟随主题渲染 */
+  color-scheme: dark;
+  --bg: #1e2127;
+  --fg: #d7dae0;
+  --muted: #8a9099;
+  --border: #343a42;
+  --accent: #7aa2e8;
+  --bg-hover: #2a2e36;
+  --code-bg: #2a2e36;
+  --pre-bg: #24272e;
+  --quote-bg: transparent;
+  --toolbar-bg: rgba(30, 33, 39, 0.85);
+  --error-fg: #f97583;
+  --error-bg: #3a2426;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  /* 固定视口布局（工具栏+工作区=100vh），窗口级滚动条永不出现；
+     mermaid 渲染会临时往 body 挂 SVG 元素，溢出会被这里裁掉 */
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  /* 不加背景/前景 transition：全页 0.2s 渐变在切换主题时视觉上呈白闪 */
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', sans-serif;
+}

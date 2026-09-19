@@ -1,0 +1,333 @@
+/*
+ * 10-layout.css —— 布局：侧边栏 / 标签栏 / 分隔条 / 视图容器（所见即所得·源码·分屏）/ 专注模式
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ---------------- 布局：侧边栏 / 标签栏 ---------------- */
+
+.workbench {
+  display: flex;
+  /* 45px = 工具栏 44px + 1px 底边框（两平台顶栏均为单行） */
+  height: calc(100vh - 45px);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  background: var(--pre-bg);
+}
+
+.sidebar-panel {
+  padding: 12px;
+}
+
+/* 侧边栏分隔条：拖拽调整侧边栏宽度。默认随侧边栏隐藏，侧边栏可见时显示；
+   底色透明（侧边栏自身的 1px 右边框即视觉分隔线），悬停/拖拽时高亮 */
+.sidebar-resizer {
+  display: none;
+  flex: 0 0 5px;
+  cursor: col-resize;
+  user-select: none;
+}
+
+#sidebar:not([hidden]) + .sidebar-resizer {
+  display: block;
+}
+
+.sidebar-resizer:hover,
+.sidebar-resizer.dragging {
+  background: var(--muted);
+}
+
+.sidebar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-subtitle {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 12px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* 副标题行：文案居左、操作按钮居右（如「最近打开」旁的清空） */
+.sidebar-subtitle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.subtitle-clear-btn {
+  border: 0;
+  padding: 1px 4px;
+  background: none;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 3px;
+  /* 副标题继承了 uppercase/字距，按钮文案不跟随 */
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.subtitle-clear-btn:hover {
+  color: var(--fg);
+  background: var(--border);
+}
+
+.tool-btn.small {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.outline-item {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-item.level-2 {
+  padding-left: 20px;
+}
+
+.outline-item.level-3 {
+  padding-left: 32px;
+}
+
+.outline-item:hover,
+.tree-file:hover,
+.tree-folder:hover {
+  background: var(--code-bg);
+}
+
+.outline-empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 8px;
+}
+
+.tree-file,
+.tree-folder {
+  font-size: 13px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-folder {
+  color: var(--accent);
+}
+
+/* 最近文件行：文件名省略号 + hover 出现单条移除 × */
+.tree-recent {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tree-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tree-file-remove {
+  flex: none;
+  display: none;
+  border: 0;
+  padding: 0 3px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.tree-recent:hover .tree-file-remove {
+  display: block;
+}
+
+.tree-file-remove:hover {
+  color: var(--fg);
+  background: var(--border);
+}
+
+/* 文件夹根行折叠箭头：固定宽度避免展开/收起时文字跳动 */
+.tree-caret {
+  flex: none;
+  width: 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1;
+  text-align: center;
+}
+
+.content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: 4px 8px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  min-height: 34px;
+  /* 双击空白区新建时不应选中文本 */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  cursor: pointer;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tab.active {
+  background: var(--pre-bg);
+  border-color: var(--border);
+  color: var(--fg);
+}
+
+.tab-close {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+}
+
+.tab-close:hover {
+  color: var(--error-fg);
+}
+
+/* 标签后的「+」新建入口 */
+.tab-new {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 10px;
+  border-radius: 6px;
+  opacity: 0.55;
+}
+
+.tab-new:hover {
+  opacity: 1;
+  background: var(--code-bg);
+  color: var(--fg);
+}
+
+/* ---------------- 视图容器：所见即所得 / 源码 / 左右分屏 ---------------- */
+
+/* 横向容器：左边所见即所得（.page-scroll 自己滚），右边源码（CodeMirror 自己滚） */
+.panes {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 源码栏：纯源码模式占满，分屏时与所见即所得并排 */
+.src-pane {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 纯源码模式：保持排版设置里的编辑区宽度与居中（原先靠 .page 的限宽实现） */
+body.view-source #src-editor {
+  max-width: var(--editor-page-width, 860px);
+  margin: 0 auto;
+}
+
+/* 分屏分隔条：拖拽调整左右比例 */
+.split-divider {
+  flex: 0 0 5px;
+  background: var(--border);
+  cursor: col-resize;
+  user-select: none;
+}
+
+.split-divider:hover,
+.split-divider.dragging {
+  background: var(--muted);
+}
+
+/* 分屏：左栏按 --split-ratio 固定宽度，右栏吃掉剩余（--split-ratio 由 JS 写在 #panes 上） */
+body.view-split .page-scroll {
+  flex: 0 0 var(--split-ratio, 50%);
+  min-width: 0;
+}
+
+#src-editor {
+  padding: 24px 32px;
+  height: 100%;
+}
+
+/* 分屏时两栏各占半屏，源码栏内边距收窄把宽度让给正文 */
+body.view-split #src-editor {
+  padding: 24px 20px;
+}
+
+#src-editor .cm-editor {
+  height: 100%;
+  /* 字号跟随排版设置（与正文同步；字体/行距不跟随，源码保持等宽紧凑） */
+  font-size: var(--editor-font-size, 14px);
+}
+
+/* 设置「显示行号」关闭时挂 body.src-no-linenos：隐藏源码模式整列 gutter（行号 + 折叠标记） */
+body.src-no-linenos #src-editor .cm-gutters {
+  display: none;
+}
+
+/* ---------------- 专注模式 ---------------- */
+
+/* 顶层块（含 mermaid/toc/数学块等自定义 div）与列表项变暗；
+   光标所在块的祖先链由装饰器挂 .fm-active 整链置亮，避开 opacity 嵌套乘算 */
+body.focus-mode .ProseMirror > *,
+body.focus-mode .ProseMirror li {
+  opacity: 0.18;
+  transition: opacity 0.15s ease;
+}
+
+body.focus-mode .ProseMirror .fm-active {
+  opacity: 1;
+}

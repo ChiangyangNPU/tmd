@@ -1,0 +1,94 @@
+/*
+ * 12-code.css —— 代码块语法高亮（refractor/prism token）
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ---------------- 代码块语法高亮（refractor/prism token） ---------------- */
+
+:root {
+  --token-comment: #6a737d;
+  --token-keyword: #cf222e;
+  --token-string: #0a3069;
+  --token-number: #0550ae;
+  --token-function: #8250df;
+  --token-tag: #116329;
+  --token-attr: #0550ae;
+  --token-operator: #24292f;
+}
+
+html.dark {
+  --token-comment: #7d8590;
+  --token-keyword: #ff7b72;
+  --token-string: #a5d6ff;
+  --token-number: #79c0ff;
+  --token-function: #d2a8ff;
+  --token-tag: #7ee787;
+  --token-attr: #79c0ff;
+  --token-operator: #d7dae0;
+}
+
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: var(--token-comment);
+  font-style: italic;
+}
+
+.token.keyword,
+.token.boolean,
+.token.important,
+.token.atrule,
+.token.rule {
+  color: var(--token-keyword);
+}
+
+.token.string,
+.token.char,
+.token.attr-value,
+.token.regex {
+  color: var(--token-string);
+}
+
+.token.number,
+.token.symbol,
+.token.builtin,
+.token.class-name {
+  color: var(--token-number);
+}
+
+.token.function,
+.token.selector,
+.token.property {
+  color: var(--token-function);
+}
+
+.token.tag,
+.token.deleted {
+  color: var(--token-tag);
+}
+
+.token.attr-name,
+.token.constant {
+  color: var(--token-attr);
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.token.variable {
+  color: var(--token-operator);
+}
+
+.token.punctuation {
+  color: var(--muted);
+}
+
+.token.bold {
+  font-weight: 600;
+}
+
+.token.italic {
+  font-style: italic;
+}

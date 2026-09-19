@@ -1,0 +1,67 @@
+    <div id="more-menu" class="more-menu" hidden>
+      <button id="menu-files-btn" class="menu-item" data-i18n="toolbar.files">文件</button>
+      <button id="menu-find-btn" class="menu-item" data-i18n="toolbar.find">查找</button>
+      <button
+        id="menu-split-view-btn"
+        class="menu-item"
+        data-i18n="toolbar.splitView"
+        data-i18n-title="toolbar.splitViewTitle"
+      >
+        分屏
+      </button>
+      <button id="menu-export-html-btn" class="menu-item" data-i18n="menu.exportHtml">
+        导出 HTML
+      </button>
+      <!-- Word / 长图需离屏渲染（仅 Electron 环境可用），浏览器下由 main.ts 隐藏 -->
+      <button id="menu-export-word-btn" class="menu-item" data-i18n="menu.exportWord">
+        导出 Word
+      </button>
+      <button id="menu-export-longimage-btn" class="menu-item" data-i18n="menu.exportLongimage">
+        导出长图
+      </button>
+      <button id="menu-insert-toc-btn" class="menu-item" data-i18n="menu.insertToc">
+        插入目录
+      </button>
+      <div class="menu-sep"></div>
+      <button id="menu-settings-btn" class="menu-item" data-i18n="toolbar.settings">设置</button>
+    </div>
+
+    <div id="context-menu" class="more-menu context-menu" hidden>
+      <button class="menu-item" data-cm-action="cut" data-i18n="contextMenu.cut">剪切</button>
+      <button class="menu-item" data-cm-action="copy" data-i18n="contextMenu.copy">复制</button>
+      <button class="menu-item" data-cm-action="paste" data-i18n="contextMenu.paste">粘贴</button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-cm-action="bold" data-i18n="contextMenu.bold">加粗</button>
+      <button class="menu-item" data-cm-action="italic" data-i18n="contextMenu.italic">斜体</button>
+      <button class="menu-item" data-cm-action="strike" data-i18n="contextMenu.strike">
+        删除线
+      </button>
+      <button class="menu-item" data-cm-action="code" data-i18n="contextMenu.inlineCode">
+        行内代码
+      </button>
+      <button class="menu-item" data-cm-action="link" data-i18n="contextMenu.link">链接…</button>
+      <button class="menu-item" data-cm-action="remove-link" data-i18n="contextMenu.removeLink">
+        移除链接
+      </button>
+    </div>
+
+    <!-- 标签栏右键菜单：批量关闭入口（可用性由 tab-menu.ts 按右键位置动态置灰） -->
+    <div id="tab-context-menu" class="more-menu context-menu" hidden>
+      <button class="menu-item" data-tm-action="close" data-i18n="tabMenu.close">关闭标签页</button>
+      <button class="menu-item" data-tm-action="closeOthers" data-i18n="tabMenu.closeOthers">
+        关闭其他标签页
+      </button>
+      <button class="menu-item" data-tm-action="closeLeft" data-i18n="tabMenu.closeLeft">
+        关闭左侧标签页
+      </button>
+      <button class="menu-item" data-tm-action="closeRight" data-i18n="tabMenu.closeRight">
+        关闭右侧标签页
+      </button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-tm-action="closeSaved" data-i18n="tabMenu.closeSaved">
+        关闭已保存的标签页
+      </button>
+      <button class="menu-item" data-tm-action="closeAll" data-i18n="tabMenu.closeAll">
+        关闭所有标签页
+      </button>
+    </div>

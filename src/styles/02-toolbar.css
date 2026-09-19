@@ -1,0 +1,97 @@
+/*
+ * 02-toolbar.css —— 顶栏工具栏 / 自绘窗口控制（Windows/Linux）
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ---------------- 顶栏 ---------------- */
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--toolbar-bg);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  /* 隐藏标题栏后，整条工具栏可作为拖拽区移动窗口 */
+  -webkit-app-region: drag;
+  /* UI 控件不参与文本选择（双击不会选中文件名） */
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 按钮和计数不参与拖拽，保证可点击 */
+.toolbar button,
+.toolbar .word-count {
+  -webkit-app-region: no-drag;
+}
+
+/* 功能按钮组容器（字数 + 功能按钮）：内部间距与拖拽行为集中管理 */
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 组内空白处可作为拖拽区，按钮已各自 no-drag */
+  -webkit-app-region: drag;
+}
+
+/* ---------------- 自绘窗口控制（Windows/Linux） ----------------
+   单行顶栏：窗口按钮以极简透明样式并入工具栏右缘（细竖线分隔），
+   Mac 上本区块不显示（Mac 走 hiddenInset，红绿灯浮在工具栏左侧）。
+   titleBarStyle: 'hidden' 后标题区属于页面，主题切换与内容区同帧同步；
+   public/boot.js 在首帧前挂 html.win 类 */
+.win-controls {
+  display: none;
+}
+
+html.win .win-controls {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+}
+
+.win-btn {
+  /* 标题栏整行是拖拽区，按钮必须显式退出拖拽，否则点击被拖拽行为吞掉 */
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  align-self: stretch;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  opacity: 0.8;
+  cursor: default;
+}
+
+.win-btn:hover {
+  background: rgba(128, 128, 128, 0.18);
+  opacity: 1;
+}
+
+.win-btn.win-close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+/* 最大化/还原图标切换：主进程推送状态时切换 maximized 类 */
+.win-btn .ic-restore {
+  display: none;
+}
+
+.win-btn.maximized .ic-max {
+  display: none;
+}
+
+.win-btn.maximized .ic-restore {
+  display: block;
+}

@@ -92,6 +92,7 @@ import {
 } from './store'
 import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
 import { installErrorReport } from './error-report'
+import { installStaticPartials } from './templates'
 
 // ---------------------------------------------------------------------------
 // 应用常量
@@ -221,6 +222,9 @@ async function boot() {
   try {
     // 全局错误捕获最先安装：启动期任意阶段抛错都能经主进程落到本机日志
     installErrorReport()
+    // 静态模板注入最先于一切 DOM 扫描：i18n 的 data-i18n 扫描与各 wire* 的
+    // getElementById 都依赖完整 DOM（浮层/面板 HTML 在 src/templates/*.html）
+    installStaticPartials()
     applyDomTexts()
     // Mac 隐藏标题栏：工具栏让出红绿灯按钮的空间
     if (navigator.userAgent.includes('Macintosh')) {

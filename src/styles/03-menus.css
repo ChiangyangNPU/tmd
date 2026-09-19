@@ -1,0 +1,74 @@
+/*
+ * 03-menus.css —— 菜单：⋯ 溢出菜单 / 编辑区与标签栏右键菜单（.menu-item 通用样式）
+ *
+ * 由原 style.css 按分节注释拆分；保持原级联顺序（见 style.css 汇总说明）。
+ */
+
+/* ⋯ 溢出菜单 */
+.more-menu {
+  position: fixed;
+  top: 48px;
+  right: 12px;
+  z-index: 20;
+  padding: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.more-menu[hidden] {
+  display: none;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--code-bg);
+}
+
+/* display:flex 会覆盖 hidden 属性的 UA 样式，右键菜单按上下文隐藏单项必须显式关闭 */
+.menu-item[hidden] {
+  display: none;
+}
+
+.menu-item .shortcut {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* 菜单禁用项（如第一个标签上的「关闭左侧」）：置灰且不响应点击 */
+.menu-item.disabled {
+  color: var(--muted);
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
+}
+
+.menu-sep {
+  height: 1px;
+  margin: 6px 8px;
+  background: var(--border);
+}
+
+/* 右键上下文菜单：复用 more-menu 外观，位置由 JS 按光标落点设置（覆盖 more-menu 的固定定位）；
+   宽度不设下限，按最宽可见条目自适应（条目均为短文案，写死 min-width 会右侧留大片空白） */
+.context-menu {
+  top: 0;
+  right: auto;
+  left: 0;
+  z-index: 30;
+}

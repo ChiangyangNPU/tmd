@@ -21,6 +21,12 @@
 - 移除零引用依赖 `@milkdown/plugin-diagram` 与冗余直依赖 `refractor`（为 `@milkdown/plugin-prism` 的传递依赖，无需直接声明）
 - 桌面 E2E harness 跨平台：electron 二进制改经 `require('electron')` 解析直连（原 `.bin/electron` 包装脚本在 Windows 上无法 spawn），Windows 可完整跑通 `test:desktop`（25 + 31 断言）
 
+### 重构（无功能变化）
+
+- `style.css`（2300+ 行）按组件拆分为 `src/styles/01-tokens.css … 15-print.css`（编号即级联顺序），`style.css` 仅保留按原顺序的 `@import` 汇总——构建产物与拆分前逐字节一致
+- `index.html`（950+ 行）只保留首屏壳，隐藏浮层与面板（菜单 / 快速切换 / 搜索 / 历史 / 表格工具栏 / 设置 / 查找·链接栏）拆分为 `src/templates/*.html`，构建期经 Vite `?raw` 内联，boot 最早期注入到原位置的 `<template data-partial>` 占位（先于 i18n 扫描）
+- 主进程菜单构建抽为 `electron/menu.cjs` 纯数据模板工厂（零 Electron 依赖，labels/快捷键/最近文件/自动保存/平台全部注入），main.cjs 缩减约 240 行并新增 9 例模板结构单测
+
 ## [0.1.0] - 2026-09-17
 
 首个正式发布版本：跨平台（macOS / Windows）Markdown 所见即所得编辑器，交互对标 Typora，核心特性为 Mermaid 图表的实时渲染。
