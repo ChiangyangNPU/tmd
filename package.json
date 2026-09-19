@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:desktop": "node scripts/desktop-app-check.mjs && node scripts/desktop-export-check.mjs",
     "bench": "node scripts/desktop-bench.mjs",
+    "notes": "node scripts/extract-release-notes.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
@@ -19,8 +20,8 @@
     "icon": "node scripts/make-icon.mjs",
     "cleanup": "bash scripts/cleanup-old-app.sh",
     "preview": "vite preview",
-    "dist": "npm run build && electron-builder --publish never",
-    "dist:dir": "npm run build && electron-builder --dir --publish never",
+    "dist": "npm run notes && npm run build && electron-builder --publish never",
+    "dist:dir": "npm run notes && npm run build && electron-builder --dir --publish never",
     "dist:install": "npm run dist:dir && rm -rf /Applications/TMD.app && cp -R release/mac-arm64/TMD.app /Applications/"
   },
   "devDependencies": {
@@ -111,7 +112,7 @@
       "allowToChangeInstallationDirectory": true
     },
     "releaseInfo": {
-      "releaseNotesFile": "CHANGELOG.md"
+      "releaseNotesFile": ".release-notes.md"
     },
     "publish": [
       {

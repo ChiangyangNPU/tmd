@@ -1,6 +1,7 @@
 node_modules
 dist
 release
+.release-notes.md
 *.local
 .DS_Store
 .idea

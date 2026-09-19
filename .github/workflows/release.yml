@@ -41,6 +41,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # 发版前校验：CHANGELOG 必须有当前版本小节（[未发布] 未转正则直接失败）。
+      # electron-builder 的 releaseNotes 取自本步骤生成的 .release-notes.md，
+      # 只含当前版本一节，更新弹窗不再出现整份变更历史
+      - name: Extract release notes
+        run: node scripts/extract-release-notes.mjs --strict
       - name: Build & Package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
