@@ -205,13 +205,13 @@ html.win .win-controls {
   background: var(--border);
 }
 
-/* 右键上下文菜单：复用 more-menu 外观，位置由 JS 按光标落点设置（覆盖 more-menu 的固定定位） */
+/* 右键上下文菜单：复用 more-menu 外观，位置由 JS 按光标落点设置（覆盖 more-menu 的固定定位）；
+   宽度不设下限，按最宽可见条目自适应（条目均为短文案，写死 min-width 会右侧留大片空白） */
 .context-menu {
   top: 0;
   right: auto;
   left: 0;
   z-index: 30;
-  min-width: 150px;
 }
 
 /* 设置弹窗 */
