@@ -20,7 +20,7 @@
     "icon": "node scripts/make-icon.mjs",
     "cleanup": "bash scripts/cleanup-old-app.sh",
     "preview": "vite preview",
-    "dist": "npm run notes && npm run build && electron-builder --publish never",
+    "dist": "npm run notes && npm run build && electron-builder --publish never && node scripts/patch-mac-dmg.mjs",
     "dist:dir": "npm run notes && npm run build && electron-builder --dir --publish never",
     "dist:install": "npm run dist:dir && rm -rf /Applications/TMD.app && cp -R release/mac-arm64/TMD.app /Applications/"
   },

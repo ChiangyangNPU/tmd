@@ -1,15 +1,23 @@
 # 发布工作流：push tag (v*) 触发，双平台打包并发布。
-# - macOS arm64 + Windows x64
-# - 产物上传到 GitHub Release（electron-builder --publish always）
-# - 元数据 (latest*.yml) 推到 Gitee 仓库 releases/ 目录（供 generic provider raw URL 读取）
-# - 大文件 (dmg/exe/blockmap) 上传到 Gitee Release 附件
+# - macOS arm64 + Windows x64（electron-builder --publish never 只构建不发布）
+# - mac job 构建后把 dmg 转 ULMO 压缩（实测约 103MB → 85MB，
+#   scripts/patch-mac-dmg.mjs），连带重算 latest-mac.yml 的 sha512/size
+#   并删除过期 blockmap（差量索引与新文件不匹配，删除后更新器对 404 回退全量）
+# - publish job（单 job 统一两处发布，避免双端发布竞态）：
+#   1. gh CLI 创建 GitHub Release（保持草稿态，正文取当前版本小节）
+#      并上传双平台产物 + 更新元数据
+#   2. latest*.yml 推 Gitee 仓库 releases/ 目录（generic provider raw URL）
+#   3. 创建 Gitee Release（正文取 CHANGELOG 当前版本节对应产物说明）并传附件
+#      —— dmg 转 ULMO 后已低于 100MB 上限，双平台附件齐全
 #
 # 注意：
 # - Gitee 需在仓库 Settings → Secrets 配置 GITEE_TOKEN
 # - Gitee 仓库默认分支是 master，内容/Release API 的 branch 与 target_commitish
 #   都必须用 master（用 main 会静默失败，releases/*.yml 永远写不进去）
-# - Gitee 附件单文件上限 100MB（免费版配额），超限会被服务端拒绝；
-#   附件上传失败一律让 job 失败，避免「CI 全绿但产物缺失」
+# - Gitee 附件单文件上限 100MB（免费版配额）；附件上传失败一律让 job 失败，
+#   避免「CI 全绿但产物缺失」（曾发生 dmg 116MB 被丢弃却无人察觉）
+# - GitHub Release 保持草稿态（与 electron-builder 时代的默认 releaseType 一致），
+#   人工核对后点 Publish 对外可见
 
 name: Release
 
@@ -23,7 +31,7 @@ permissions:
   contents: write
 
 jobs:
-  # Job 1：双平台打包 + 上传 GitHub Release
+  # Job 1：双平台打包（只构建不发布，发布统一在 publish job）
   build:
     strategy:
       fail-fast: false
@@ -49,9 +57,13 @@ jobs:
       - name: Build & Package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run build && npx electron-builder --publish always
-      # 上传产物 artifact 供 Gitee job 下载
+        run: npm run build && npx electron-builder --publish never
+      # 仅 mac：dmg 转 ULMO 压缩 + 重算更新元数据（脚本内非 darwin 直接返回，
+      # win job 原样通过）
+      - name: Post-process dmg (ULMO)
+        if: matrix.platform == 'mac'
+        run: node scripts/patch-mac-dmg.mjs
+      # 上传产物 artifact 供 publish job 下载
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -63,10 +75,12 @@ jobs:
             release/*.blockmap
           retention-days: 7
 
-  # Job 2：上传到 Gitee（依赖 build 完成后执行一次）
-  publish-gitee:
+  # Job 2：统一发布（GitHub Release + Gitee）
+  publish:
     needs: build
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -80,6 +94,23 @@ jobs:
           merge-multiple: true
       - name: List artifacts
         run: find release -type f | sort
+      - name: Extract release notes
+        run: node scripts/extract-release-notes.mjs --strict
+
+      # ---------- GitHub Release（草稿，人工核对后 Publish） ----------
+      - name: Publish to GitHub Release
+        run: |
+          TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
+          echo "Publishing to GitHub Release: $TAG"
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" --draft --title "$TAG" --notes-file .release-notes.md
+          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
+            [ -f "$f" ] || continue
+            gh release upload "$TAG" "$f" --clobber
+          done
+          echo "GitHub Release assets updated"
+
+      # ---------- Gitee ----------
       - name: Upload to Gitee
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
@@ -141,7 +172,9 @@ jobs:
 
           # 3. 上传大文件到 Release 附件
           #    Gitee 附件单文件上限 100MB：超限会被服务端拒绝。此处必须显性失败，
-          #    否则会出现「CI 全绿但产物静默缺失」（曾发生 dmg 116MB 被丢弃却无人察觉）
+          #    否则会出现「CI 全绿但产物静默缺失」（曾发生 dmg 116MB 被丢弃却无人察觉）。
+          #    dmg 已在构建后转 ULMO 压缩（约 85MB）在限内；若未来体积回升越限，
+          #    此处依旧显性报错而非静默跳过
           ATTACH_FAILED=0
           for f in release/*.dmg release/*.exe release/*.blockmap; do
             [ -f "$f" ] || continue

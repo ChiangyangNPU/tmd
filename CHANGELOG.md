@@ -19,6 +19,12 @@
 
 - **新增 LaTeX 导出**：导出为独立可编译的 .tex 源码（⋯ 菜单与原生菜单「导出」区进入，不绑快捷键；浏览器模式下载）。公式 $..$ / $$..$$ 原文透传零失真（LaTeX 原生支持）；中文文档自动选用 ctexart 文档类（XeLaTeX 编译），纯西文用 article；图片输出 \includegraphics（相对路径随文件解析、width 属性映射 px 宽度、路径含空格自动 \detokenize）；表格组装为 longtable 三线表（对齐映射列格式）；脚注在引用处内联；Mermaid 图表无离线方案，以注释保留源码。实现上解析管线工厂化（createExportMarkdownIt）：LaTeX 渲染器与 HTML 共享同一解析权威（公式保护 / 图片还原 / 插件集），math_inline 独立 token 类型规避 text_join 合并导致的公式边界丢失；渲染白名单杜绝 HTML 泄漏进 .tex。25 例单测
 
+### 发布
+
+- **dmg 体积治理**：构建后自动把 dmg 从 UDBZ 转 ULMO 压缩（scripts/patch-mac-dmg.mjs，hdiutil），实测约 103MB → 85MB，过 Gitee 附件 100MB 上限——Gitee Release 从此双平台产物齐全；dmg 的差量 blockmap 随转换失效已移除（mac 未签名场景自动更新回退全量下载，无实际影响）
+- **发布工作流重构**：build / publish 两 job 分离（`--publish never` 构建 + gh CLI 统一发布），消除产物后处理与 electron-builder 异步上传队列的竞态；GitHub Release 保持草稿态人工核对
+- **更新说明精准化**：releaseNotes 改由脚本从 CHANGELOG 提取当前版本小节（`.release-notes.md`），CI 以 `--strict` 前置校验——`[未发布]` 未转正则发版直接失败，更新弹窗不再出现整份变更历史
+
 ### 性能与构建
 
 - 大文档输入路径低优化：逐键同步执行的全量序列化（getMarkdown）+ 恢复副本 localStorage 写入 + 字数统计 + 分屏同步，合并为防抖 800ms 的低优回调（持续输入由 5s 上限兜底、beforeunload 落盘兜底），置脏保持同步 O(1)——368K 文档上序列化单次约 80ms，真实打字期间不再占用输入帧；CPU 剖析工具 `scripts/profile-input.mjs` 入库
