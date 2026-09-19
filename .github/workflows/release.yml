@@ -54,6 +54,10 @@ jobs:
       # 只含当前版本一节，更新弹窗不再出现整份变更历史
       - name: Extract release notes
         run: node scripts/extract-release-notes.mjs --strict
+      # 仅 mac：dmg 安装窗口背景图（标题 + 当前版本号 + 拖拽箭头）
+      - name: Make dmg background
+        if: matrix.platform == 'mac'
+        run: node scripts/make-dmg-background.mjs
       - name: Build & Package
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false

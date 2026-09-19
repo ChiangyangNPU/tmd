@@ -22,6 +22,7 @@
 ### 发布
 
 - **dmg 体积治理**：构建后自动把 dmg 从 UDBZ 转 ULMO 压缩（scripts/patch-mac-dmg.mjs，hdiutil），实测约 103MB → 85MB，过 Gitee 附件 100MB 上限——Gitee Release 从此双平台产物齐全；dmg 的差量 blockmap 随转换失效已移除（mac 未签名场景自动更新回退全量下载，无实际影响）
+- **安装窗口定制**：dmg 卷名改为干净的 "TMD"（桌面图标不再带版本号尾巴）；安装窗口改用自定义背景图——标题 "TMD"、当前版本号与拖拽箭头（构建时由脚本按 package.json 版本自动生成 SVG 并经 qlmanage 栅格化，版本变化自动跟上）；图标位经 dmg.contents 对称定于窗口中线两侧（默认坐标按 540 宽窗口设计，660 窗口下偏左）
 - **发布工作流重构**：build / publish 两 job 分离（`--publish never` 构建 + gh CLI 统一发布），消除产物后处理与 electron-builder 异步上传队列的竞态；GitHub Release 保持草稿态人工核对
 - **更新说明精准化**：releaseNotes 改由脚本从 CHANGELOG 提取当前版本小节（`.release-notes.md`），CI 以 `--strict` 前置校验——`[未发布]` 未转正则发版直接失败，更新弹窗不再出现整份变更历史
 

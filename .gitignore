@@ -5,3 +5,4 @@ release
 *.local
 .DS_Store
 .idea
+build/dmg-background.png
