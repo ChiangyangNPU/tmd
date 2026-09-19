@@ -22,13 +22,27 @@ import { slugify } from './toc'
 import { parseImgHtml } from './image-attrs'
 import { toFileUrl } from './fs-path'
 
-const mdIt = new MarkdownIt({ html: false, linkify: true })
-  // 扩展行内/块语法（与编辑器 mark-ext.ts + gfm 脚注对齐）：
-  // 脚注 [^1]、==高亮==、~下标~、^上标^
-  .use(footnote)
-  .use(markPlugin)
-  .use(subPlugin)
-  .use(supPlugin)
+/**
+ * 解析管线工厂：与渲染目标无关的解析权威。
+ *
+ * 插件集（脚注 / 高亮 / 上下标）、公式保护规则（tmd_math 整段保留原文）、
+ * 图片 HTML 还原（tmdConvertImgHtml）只与「怎么解析」有关，与「渲染成什么」
+ * 无关——HTML 与 LaTeX 两种渲染目标各自创建实例，共享同一套解析行为。
+ * 渲染规则（HTML 的 fence/heading/image 等）不属于本工厂，由各渲染目标
+ * 在自己的实例上安装。
+ */
+export function createExportMarkdownIt() {
+  const md = new MarkdownIt({ html: false, linkify: true })
+    .use(footnote)
+    .use(markPlugin)
+    .use(subPlugin)
+    .use(supPlugin)
+  md.inline.ruler.before('text', 'tmd_math', mathRule)
+  md.core.ruler.push('tmdConvertImgHtml', (state) => convertImgTokens(state.tokens))
+  return md
+}
+
+const mdIt = createExportMarkdownIt()
 
 /** $ 的字符码 */
 const DOLLAR = 0x24
@@ -58,16 +72,16 @@ function mathRule(state: StateInline, silent: boolean): boolean {
   if (content === '') return false
   if (!isDisplay && (/[\n]/.test(content) || /^\s|\s$/.test(content))) return false
   if (!silent) {
-    const token = state.push('text', '', 0)
+    // 独立 token 类型：text_join 核心规则会把相邻 text token 合并（meta 丢失），
+    // 故不推 text 而推 math_inline——各渲染目标按需安装规则
+    const token = state.push('math_inline', '', 0)
     token.content = state.src.slice(start, close + delim.length)
+    // 标记公式原文：LaTeX 渲染目标据此透传（其余 text token 需逃逸特殊字符）
+    token.meta = { math: true }
   }
   state.pos = close + delim.length
   return true
 }
-
-// 注册在 text 之前：`$` 是 markdown-it 的终止字符，text 规则会在此让位，
-// 本规则抢先整段吃掉公式原文，后续规则不再有机会改写其中内容
-mdIt.inline.ruler.before('text', 'tmd_math', mathRule)
 
 /** 匹配 text token 中的 <img ...> 标签（html:false 下 markdown-it 把行内 HTML 归为 text） */
 const IMG_TOKEN_RE = /<img\s[^<>]*>/gi
@@ -150,8 +164,12 @@ export function convertImgTokens(tokens: Token[]): void {
   }
 }
 
-// html:false 下 <img> 是 text，渲染前统一还原为真实图片 token
-mdIt.core.ruler.push('tmdConvertImgHtml', (state) => convertImgTokens(state.tokens))
+/**
+ * 公式行内规则（HTML 路径）：math_inline token 按 HTML 转义输出原文本，
+ * 公式渲染交给消费方（CDN auto-render 或离屏页 KaTeX）。
+ * 注意必须显式安装——否则渲染白名单/默认规则不知道如何处理自定义类型。
+ */
+mdIt.renderer.rules.math_inline = (tokens, idx) => mdIt.utils.escapeHtml(tokens[idx].content)
 
 /**
  * 图片渲染混合规则：convertImgTokens 产出的合成 token 以 children === null 标记
@@ -277,6 +295,16 @@ export function stripFrontMatter(markdown: string): string {
 }
 
 /**
+ * 导出源准备（各渲染目标共用的前置清理）：
+ * - 剥离 front matter（元数据不进导出成稿，源文件保存不受影响）
+ * - 删除 TOC 注释标记行（保留中间真实链接列表）；兼容行首可能的转义反斜杠
+ *   （remark-stringify 防 HTML 转义产物）
+ */
+export function prepareExportSource(markdown: string): string {
+  return stripFrontMatter(markdown).replace(/^[ \t]*\\?<!--\s*\/?TOC\s*-->[ \t]*$/gm, '')
+}
+
+/**
  * 渲染 markdown 为导出页正文 HTML（走内部 mdIt 实例：含图片 token 还原与渲染规则）：
  * - ```mermaid 代码块 → <pre class="mermaid">，由消费方（CDN 脚本或离屏页本地 mermaid）渲染
  * - TOC 注释标记行删除（保留中间真实链接列表，正常渲染为可点目录）
@@ -309,9 +337,8 @@ export function renderMarkdown(markdown: string): string {
   }
 
   // html:false 时注释会被转义成可见文本，直接移除 TOC 标记行（列表保留）；
-  // 兼容行首可能存在的转义反斜杠（remark-stringify 防 HTML 转义产物）。
-  // front matter 属元数据，导出成稿中剥离（源文件保存不受影响）。
-  const cleaned = stripFrontMatter(markdown).replace(/^[ \t]*\\?<!--\s*\/?TOC\s*-->[ \t]*$/gm, '')
+  // front matter 属元数据，导出成稿中剥离（源文件保存不受影响）
+  const cleaned = prepareExportSource(markdown)
   return mdIt.render(cleaned)
 }
 

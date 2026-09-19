@@ -20,6 +20,7 @@ import {
   collectThemeVars,
   renderMarkdown,
 } from './export-doc'
+import { renderLatexDocument } from './export-latex'
 import type { ExportTask } from './export-bridge'
 
 // 向后兼容：既有模块/测试从 './export' 引用这些核心符号，统一由核心模块再导出
@@ -71,23 +72,53 @@ export async function exportHtml(markdown: string, currentName: string) {
     collectThemeVars(),
     document.documentElement.classList.contains('dark'),
   )
+  await saveOrDownload(
+    html,
+    currentName.replace(/\.(md|markdown)$/i, '') + '.html',
+    { name: 'HTML', extensions: ['html'] },
+    'text/html;charset=utf-8',
+  )
+}
 
-  const defaultName = currentName.replace(/\.(md|markdown)$/i, '') + '.html'
+/** 浏览器模式的下载兜底（Electron 模式走 native.exportAs 存盘） */
+function triggerBrowserDownload(content: string, defaultName: string, mime: string) {
+  const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = defaultName
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+/** 存盘统一入口：Electron 弹原生保存框写盘；浏览器模式退化为下载 */
+async function saveOrDownload(
+  content: string,
+  defaultName: string,
+  filter: { name: string; extensions: string[] },
+  mime: string,
+) {
   if (native) {
-    await native.exportAs({
-      content: html,
-      defaultName,
-      filters: [{ name: 'HTML', extensions: ['html'] }],
-    })
+    await native.exportAs({ content, defaultName, filters: [filter] })
   } else {
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = defaultName
-    a.click()
-    URL.revokeObjectURL(url)
+    triggerBrowserDownload(content, defaultName, mime)
   }
+}
+
+/**
+ * 导出 LaTeX：纯文本转换（无需离屏渲染，浏览器模式同样可用）。
+ * - 公式 $..$ / $$..$$ 原文透传（LaTeX 原生支持）
+ * - 中文文档用 ctexart 文档类（需 XeLaTeX 编译）
+ * - Mermaid 图表降级为注释保留源码（无离线 LaTeX 方案）
+ */
+export async function exportLatex(markdown: string, currentName: string) {
+  const tex = renderLatexDocument(markdown, currentName)
+  await saveOrDownload(
+    tex,
+    currentName.replace(/\.(md|markdown)$/i, '') + '.tex',
+    { name: 'LaTeX', extensions: ['tex'] },
+    'application/x-tex;charset=utf-8',
+  )
 }
 
 /** 导出 PDF：经打印对话框完成（Electron 走主进程打印，浏览器走 window.print） */

@@ -15,6 +15,10 @@
 - 修复右键菜单过宽：去掉 `.context-menu` 写死的 `min-width: 150px`，编辑区与标签栏右键菜单宽度均按最宽可见条目自适应
 - 拼写检查开关：设置面板「编辑器」分类新增开关，默认关闭——Chromium 对可编辑内容默认开启拼写检查且内置词典仅英语，专有名词/拼音/路径会被画红色波浪线；开关写在编辑区容器上经 spellcheck 属性继承覆盖所见即所得与源码模式，切换即时生效无需重建编辑器
 
+### 导出
+
+- **新增 LaTeX 导出**：导出为独立可编译的 .tex 源码（⋯ 菜单与原生菜单「导出」区进入，不绑快捷键；浏览器模式下载）。公式 $..$ / $$..$$ 原文透传零失真（LaTeX 原生支持）；中文文档自动选用 ctexart 文档类（XeLaTeX 编译），纯西文用 article；图片输出 \includegraphics（相对路径随文件解析、width 属性映射 px 宽度、路径含空格自动 \detokenize）；表格组装为 longtable 三线表（对齐映射列格式）；脚注在引用处内联；Mermaid 图表无离线方案，以注释保留源码。实现上解析管线工厂化（createExportMarkdownIt）：LaTeX 渲染器与 HTML 共享同一解析权威（公式保护 / 图片还原 / 插件集），math_inline 独立 token 类型规避 text_join 合并导致的公式边界丢失；渲染白名单杜绝 HTML 泄漏进 .tex。25 例单测
+
 ### 性能与构建
 
 - 大文档输入路径低优化：逐键同步执行的全量序列化（getMarkdown）+ 恢复副本 localStorage 写入 + 字数统计 + 分屏同步，合并为防抖 800ms 的低优回调（持续输入由 5s 上限兜底、beforeunload 落盘兜底），置脏保持同步 O(1)——368K 文档上序列化单次约 80ms，真实打字期间不再占用输入帧；CPU 剖析工具 `scripts/profile-input.mjs` 入库

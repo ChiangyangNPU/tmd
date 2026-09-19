@@ -101,6 +101,7 @@
     "exportPdf": "列印 / 匯出 PDF",
     "exportWord": "匯出 Word",
     "exportLongimage": "匯出長圖",
+    "exportLatex": "匯出 LaTeX",
     "failed": "匯出失敗，請重試",
     "format": "格式",
     "bold": "粗體",

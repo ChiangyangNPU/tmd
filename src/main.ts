@@ -324,6 +324,10 @@ async function boot() {
       )
       closeMoreMenu()
     })
+    document.getElementById('menu-export-latex-btn')?.addEventListener('click', () => {
+      runExport((m) => m.exportLatex(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')))
+      closeMoreMenu()
+    })
     // 浏览器环境没有离屏渲染能力，隐藏这两项（HTML / PDF 导出仍可用）
     if (!native) {
       for (const id of ['menu-export-word-btn', 'menu-export-longimage-btn']) {
@@ -483,6 +487,8 @@ async function boot() {
               getActiveBaseDir(),
             ),
           ),
+        'export-latex': () =>
+          runExport((m) => m.exportLatex(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))),
         'clear-recent': () => clearRecentDocuments(),
       }
       handlers[action]?.()

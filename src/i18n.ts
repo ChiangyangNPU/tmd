@@ -93,6 +93,7 @@ export function menuLabels(): Record<string, string> {
     exportPdf: t('menu.exportPdf'),
     exportWord: t('menu.exportWord'),
     exportLongimage: t('menu.exportLongimage'),
+    exportLatex: t('menu.exportLatex'),
     format: t('menu.format'),
     bold: t('menu.bold'),
     italic: t('menu.italic'),
