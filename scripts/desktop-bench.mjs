@@ -37,6 +37,17 @@ const WORK = join(tmpdir(), 'tmd-bench')
 const PROFILE = join(WORK, 'profile')
 const HOME_DIR = join(WORK, 'home')
 const DOCS_DIR = join(WORK, 'docs')
+
+/**
+ * 清理临时工作目录。刚 killTree 的 Electron 在 Windows 上可能仍短暂占用
+ * profile 内的文件句柄（EBUSY），带重试的 rm 等锁释放；重试耗尽后降级为
+ * 警告——临时目录残留不应让清理问题掩盖基准结果本身。
+ */
+async function removeWorkDir() {
+  await rm(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
+    (err) => console.warn(`警告：临时目录清理未完成（${err.code ?? err}），可手动删除 ${WORK}`),
+  )
+}
 /** 纯文本文档目标体积 */
 const BIG_TEXT_BYTES = 1024 * 1024
 /** 多图表文档的 Mermaid 数量 */
@@ -50,14 +61,20 @@ const NO_ASSERT = process.argv.includes('--no-assert')
 /**
  * 回归门禁阈值：取实测值的宽松上界，只拦「明显退化」而不追求精确比对
  * （同机不同负载下数值本就有波动）。
+ *
+ * 阈值在开发机上标定（macOS）；不同平台的单核性能差异直接改变绝对耗时
+ * （Windows 实测纯文本输入同步约 77ms vs mac 约 40ms），故时间类门限乘以
+ * 平台系数——门禁的目的是拦同机上的代码退化，不是跨平台比性能。
  */
+const PLATFORM_FACTOR = process.platform === 'win32' ? 1.5 : 1
+
 const LIMITS = {
   /** MB 级文档打开到内容就绪 */
-  maxOpenMs: 3000,
-  /** 滚动帧率下限 */
+  maxOpenMs: 3000 * PLATFORM_FACTOR,
+  /** 滚动帧率下限（帧率类门限不受平台系数影响，45fps 是交互底线） */
   minFps: 45,
   /** 单次输入的同步处理耗时上限 */
-  maxInputSyncMs: 60,
+  maxInputSyncMs: 60 * PLATFORM_FACTOR,
   /** 至少这么多张图时才校验懒渲染契约 */
   lazyCheckMinCharts: 20,
 }
@@ -342,7 +359,7 @@ async function main() {
   }
   cleanupElectron()
   await waitForPortsFree()
-  await rm(WORK, { recursive: true, force: true })
+  await removeWorkDir()
   await mkdir(DOCS_DIR, { recursive: true })
 
   const big = buildBigText(BIG_TEXT_BYTES)
@@ -541,7 +558,7 @@ async function main() {
       cleanupElectron()
       mainCdp?.close()
       rendererCdp?.close()
-      await rm(WORK, { recursive: true, force: true })
+      await removeWorkDir()
       process.exit(1)
     }
   } catch (err) {
@@ -557,7 +574,7 @@ async function main() {
   cleanupElectron()
   mainCdp?.close()
   rendererCdp?.close()
-  await rm(WORK, { recursive: true, force: true })
+  await removeWorkDir()
 }
 
 main()
