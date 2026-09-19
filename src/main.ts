@@ -69,6 +69,7 @@ import {
   getPmView,
   isSourceMode,
   setEditorHooks,
+  flushMarkdownSync,
 } from './editor-core'
 import { initAutosave, setAutosaveOn, stopAutosave } from './autosave'
 import {
@@ -251,15 +252,17 @@ async function boot() {
     applyWritingModes()
     wireTypewriter()
 
-    // 文档变更钩子：保存恢复副本 / 字数 / 脏标记；结构变化刷新大纲
+    // 文档变更钩子：置脏同步每键必做；恢复副本 / 字数走低优合并回调；结构变化刷新大纲
     setEditorHooks({
+      // 置脏同步（O(1)，每键必做）：驱动标签圆点、窗口标题与关闭保护
+      onDocDirty: () => markDirty(),
+      // 低优合并回调（O(n)，至多约 4 次/秒）：恢复副本 + 字数统计。
+      // 恢复副本走原始序列化串：与 currentMarkdown 同做空单元格规范化，
+      // 避免 <br /> 占位（及其连带的转义伪影）经恢复副本污染文档
       onMarkdownChange: (md) => {
-        // 恢复副本走原始序列化串：与 currentMarkdown 同做空单元格规范化，
-        // 避免 <br /> 占位（及其连带的转义伪影）经恢复副本污染文档
         const clean = normalizeEmptyTableCells(md)
         saveDoc(clean)
         updateWordCount(clean)
-        markDirty()
       },
       onDocUpdate: (doc) => {
         const list = document.getElementById('outline-list')
@@ -531,8 +534,10 @@ async function boot() {
     native?.syncShortcuts(loadShortcuts())
     // 就绪信号：主进程补发排队中的待打开文件
     native?.ready()
-    // 干净退出（无未保存内容）时清除恢复副本并停掉自动保存定时器
+    // 干净退出（无未保存内容）时清除恢复副本并停掉自动保存定时器；
+    // 退出前先把挂起中的低优序列化落盘，保证恢复副本覆盖到最后一次输入
     window.addEventListener('beforeunload', () => {
+      flushMarkdownSync()
       stopAutosave()
       if (!hasDirty()) clearDoc()
     })

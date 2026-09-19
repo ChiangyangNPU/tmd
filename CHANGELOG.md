@@ -17,6 +17,7 @@
 
 ### 性能与构建
 
+- 大文档输入路径低优化：逐键同步执行的全量序列化（getMarkdown）+ 恢复副本 localStorage 写入 + 字数统计 + 分屏同步，合并为防抖 800ms 的低优回调（持续输入由 5s 上限兜底、beforeunload 落盘兜底），置脏保持同步 O(1)——368K 文档上序列化单次约 80ms，真实打字期间不再占用输入帧；CPU 剖析工具 `scripts/profile-input.mjs` 入库
 - 主窗口启动 JS 减重约 34%（2.43MB → 1.6MB）：导出管线（约 1.5MB 共享分包，markdown-it/KaTeX 等）原被主窗口 modulepreload 启动即解析，改为点击导出菜单时动态加载；mermaid 核心（约 696KB）原被主窗口与离屏导出页两个入口静态共享，改为两侧首次遇到图表时动态加载，文档无图表则完全不加载
 - 移除零引用依赖 `@milkdown/plugin-diagram` 与冗余直依赖 `refractor`（为 `@milkdown/plugin-prism` 的传递依赖，无需直接声明）
 - 桌面 E2E harness 跨平台：electron 二进制改经 `require('electron')` 解析直连（原 `.bin/electron` 包装脚本在 Windows 上无法 spawn），Windows 可完整跑通 `test:desktop`（25 + 31 断言）

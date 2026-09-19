@@ -67,17 +67,73 @@ let syncing = false
 let pmSyncTimer: number | undefined
 let cmSyncTimer: number | undefined
 
-/** 文档变更钩子（main.ts 装配） */
+/**
+ * 文档变更钩子（main.ts 装配）。
+ *
+ * 变更分两路通知：onDocDirty 同步回调（O(1)、每键必做——置脏驱动关闭保护与
+ * 标签圆点）；onMarkdownChange 由本模块合并调度（O(文档大小) 的序列化在低优
+ * 时段执行，见 scheduleMarkdownSync），恢复副本 / 字数统计 / 分屏同步等 O(n)
+ * 消费者挂这里。onDocUpdate 同步携带 doc 节点引用（无序列化），大纲等消费
+ * 者按需取舍。
+ */
 interface EditorHooks {
+  onDocDirty: () => void
   onMarkdownChange: (markdown: string) => void
   onDocUpdate: (doc: ProseNode) => void
 }
 
-let hooks: EditorHooks = { onMarkdownChange: () => {}, onDocUpdate: () => {} }
+let hooks: EditorHooks = { onDocDirty: () => {}, onMarkdownChange: () => {}, onDocUpdate: () => {} }
 
 /** 注入文档变更钩子（main.ts 装配时调用一次） */
 export function setEditorHooks(next: EditorHooks) {
   hooks = next
+}
+
+// ---------------------------------------------------------------------------
+// 变更序列化的低优合并调度
+// ---------------------------------------------------------------------------
+
+/** 输入暂停该时长后序列化一次：连续输入期间 O(n) 序列化完全不占输入帧 */
+const MD_SYNC_DEBOUNCE_MS = 800
+/** 持续输入下恢复副本的最大滞后：超过即强制落一次（与磁盘自动保存 5s 同数量级） */
+const MD_SYNC_MAX_STALE_MS = 5000
+let mdSyncTimer: number | undefined
+/** 本轮合并窗口内首个待处理变更的时间（用于计算是否超过最大滞后） */
+let mdSyncFirstPendingAt = Infinity
+
+/**
+ * 安排一次「当前文档 → markdown」序列化并回调 onMarkdownChange。
+ *
+ * milkdown 的 markdownUpdated 回调逐键全量序列化，368K 文档上单次约 90ms，
+ * 逐键执行占了大文档输入延迟的大头（实测 78ms）。序列化无法增量，故改为
+ * 防抖合并：输入暂停 500ms 后落一次，连续输入期间不占任何输入帧；上限 5s
+ * 强制落一次（与磁盘自动保存同数量级），恢复副本不被连续输入饿死。
+ */
+function scheduleMarkdownSync() {
+  const now = performance.now()
+  if (mdSyncFirstPendingAt === Infinity) mdSyncFirstPendingAt = now
+  // 防抖重排：每次按键推倒重来；自首个待处理变更起超过上限则立即落（防饿死）
+  const waited = now - mdSyncFirstPendingAt
+  const delay = Math.max(0, Math.min(MD_SYNC_DEBOUNCE_MS, MD_SYNC_MAX_STALE_MS - waited))
+  if (mdSyncTimer !== undefined) window.clearTimeout(mdSyncTimer)
+  mdSyncTimer = window.setTimeout(runMarkdownSync, delay)
+}
+
+/** 立即执行挂起的序列化（防抖到期或最大滞后兜底时调用） */
+function runMarkdownSync() {
+  mdSyncTimer = undefined
+  mdSyncFirstPendingAt = Infinity
+  // 编辑器已销毁（换标签 / 关窗的间隙）：跳过本次，不把空串写进恢复副本
+  if (!editor) return
+  const md = pmMarkdown()
+  // 分屏且所见即所得为编辑侧时，把改动同步给只读的源码栏（内部自带防抖）
+  syncPmToSource(md)
+  hooks.onMarkdownChange(md)
+}
+
+/** 立即落掉挂起中的序列化（窗口关闭前调用，保证恢复副本覆盖到最后一次输入） */
+export function flushMarkdownSync() {
+  if (mdSyncTimer !== undefined) runMarkdownSync()
 }
 
 /** 取当前 ProseMirror 视图实例（编辑器未挂载时为 null） */
@@ -149,13 +205,12 @@ async function createEditor(markdown: string): Promise<Editor> {
         // table；code_block 仍保留（代码块内硬换行无意义，由代码块自行处理按键）
         // $ctx 产物是 plugin 函数，SliceType 挂在其 .key 上（update 第二参为 updater）
         ctx.update(hardbreakFilterNodes.key, () => ['code_block'])
-        ctx.get(listenerCtx).markdownUpdated((_ctx, md, _prev) => {
-          // 分屏且所见即所得为编辑侧时，把改动同步给只读的源码栏
-          syncPmToSource(md)
-          hooks.onMarkdownChange(md)
-        })
+        // 文档变更通知拆两路（见 EditorHooks）：置脏同步 O(1)；序列化合并低优调度——
+        // markdownUpdated 回调逐键全量 getMarkdown 曾占大文档输入延迟的大头（§26.3）
         ctx.get(listenerCtx).updated((_ctx, doc) => {
+          hooks.onDocDirty()
           hooks.onDocUpdate(doc)
+          scheduleMarkdownSync()
         })
       })
       // 仅输入规则最先注册：文档开头输入 --- 要先于 commonmark 的水平线规则

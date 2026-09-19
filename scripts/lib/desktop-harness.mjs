@@ -239,6 +239,15 @@ export function killTree(child) {
 }
 
 /** 清理可能残留的孤儿 Electron 进程（每轮启动前调用） */
+/** 清理可能残留的孤儿 Electron 进程（每轮启动前调用）。
+ * 仅杀命令行含本仓库 electron 路径的进程（pkill 在 Windows 不存在，
+ * 改用 PowerShell 按 CommandLine 过滤后按 PID 精确终止）。 */
 export function cleanupElectron() {
+  if (process.platform === 'win32') {
+    const marker = 'tmd\\node_modules\\electron'
+    const ps = `Get-CimInstance Win32_Process -Filter "Name='electron.exe'" | Where-Object { $_.CommandLine -like '*${marker}*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`
+    spawnSync('powershell', ['-NoProfile', '-Command', ps])
+    return
+  }
   spawnSync('pkill', ['-f', 'tmd/node_modules/electron'])
 }
