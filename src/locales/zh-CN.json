@@ -76,7 +76,8 @@
     "wordCount": "{count} 字"
   },
   "dialog": {
-    "closeConfirm": "「{name}」有未保存的修改，确定关闭吗？"
+    "closeConfirm": "「{name}」有未保存的修改，确定关闭吗？",
+    "closeBulkConfirm": "有 {count} 个标签页未保存，关闭后将丢弃这些修改，确定关闭吗？"
   },
   "boot": {
     "failed": "编辑器启动失败："
@@ -138,6 +139,14 @@
     "inlineCode": "行内代码",
     "link": "链接…",
     "removeLink": "移除链接"
+  },
+  "tabMenu": {
+    "close": "关闭标签页",
+    "closeOthers": "关闭其他标签页",
+    "closeLeft": "关闭左侧标签页",
+    "closeRight": "关闭右侧标签页",
+    "closeSaved": "关闭已保存的标签页",
+    "closeAll": "关闭所有标签页"
   },
   "qs": {
     "placeholder": "搜索文件名，回车打开",

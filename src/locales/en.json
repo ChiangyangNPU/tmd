@@ -76,7 +76,8 @@
     "wordCount": "{count} chars"
   },
   "dialog": {
-    "closeConfirm": "\"{name}\" has unsaved changes. Close anyway?"
+    "closeConfirm": "\"{name}\" has unsaved changes. Close anyway?",
+    "closeBulkConfirm": "{count} tab(s) have unsaved changes and will be lost. Close anyway?"
   },
   "boot": {
     "failed": "Editor failed to start: "
@@ -138,6 +139,14 @@
     "inlineCode": "Inline Code",
     "link": "Link…",
     "removeLink": "Remove Link"
+  },
+  "tabMenu": {
+    "close": "Close Tab",
+    "closeOthers": "Close Other Tabs",
+    "closeLeft": "Close Tabs to the Left",
+    "closeRight": "Close Tabs to the Right",
+    "closeSaved": "Close Saved Tabs",
+    "closeAll": "Close All Tabs"
   },
   "qs": {
     "placeholder": "Search files by name, Enter to open",

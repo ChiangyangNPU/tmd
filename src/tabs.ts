@@ -134,6 +134,8 @@ export function renderTabs() {
   for (const tab of tabs) {
     const el = document.createElement('div')
     el.className = `tab${tab.id === activeTabId ? ' active' : ''}`
+    // 右键菜单按 id 定位标签（DOM 每次重绘重建，不能靠元素引用）
+    el.dataset.tabId = tab.id
     const label = document.createElement('span')
     label.textContent = `${tab.dirty ? '• ' : ''}${tab.name}`
     const close = document.createElement('button')
@@ -223,6 +225,56 @@ export async function closeTab(id: string) {
       await destroyEditor()
       newTab(nextUntitledName(), '')
       await activateTab(tabs[0].id)
+    }
+  }
+  renderTabs()
+  updateTitle()
+}
+
+/**
+ * 批量关闭标签页（标签右键菜单的关闭其他/左侧/右侧/已保存/全部共用）。
+ *
+ * - 确认：整批只弹一次——待关闭标签中有脏页时按数量确认，用户同意后全部
+ *   直接丢弃，不再逐个弹窗；单标签的确认文案见 closeTab（带文件名，用于"关闭"项）
+ * - 激活链路：当前激活标签被关闭时优先激活幸存的锚点标签（右键对象，如
+ *   "关闭其他"语义上应留在原地），否则激活紧邻被关区域的标签；全部关完时
+ *   走 closeTab 同款的"关最后一个标签"链路（桌面关窗口 / 浏览器回空白页）
+ * @param ids 待关闭的标签 id 列表
+ * @param anchorId 右键锚点标签 id（幸存时优先激活；可省略）
+ */
+export async function closeTabsBulk(ids: string[], anchorId?: string) {
+  const targets = ids
+    .map((id) => tabs.find((tb) => tb.id === id))
+    .filter((tb): tb is DocTab => !!tb)
+  if (!targets.length) return
+  const dirtyCount = targets.filter((tb) => tb.dirty).length
+  if (dirtyCount > 0 && !window.confirm(t('dialog.closeBulkConfirm', { count: dirtyCount }))) return
+
+  const firstIndex = Math.min(...targets.map((tb) => tabs.indexOf(tb)))
+  const anchor = anchorId ? tabs.find((tb) => tb.id === anchorId) : undefined
+  const activeClosed = targets.some((tb) => tb.id === activeTabId)
+
+  for (const tb of targets) tabs.splice(tabs.indexOf(tb), 1)
+
+  if (activeClosed) {
+    activeTabId = null
+    if (anchor && !targets.includes(anchor)) {
+      await activateTab(anchor.id)
+    } else {
+      const next = tabs[Math.min(firstIndex, tabs.length - 1)]
+      if (next) {
+        await activateTab(next.id)
+      } else if (native) {
+        // 全部关闭：与 closeTab 的最后一个标签同款（Mac 惯例，应用留在后台）
+        await destroyEditor()
+        window.close()
+        return
+      } else {
+        await destroyEditor()
+        newTab(nextUntitledName(), '')
+        await activateTab(tabs[0].id)
+        return
+      }
     }
   }
   renderTabs()

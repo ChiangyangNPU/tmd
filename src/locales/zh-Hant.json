@@ -76,7 +76,8 @@
     "wordCount": "{count} 字"
   },
   "dialog": {
-    "closeConfirm": "「{name}」有尚未儲存的變更，確定要關閉嗎？"
+    "closeConfirm": "「{name}」有尚未儲存的變更，確定要關閉嗎？",
+    "closeBulkConfirm": "有 {count} 個分頁尚未儲存，關閉後將遺失這些變更，確定要關閉嗎？"
   },
   "boot": {
     "failed": "編輯器啟動失敗："
@@ -138,6 +139,14 @@
     "inlineCode": "行內程式碼",
     "link": "連結…",
     "removeLink": "移除連結"
+  },
+  "tabMenu": {
+    "close": "關閉分頁",
+    "closeOthers": "關閉其他分頁",
+    "closeLeft": "關閉左側分頁",
+    "closeRight": "關閉右側分頁",
+    "closeSaved": "關閉已儲存的分頁",
+    "closeAll": "關閉所有分頁"
   },
   "qs": {
     "placeholder": "搜尋檔案名稱，按 Enter 開啟",

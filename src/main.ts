@@ -51,6 +51,7 @@ import {
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
+import { wireTabMenu } from './tab-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
 import { openSearch, closeSearch, wireSearch } from './search'
@@ -457,6 +458,8 @@ async function boot() {
     wireFindBar()
     wireLinkBar()
     wireContextMenu()
+    // 标签栏右键菜单：关闭当前/其他/左侧/右侧/已保存/全部
+    wireTabMenu()
     wireQuickSwitch()
     wireSearch()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步

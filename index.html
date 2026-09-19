@@ -124,6 +124,27 @@
       </button>
     </div>
 
+    <!-- 标签栏右键菜单：批量关闭入口（可用性由 tab-menu.ts 按右键位置动态置灰） -->
+    <div id="tab-context-menu" class="more-menu context-menu" hidden>
+      <button class="menu-item" data-tm-action="close" data-i18n="tabMenu.close">关闭标签页</button>
+      <button class="menu-item" data-tm-action="closeOthers" data-i18n="tabMenu.closeOthers">
+        关闭其他标签页
+      </button>
+      <button class="menu-item" data-tm-action="closeLeft" data-i18n="tabMenu.closeLeft">
+        关闭左侧标签页
+      </button>
+      <button class="menu-item" data-tm-action="closeRight" data-i18n="tabMenu.closeRight">
+        关闭右侧标签页
+      </button>
+      <div class="menu-sep"></div>
+      <button class="menu-item" data-tm-action="closeSaved" data-i18n="tabMenu.closeSaved">
+        关闭已保存的标签页
+      </button>
+      <button class="menu-item" data-tm-action="closeAll" data-i18n="tabMenu.closeAll">
+        关闭所有标签页
+      </button>
+    </div>
+
     <div id="qs-overlay" class="qs-overlay" hidden>
       <div class="qs-panel">
         <input

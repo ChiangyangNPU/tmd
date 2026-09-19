@@ -191,6 +191,14 @@ html.win .win-controls {
   font-size: 11px;
 }
 
+/* 菜单禁用项（如第一个标签上的「关闭左侧」）：置灰且不响应点击 */
+.menu-item.disabled {
+  color: var(--muted);
+  opacity: 0.55;
+  cursor: default;
+  pointer-events: none;
+}
+
 .menu-sep {
   height: 1px;
   margin: 6px 8px;

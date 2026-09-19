@@ -34,7 +34,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
   - Stale render requests are discarded (sequence guard), so fast continuous typing never flashes old diagrams
 - Math formulas (KaTeX: `$...$` inline / `$$...$$` block, rendered in real time)
 - Code block syntax highlighting (`@milkdown/plugin-prism` + refractor; entering the block edits the source code, consistent with Typora)
-- Multi-tab: same-path dedup, unsaved marker (`•`), per-tab scroll position memory
+- Multi-tab: same-path dedup, unsaved marker (`•`), per-tab scroll position memory; tab context menu to close current/other/left/right/saved/all tabs (one batch confirmation when unsaved tabs are involved)
 - Source mode (CodeMirror 6 full-document editing with built-in search panel)
 - Find & replace (decorator-based highlighting in WYSIWYG mode, replace current / replace all)
 - Outline panel (headings level 1-3, click to jump) and TOC block (GitHub-style anchors)
