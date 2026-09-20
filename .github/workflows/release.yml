@@ -6,7 +6,7 @@
 # - publish job（单 job 统一两处发布，避免双端发布竞态）：
 #   1. gh CLI 创建 GitHub Release（保持草稿态，正文取当前版本小节）
 #      并上传双平台产物 + 更新元数据
-#   2. latest*.yml 推 Gitee 仓库 releases/ 目录（generic provider raw URL）
+#   2. latest*.yml 经 git push 推 Gitee 仓库 releases/ 目录（generic provider raw URL）
 #   3. 创建 Gitee Release（正文取 CHANGELOG 当前版本节对应产物说明）并传附件
 #      —— dmg 转 ULMO 后已低于 100MB 上限，双平台附件齐全
 #
@@ -126,41 +126,36 @@ jobs:
             exit 1
           fi
 
-          TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
+          # tag 触发取 ref 名；手动触发（workflow_dispatch）的 ref 是分支名，回退用 v+版本号
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
           echo "Publishing to Gitee tag: $TAG"
 
           # 1. 上传元数据 (latest*.yml) 到仓库 releases/ 目录
-          #    分支必须用 master：Gitee 仓库默认分支不是 main，写错会静默失败
-          for yml in release/latest*.yml; do
-            [ -f "$yml" ] || continue
-            name=$(basename "$yml")
-            echo "Uploading $name to Gitee repo releases/"
-            CONTENT=$(base64 -w 0 "$yml")
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT \
-              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/contents/releases/$name" \
-              -F "access_token=$GITEE_TOKEN" \
-              -F "message=chore: update $name for $TAG" \
-              -F "content=$CONTENT" \
-              -F "branch=master")
-            if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "201" ]; then
-              echo "Update failed ($HTTP_CODE), trying create..."
-              CREATE_CODE=$(curl -s -o /tmp/create-resp.json -w "%{http_code}" -X POST \
-                "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/contents" \
-                -F "access_token=$GITEE_TOKEN" \
-                -F "message=chore: add $name for $TAG" \
-                -F "content=$CONTENT" \
-                -F "branch=master" \
-                -F "path=releases/$name")
-              if [ "$CREATE_CODE" != "200" ] && [ "$CREATE_CODE" != "201" ]; then
-                echo "::error::Failed to publish $name to Gitee releases/ (HTTP $CREATE_CODE): $(cat /tmp/create-resp.json)"
-                exit 1
-              fi
-            fi
-          done
+          #    用 git 协议而非 contents API：Gitee 该 API 对 CI 客户端持续返回
+          #    405（POST 需把 path 放进 URL，PUT 另有反爬拦截，实测双双不通，
+          #    且该路径历史上从未有提交成功），git push 更可靠。
+          #    分支必须用 master：Gitee 仓库默认分支不是 main，写错会失败
+          git clone --depth 1 "https://oauth2:${GITEE_TOKEN}@gitee.com/$GITEE_OWNER/$GITEE_REPO.git" /tmp/gitee-meta
+          mkdir -p /tmp/gitee-meta/releases
+          cp release/latest*.yml /tmp/gitee-meta/releases/
+          git -C /tmp/gitee-meta config user.name "github-actions[bot]"
+          git -C /tmp/gitee-meta config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C /tmp/gitee-meta add releases/
+          if git -C /tmp/gitee-meta diff --cached --quiet; then
+            echo "元数据无变化，跳过推送"
+          else
+            git -C /tmp/gitee-meta commit -m "chore: update release metadata for $TAG"
+            git -C /tmp/gitee-meta push origin master
+            echo "元数据已推送 Gitee releases/"
+          fi
 
           # 2. 创建 Gitee Release（正文取 CHANGELOG.md，与 GitHub Release 保持一致）
           RELEASE_BODY=$(cat CHANGELOG.md 2>/dev/null || echo "See GitHub Release for details")
-          RELEASE_RESP=$(curl -s -X POST \
+          RELEASE_RESP=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -X POST \
             "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
             -F "access_token=$GITEE_TOKEN" \
             -F "tag_name=$TAG" \
@@ -185,7 +180,7 @@ jobs:
             name=$(basename "$f")
             size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
             echo "Uploading $name (${size_mb}MB) to Gitee Release"
-            HTTP_CODE=$(curl -s -o /tmp/attach-resp.json -w "%{http_code}" -X POST \
+            HTTP_CODE=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -o /tmp/attach-resp.json -w "%{http_code}" -X POST \
               "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
               -F "access_token=$GITEE_TOKEN" \
               -F "file=@$f")
