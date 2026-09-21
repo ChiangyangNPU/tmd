@@ -135,6 +135,7 @@ async function main() {
         continue
       }
       const asset = assets.find((a) => a.name === name)
+      if (!asset) throw new Error(`GitHub Release 中找不到 ${name} 的下载地址`)
       const fromGithub = curlGet(asset.url)
       if (fromGithub.status !== 200) {
         throw new Error(
