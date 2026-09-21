@@ -1,23 +1,23 @@
-# 发布工作流：push tag (v*) 触发，双平台打包并发布。
-# - macOS arm64 + Windows x64（electron-builder --publish never 只构建不发布）
+# 发布工作流：push tag (v*) 触发，双平台打包并发布到 GitHub Release。
+#
+# 分工（方案 C）：CI 只负责 GitHub；Gitee 由本地手动发布（详见 docs/打包发布.md §9）
+# - 为什么 Gitee 不放在 CI：GitHub Actions runner 在海外，到 Gitee 的跨国链路
+#   实测传输 170MB 附件需 1 小时以上（本地网络仅需分钟级），且 Gitee 对海外
+#   IP 的 contents API 有 405 反爬拦截。CI 直推 Gitee master 还会造成仓库分叉
+#   （远程多出元数据提交，本地 push 被拒），本地手动提交则天然双端一致
+#
+# - macOS arm64 + Windows x64 并行构建（--publish never，只构建不发布）
 # - mac job 构建后把 dmg 转 ULMO 压缩（实测约 103MB → 85MB，
 #   scripts/patch-mac-dmg.mjs），连带重算 latest-mac.yml 的 sha512/size
 #   并删除过期 blockmap（差量索引与新文件不匹配，删除后更新器对 404 回退全量）
-# - publish job（单 job 统一两处发布，避免双端发布竞态）：
-#   1. gh CLI 创建 GitHub Release（保持草稿态，正文取当前版本小节）
-#      并上传双平台产物 + 更新元数据
-#   2. latest*.yml 经 git push 推 Gitee 仓库 releases/ 目录（generic provider raw URL）
-#   3. 创建 Gitee Release（正文取 CHANGELOG 当前版本节对应产物说明）并传附件
-#      —— dmg 转 ULMO 后已低于 100MB 上限，双平台附件齐全
+# - publish job：下载双平台 artifact，gh CLI 创建 GitHub Release（正文取当前
+#   版本小节）并上传全部产物——**直接发布，不用草稿**（草稿对 electron-updater
+#   不可见，会卡住 GitHub 源的自动更新）
 #
 # 注意：
-# - Gitee 需在仓库 Settings → Secrets 配置 GITEE_TOKEN
-# - Gitee 仓库默认分支是 master，内容/Release API 的 branch 与 target_commitish
-#   都必须用 master（用 main 会静默失败，releases/*.yml 永远写不进去）
-# - Gitee 附件单文件上限 100MB（免费版配额）；附件上传失败一律让 job 失败，
-#   避免「CI 全绿但产物缺失」（曾发生 dmg 116MB 被丢弃却无人察觉）
-# - GitHub Release 保持草稿态（与 electron-builder 时代的默认 releaseType 一致），
-#   人工核对后点 Publish 对外可见
+# - 发版前把 CHANGELOG 的 [未发布] 转正（CI 以 --strict 强制校验，缺失即失败）
+# - Gitee 发布由本地执行：npm run dist 打包后运行 scripts/prepare-gitee-release.mjs
+#   生成待上传清单与元数据，按 docs/打包发布.md §9 操作
 
 name: Release
 
@@ -107,94 +107,10 @@ jobs:
           TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
           echo "Publishing to GitHub Release: $TAG"
           gh release view "$TAG" >/dev/null 2>&1 || \
-            gh release create "$TAG" --draft --title "$TAG" --notes-file .release-notes.md
+            gh release create "$TAG" --title "$TAG" --notes-file .release-notes.md
           for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
             [ -f "$f" ] || continue
             gh release upload "$TAG" "$f" --clobber
           done
           echo "GitHub Release assets updated"
 
-      # ---------- Gitee ----------
-      - name: Upload to Gitee
-        env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
-          GITEE_OWNER: ChiangyangNPU
-          GITEE_REPO: tmd
-        run: |
-          if [ -z "$GITEE_TOKEN" ]; then
-            echo "::error::GITEE_TOKEN is not set, cannot publish to Gitee (see repo Settings → Secrets)"
-            exit 1
-          fi
-
-          # tag 触发取 ref 名；手动触发（workflow_dispatch）的 ref 是分支名，回退用 v+版本号
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            TAG="$GITHUB_REF_NAME"
-          else
-            TAG="v$(node -p "require('./package.json').version")"
-          fi
-          echo "Publishing to Gitee tag: $TAG"
-
-          # 1. 上传元数据 (latest*.yml) 到仓库 releases/ 目录
-          #    用 git 协议而非 contents API：Gitee 该 API 对 CI 客户端持续返回
-          #    405（POST 需把 path 放进 URL，PUT 另有反爬拦截，实测双双不通，
-          #    且该路径历史上从未有提交成功），git push 更可靠。
-          #    分支必须用 master：Gitee 仓库默认分支不是 main，写错会失败
-          git clone --depth 1 "https://oauth2:${GITEE_TOKEN}@gitee.com/$GITEE_OWNER/$GITEE_REPO.git" /tmp/gitee-meta
-          mkdir -p /tmp/gitee-meta/releases
-          cp release/latest*.yml /tmp/gitee-meta/releases/
-          git -C /tmp/gitee-meta config user.name "github-actions[bot]"
-          git -C /tmp/gitee-meta config user.email "github-actions[bot]@users.noreply.github.com"
-          git -C /tmp/gitee-meta add releases/
-          if git -C /tmp/gitee-meta diff --cached --quiet; then
-            echo "元数据无变化，跳过推送"
-          else
-            git -C /tmp/gitee-meta commit -m "chore: update release metadata for $TAG"
-            git -C /tmp/gitee-meta push origin master
-            echo "元数据已推送 Gitee releases/"
-          fi
-
-          # 2. 创建 Gitee Release（正文取 CHANGELOG.md，与 GitHub Release 保持一致）
-          RELEASE_BODY=$(cat CHANGELOG.md 2>/dev/null || echo "See GitHub Release for details")
-          RELEASE_RESP=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -X POST \
-            "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
-            -F "access_token=$GITEE_TOKEN" \
-            -F "tag_name=$TAG" \
-            -F "name=$TAG" \
-            --form-string "body=$RELEASE_BODY" \
-            -F "target_commitish=master")
-          RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
-          if [ -z "$RELEASE_ID" ]; then
-            echo "Failed to create Gitee Release, response: $RELEASE_RESP"
-            exit 1
-          fi
-          echo "Created Gitee Release ID: $RELEASE_ID"
-
-          # 3. 上传大文件到 Release 附件
-          #    Gitee 附件单文件上限 100MB：超限会被服务端拒绝。此处必须显性失败，
-          #    否则会出现「CI 全绿但产物静默缺失」（曾发生 dmg 116MB 被丢弃却无人察觉）。
-          #    dmg 已在构建后转 ULMO 压缩（约 85MB）在限内；若未来体积回升越限，
-          #    此处依旧显性报错而非静默跳过
-          ATTACH_FAILED=0
-          for f in release/*.dmg release/*.exe release/*.blockmap; do
-            [ -f "$f" ] || continue
-            name=$(basename "$f")
-            size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
-            echo "Uploading $name (${size_mb}MB) to Gitee Release"
-            HTTP_CODE=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -o /tmp/attach-resp.json -w "%{http_code}" -X POST \
-              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
-              -F "access_token=$GITEE_TOKEN" \
-              -F "file=@$f")
-            HTTP_CODE=${HTTP_CODE:-000}
-            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
-              echo "::error::Gitee attach failed for $name (HTTP $HTTP_CODE): $(cat /tmp/attach-resp.json)"
-              if [ "$size_mb" -gt 100 ]; then
-                echo "::error::$name is ${size_mb}MB, exceeds Gitee's 100MB per-attachment limit"
-              fi
-              ATTACH_FAILED=1
-            fi
-          done
-          if [ "$ATTACH_FAILED" -ne 0 ]; then
-            echo "::error::One or more assets were not attached to the Gitee Release"
-            exit 1
-          fi
-          echo "Gitee upload complete"
