@@ -2,7 +2,7 @@
 
 本文件记录 TMD 的版本发布历史，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## [0.1.0] - 2026-09-19
+## [0.1.0] - 2026-09-21
 
 首个正式发布版本：跨平台（macOS / Windows）Markdown 所见即所得编辑器，交互对标 Typora，核心特性为 Mermaid 图表的实时渲染。
 
@@ -32,6 +32,7 @@
 - 本地历史版本：每次写盘前自动留存被覆盖的旧内容到 `~/.tmd/history`（内容未变不重复留档，每文件 50 条 + 全局 200MB 自动清理），可列出快照、预览并恢复到编辑器
 - 自动保存（5 秒周期写回，设置面板与菜单共用开关）
 - 相对路径图片按文档所在目录解析显示（文档数据保持相对路径）
+- 修复文档打开时相对路径图片首帧不显示：ImageView 视图工厂补传 ProseMirror 构造期 decorations（此前首帧拿不到解析后的 `file://` 地址、只显示 alt 文本，点击图片才恢复）；图片目录变化时向存活视图派发 meta 事务立即重算（覆盖编辑器先于目录设置的时序）；alt/title 为空时回退空串，避免 DOM 属性出现 `"null"` 气泡
 
 ### 导出
 
@@ -83,19 +84,19 @@
 - **安装包再瘦身**：Chromium UI pak 裁剪与 app.asar 排除冗余构建产物（afterPack），mac dmg 从 0.1.0 的约 116MB 降至 103MB，为后续 ULMO 压缩过线铺路；修正运行时 Gitee 更新源分支名（main → master，此前元数据 404 会导致 Gitee 源自动更新失效）
 - **dmg 体积治理**：构建后自动把 dmg 从 UDBZ 转 ULMO 压缩（scripts/patch-mac-dmg.mjs，hdiutil），实测约 103MB → 85MB，过 Gitee 附件 100MB 上限——Gitee Release 从此双平台产物齐全；dmg 的差量 blockmap 随转换失效已移除（mac 未签名场景自动更新回退全量下载，无实际影响）
 - **安装窗口定制**：dmg 卷名改为干净的 "TMD"（桌面图标不再带版本号尾巴）；安装窗口改用自定义背景图——标题 "TMD"、当前版本号与拖拽箭头（构建时由脚本按 package.json 版本自动生成 SVG 并经 qlmanage 栅格化，版本变化自动跟上）；图标位经 dmg.contents 对称定于窗口中线两侧（默认坐标按 540 宽窗口设计，660 窗口下偏左）
-- **Gitee 双通路发布**：CI 自动上传保留（大文件并行传提升吞吐、低速保护放宽到 15 分钟低于 512B/s 才放弃、步骤 330 分钟 / job 350 分钟贴近 runner 6 小时硬上限），并新增本地快速通道 `npm run release:gitee`（分钟级：从 GitHub Release 拉元数据、url 绝对化为 Gitee 附件地址——否则更新器按 baseUrl 拼接会去 raw 目录找安装包 404；CI 超时或失败时用于兜底补发）
+- **Gitee 双通路发布**：CI 自动上传保留（大文件并行传提升吞吐、低速保护放宽到 15 分钟低于 512B/s 才放弃、步骤 355 分钟 / job 360 分钟（取满 runner 6 小时硬上限）），并新增本地快速通道 `npm run release:gitee`（分钟级：从 GitHub Release 拉元数据、url 绝对化为 Gitee 附件地址——否则更新器按 baseUrl 拼接会去 raw 目录找安装包 404；CI 超时或失败时用于兜底补发）
 - **GitHub Release 改直接发布**：去掉草稿态——草稿对 electron-updater 不可见会把 GitHub 源的自动更新卡住，公开页面也看不到产物
 - **发布工作流重构**：build / publish 两 job 分离（`--publish never` 构建 + gh CLI 统一发布），消除产物后处理与 electron-builder 异步上传队列的竞态
 - **更新说明精准化**：releaseNotes 改由脚本从 CHANGELOG 提取当前版本小节（`.release-notes.md`），CI 以 `--strict` 前置校验——`[未发布]` 未转正则发版直接失败，更新弹窗不再出现整份变更历史
 
 ### 性能与构建
 
-
 - 大文档输入路径低优化：逐键同步执行的全量序列化（getMarkdown）+ 恢复副本 localStorage 写入 + 字数统计 + 分屏同步，合并为防抖 800ms 的低优回调（持续输入由 5s 上限兜底、beforeunload 落盘兜底），置脏保持同步 O(1)——368K 文档上序列化单次约 80ms，真实打字期间不再占用输入帧；CPU 剖析工具 `scripts/profile-input.mjs` 入库
 - 主窗口启动 JS 减重约 34%（2.43MB → 1.6MB）：导出管线（约 1.5MB 共享分包，markdown-it/KaTeX 等）原被主窗口 modulepreload 启动即解析，改为点击导出菜单时动态加载；mermaid 核心（约 696KB）原被主窗口与离屏导出页两个入口静态共享，改为两侧首次遇到图表时动态加载，文档无图表则完全不加载
 - 移除零引用依赖 `@milkdown/plugin-diagram` 与冗余直依赖 `refractor`（为 `@milkdown/plugin-prism` 的传递依赖，无需直接声明）
 - 新增日常 CI（`.github/workflows/ci.yml`）：push master/main 与 PR 自动跑 lint / 类型检查 / 单测 / 构建（约 3 分钟），与 tag 触发的发布工作流互补——质量门禁不依赖本地自觉（详见打包发布 §8）
 - 桌面 E2E harness 跨平台：electron 二进制改经 `require('electron')` 解析直连（原 `.bin/electron` 包装脚本在 Windows 上无法 spawn），Windows 可完整跑通 `test:desktop`（25 + 31 断言）
+- Windows 开发环境补充：`npm run dist` 在非 macOS 平台跳过 dmg 背景图生成（qlmanage/hdiutil 为 macOS 专有命令），Windows 上可直接打包
 
 ### 重构（无功能变化）
 
