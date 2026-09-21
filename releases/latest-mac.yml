@@ -1,9 +1,9 @@
 version: 0.1.0
 files:
-  - url: TMD-0.1.0-arm64.dmg
+  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-arm64.dmg
     sha512: in1/bk14NPbWUlfRP+tJ7UNewlwkdfTO9OyG2X8YLzTdDEDJZ5VePhVUYNukzLP/a8j53W4rJpRd4TjcHv0Y4A==
     size: 85237057
-path: TMD-0.1.0-arm64.dmg
+path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-arm64.dmg
 sha512: in1/bk14NPbWUlfRP+tJ7UNewlwkdfTO9OyG2X8YLzTdDEDJZ5VePhVUYNukzLP/a8j53W4rJpRd4TjcHv0Y4A==
 releaseNotes: |
   ## [0.1.0] - 2026-09-19

@@ -25,6 +25,7 @@
  *
  * @author chiangyang
  */
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -63,21 +64,36 @@ function reposOf(pkg) {
 }
 
 /**
+ * 用 curl 发起 GET（Node 内置 fetch 不读系统/环境代理，国内直连 GitHub 常失败；
+ * curl 尊重 http_proxy 等配置，且 macOS / Windows 10+ 均自带）。
+ * @param {string} url
+ * @returns {{ status: number, body: string }} HTTP 状态码与响应体
+ */
+function curlGet(url) {
+  const out = execFileSync('curl', ['-sL', '--max-time', '120', '-w', '\n%{http_code}', url], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const idx = out.lastIndexOf('\n')
+  return { status: Number(out.slice(idx + 1)), body: out.slice(0, idx) }
+}
+
+/**
  * 取 GitHub Release 的 assets 列表（公开 API，未认证限 60 次/小时，本脚本仅调用一次）
  * @param {{ owner: string, repo: string }} repoRef
  * @param {string} tag
  */
 async function fetchReleaseAssets({ owner, repo }, tag) {
   const url = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`
-  const res = await fetch(url, { headers: { 'User-Agent': 'tmd-gitee-release-helper' } })
-  if (!res.ok) {
+  const { status, body } = curlGet(url)
+  if (status !== 200) {
     throw new Error(
-      `拉取 GitHub Release 失败（HTTP ${res.status}）：${url}\n` +
+      `拉取 GitHub Release 失败（HTTP ${status}）：${url}\n` +
         '请确认该 tag 的 Release 已发布（非草稿）且本机可访问 GitHub',
     )
   }
   /** @type {{ assets: Array<{ name: string, browser_download_url: string, size: number }> }} */
-  const data = await res.json()
+  const data = JSON.parse(body)
   return data.assets.map((a) => ({ name: a.name, url: a.browser_download_url, size: a.size }))
 }
 
@@ -102,13 +118,32 @@ async function main() {
       .filter((n) => /^latest.*\.yml$/.test(n))
       .map((name) => ({ name, text: readFileSync(path.join(RELEASE_DIR, name), 'utf8') }))
   } else {
+    // assets 清单走 GitHub API（api.github.com 可达性好）；
+    // yml 内容优先取 Gitee 仓库 releases/（CI 推送的权威副本，国内直连快）——
+    // GitHub 的下载域名（github.com/.../releases/download/）在国内常不可达。
+    // 用 version 字段校验取自 Gitee 的确实是当前版本，不匹配则回退 GitHub
     assets = await fetchReleaseAssets(repos.github, tag)
-    const ymlAssets = assets.filter((a) => /^latest.*\.yml$/.test(a.name))
+    const names = assets.filter((a) => /^latest.*\.yml$/.test(a.name)).map((a) => a.name)
+    if (!names.length) throw new Error(`${tag} 的 GitHub Release 中没有 latest*.yml`)
     ymls = []
-    for (const asset of ymlAssets) {
-      const res = await fetch(asset.url)
-      if (!res.ok) throw new Error(`下载 ${asset.name} 失败（HTTP ${res.status}）`)
-      ymls.push({ name: asset.name, text: await res.text() })
+    for (const name of names) {
+      const giteeUrl = `https://gitee.com/${repos.gitee.owner}/${repos.gitee.repo}/raw/master/releases/${name}`
+      const fromGitee = curlGet(giteeUrl)
+      if (fromGitee.status === 200 && fromGitee.body.includes(`version: ${pkg.version}`)) {
+        ymls.push({ name, text: fromGitee.body })
+        console.log(`（${name} 取自 Gitee raw）`)
+        continue
+      }
+      const asset = assets.find((a) => a.name === name)
+      const fromGithub = curlGet(asset.url)
+      if (fromGithub.status !== 200) {
+        throw new Error(
+          `下载 ${name} 失败（Gitee ${fromGitee.status}、GitHub ${fromGithub.status}）——` +
+            '可手动从 GitHub Release 页面下载该文件到 release/ 目录后重试',
+        )
+      }
+      ymls.push({ name, text: fromGithub.body })
+      console.log(`（${name} 取自 GitHub Release）`)
     }
   }
   if (!ymls.length) throw new Error(`${tag} 没有 latest*.yml 元数据`)

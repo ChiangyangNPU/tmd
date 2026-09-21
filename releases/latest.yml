@@ -1,9 +1,9 @@
 version: 0.1.0
 files:
-  - url: TMD-0.1.0-x64-Setup.exe
+  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe
     sha512: QqMQbuKVvrdugu4GEnK3apY60mokiNOtmsdvmS6cMMFg8b5yV2uXY0h2dg7kmk4UWt21xbi7XyI/S8AbDe+ovw==
     size: 95623310
-path: TMD-0.1.0-x64-Setup.exe
+path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe
 sha512: QqMQbuKVvrdugu4GEnK3apY60mokiNOtmsdvmS6cMMFg8b5yV2uXY0h2dg7kmk4UWt21xbi7XyI/S8AbDe+ovw==
 releaseNotes: |
   ## [0.1.0] - 2026-09-19
