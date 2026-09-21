@@ -18,15 +18,19 @@
  * 3. 元数据写入仓库 releases/（随 pushall 同步双端，无需 CI 推送，也就不存在
  *    master 分叉），并打印需在 Gitee Release 手动上传的文件清单
  *
- * 用法：`npm run release:gitee`，然后按输出提示操作。
+ * 用法：
+ * - `npm run release:gitee`：从 GitHub Release 拉取元数据（本地手动发布用）
+ * - `node scripts/prepare-gitee-release.mjs --local`：直接读本地 release/ 目录
+ *   （CI 里用——彼时 Release 刚创建，产物就在工作目录，无需绕道 GitHub）
  *
  * @author chiangyang
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const META_DIR = 'releases'
+const RELEASE_DIR = 'release'
 
 /**
  * 把 yml 中的 `- url: <文件名>` 与顶层 `path: <文件名>` 替换为绝对下载 URL。
@@ -81,25 +85,45 @@ async function main() {
   const pkg = JSON.parse(readFileSync('package.json', 'utf8'))
   const repos = reposOf(pkg)
   const tag = `v${pkg.version}`
+  const localMode = process.argv.includes('--local')
   /** @param {string} name @returns {string} */
   const toAbsolute = (name) =>
     `https://gitee.com/${repos.gitee.owner}/${repos.gitee.repo}/releases/download/${tag}/${name}`
 
-  const assets = await fetchReleaseAssets(repos.github, tag)
-  const ymlAssets = assets.filter((a) => /^latest.*\.yml$/.test(a.name))
-  if (!ymlAssets.length) throw new Error(`${tag} 的 GitHub Release 中没有 latest*.yml`)
+  /** @type {Array<{ name: string, url: string, size: number }>} */
+  let assets
+  /** @type {Array<{ name: string, text: string }>} */
+  let ymls
+  if (localMode) {
+    // CI 模式：产物就在本地 release/（刚构建完），无需绕道 GitHub
+    const names = readdirSync(RELEASE_DIR)
+    assets = names.map((name) => ({ name, url: '', size: statSync(path.join(RELEASE_DIR, name)).size }))
+    ymls = names
+      .filter((n) => /^latest.*\.yml$/.test(n))
+      .map((name) => ({ name, text: readFileSync(path.join(RELEASE_DIR, name), 'utf8') }))
+  } else {
+    assets = await fetchReleaseAssets(repos.github, tag)
+    const ymlAssets = assets.filter((a) => /^latest.*\.yml$/.test(a.name))
+    ymls = []
+    for (const asset of ymlAssets) {
+      const res = await fetch(asset.url)
+      if (!res.ok) throw new Error(`下载 ${asset.name} 失败（HTTP ${res.status}）`)
+      ymls.push({ name: asset.name, text: await res.text() })
+    }
+  }
+  if (!ymls.length) throw new Error(`${tag} 没有 latest*.yml 元数据`)
 
   mkdirSync(META_DIR, { recursive: true })
-  for (const asset of ymlAssets) {
-    const res = await fetch(asset.url)
-    if (!res.ok) throw new Error(`下载 ${asset.name} 失败（HTTP ${res.status}）`)
-    const patched = absolutizeYmlUrls(await res.text(), toAbsolute)
+  for (const yml of ymls) {
+    const patched = absolutizeYmlUrls(yml.text, toAbsolute)
     if (!patched.includes('https://gitee.com/')) {
-      throw new Error(`${asset.name} 中未发现可替换的 url 字段，格式可能已变化，请检查`)
+      throw new Error(`${yml.name} 中未发现可替换的 url 字段，格式可能已变化，请检查`)
     }
-    writeFileSync(path.join(META_DIR, asset.name), patched)
-    console.log(`元数据已生成：${META_DIR}/${asset.name}（url 绝对化 → ${tag}）`)
+    writeFileSync(path.join(META_DIR, yml.name), patched)
+    console.log(`元数据已生成：${META_DIR}/${yml.name}（url 绝对化 → ${tag}）`)
   }
+
+  if (localMode) return // CI 模式：无需打印手动上传指引
 
   // 待上传清单：安装包与差量索引（元数据走 git 提交，不作为 Release 附件）
   const uploads = assets.filter((a) => /\.(dmg|exe|blockmap)$/.test(a.name))

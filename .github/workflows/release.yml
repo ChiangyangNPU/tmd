@@ -83,6 +83,9 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    # GitHub-hosted runner 单 job 硬上限 6 小时（平台限制，设更大也会被掐断）：
+    # Gitee 跨国传输实测 3.7 小时，留 10 分钟余量；传不完就走本地快速通道（§9）
+    timeout-minutes: 350
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -113,4 +116,126 @@ jobs:
             gh release upload "$TAG" "$f" --clobber
           done
           echo "GitHub Release assets updated"
+
+      # ---------- Gitee（跨国链路慢：实测 3.7 小时；受 runner 6 小时硬限制约束，
+      # 传不完时本地跑 npm run release:gitee 快速补，见 docs/打包发布.md §9） ----------
+      - name: Upload to Gitee
+        timeout-minutes: 330
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITEE_OWNER: ChiangyangNPU
+          GITEE_REPO: tmd
+        run: |
+          if [ -z "$GITEE_TOKEN" ]; then
+            echo "::error::GITEE_TOKEN is not set (GitHub 仓库 Settings → Secrets 配置)"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="v$(node -p "require('./package.json').version")"
+          fi
+          echo "Publishing to Gitee tag: $TAG"
+
+          # 1. 元数据 url 绝对化为 Gitee Release 附件地址。
+          #    应用的 generic 更新源只按 baseUrl 拼接相对路径，若是文件名会去 raw
+          #    目录找安装包而 404（安装包在 Release 附件区）；绝对 URL 直接生效
+          node scripts/prepare-gitee-release.mjs --local
+
+          # 2. 元数据经 git 推到 Gitee releases/ 目录（Gitee 对海外 IP 的 contents
+          #    API 写操作返回 405，git 协议可用；分支必须 master——仓库默认分支）
+          #    注意：这会往 Gitee master 加一个提交，本地下次 pushall 需先
+          #    `git pull gitee master --no-rebase` 合并（详见 docs/打包发布.md §9）
+          git clone --depth 1 "https://oauth2:${GITEE_TOKEN}@gitee.com/$GITEE_OWNER/$GITEE_REPO.git" /tmp/gitee-meta
+          mkdir -p /tmp/gitee-meta/releases
+          cp releases/*.yml /tmp/gitee-meta/releases/
+          git -C /tmp/gitee-meta config user.name "github-actions[bot]"
+          git -C /tmp/gitee-meta config user.email "github-actions[bot]@users.noreply.github.com"
+          git -C /tmp/gitee-meta add releases/
+          if git -C /tmp/gitee-meta diff --cached --quiet; then
+            echo "元数据无变化，跳过推送"
+          else
+            git -C /tmp/gitee-meta commit -m "chore: update release metadata for $TAG"
+            git -C /tmp/gitee-meta push origin master
+            echo "元数据已推送 Gitee releases/"
+          fi
+
+          # 3. 创建（或复用）Gitee Release——重跑时复用已有 Release，避免重复失败
+          RELEASE_ID=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+            "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/tags/$TAG" \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
+          if [ -n "$RELEASE_ID" ]; then
+            echo "复用已存在的 Gitee Release ID: $RELEASE_ID"
+          else
+            RELEASE_BODY=$(cat .release-notes.md 2>/dev/null || echo "See GitHub Release for details")
+            RELEASE_RESP=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -X POST \
+              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
+              -F "access_token=$GITEE_TOKEN" \
+              -F "tag_name=$TAG" \
+              -F "name=$TAG" \
+              --form-string "body=$RELEASE_BODY" \
+              -F "target_commitish=master")
+            RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
+            if [ -z "$RELEASE_ID" ]; then
+              echo "::error::创建 Gitee Release 失败，响应: $RELEASE_RESP"
+              exit 1
+            fi
+            echo "Created Gitee Release ID: $RELEASE_ID"
+          fi
+
+          # 4. 上传附件——大文件（dmg/exe）并行，Gitee 对海外 IP 的限速若按单连接
+          #    计算则吞吐翻倍；小文件（blockmap）串行。
+          #    低速保护：15 分钟内平均速度低于 512B/s 才放弃（只拦死连接，
+          #    实测约 13KB/s 的正常慢速传输不受影响）
+          upload_asset() {
+            local f="$1" name size_mb
+            name=$(basename "$f")
+            size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
+            echo "Uploading $name (${size_mb}MB) to Gitee Release"
+            local code
+            code=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+              --speed-limit 512 --speed-time 900 \
+              -o "/tmp/attach-${name}.json" -w "%{http_code}" -X POST \
+              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
+              -F "access_token=$GITEE_TOKEN" \
+              -F "file=@$f")
+            echo "${code:-000}" > "/tmp/attach-${name}.code"
+          }
+
+          BIG_FILES=""
+          for f in release/*.dmg release/*.exe; do
+            [ -f "$f" ] && BIG_FILES="$BIG_FILES $f"
+          done
+          for f in $BIG_FILES; do
+            upload_asset "$f" &
+          done
+          wait
+          for f in release/*.blockmap; do
+            [ -f "$f" ] || continue
+            upload_asset "$f"
+          done
+
+          ATTACH_FAILED=0
+          for f in release/*.dmg release/*.exe release/*.blockmap; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            code_file="/tmp/attach-${name}.code"
+            [ -f "$code_file" ] || continue
+            HTTP_CODE=$(cat "$code_file")
+            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+              size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
+              echo "::error::Gitee 附件上传失败 $name (HTTP $HTTP_CODE): $(cat "/tmp/attach-${name}.json" 2>/dev/null)"
+              if [ "$size_mb" -gt 100 ]; then
+                echo "::error::$name 为 ${size_mb}MB，超过 Gitee 附件 100MB 上限"
+              fi
+              ATTACH_FAILED=1
+            else
+              echo "OK: $name"
+            fi
+          done
+          if [ "$ATTACH_FAILED" -ne 0 ]; then
+            echo "::error::有附件未能上传到 Gitee Release（可在本地跑 npm run release:gitee 后手动补传，见文档 §9）"
+            exit 1
+          fi
+          echo "Gitee 发布完成（安装包 + 元数据）"
 
