@@ -345,8 +345,17 @@ class ImageView implements NodeView {
    * @param node - 对应的 ProseMirror image 节点
    * @param view - 所属编辑器视图
    * @param getPos - 获取本节点在文档中位置的函数（节点已被移除时返回 undefined）
+   * @param decorations - 构造时作用于本节点的外部装饰（image-resolver 解析出的
+   *                      file:// src）。ProseMirror 仅在构造期以该参数下发初始装饰，
+   *                      后续更新走 update(node, decorations)；漏传会导致首帧 src
+   *                      仍是文档内相对路径，图片加载失败，直到点击等操作触发 update
    */
-  constructor(node: ProseNode, view: EditorView, getPos: () => number | undefined) {
+  constructor(
+    node: ProseNode,
+    view: EditorView,
+    getPos: () => number | undefined,
+    decorations: readonly Decoration[] = [],
+  ) {
     this.node = node
     this.view = view
     this.getPos = getPos
@@ -381,7 +390,7 @@ class ImageView implements NodeView {
     })
     this.handle.addEventListener('mousedown', (e) => this.startDrag(e))
 
-    this.apply(node, [])
+    this.apply(node, decorations)
   }
 
   /** 同步 attrs 与解析装饰到 DOM（image-resolver 的 file:// src 在节点装饰上） */
@@ -395,8 +404,10 @@ class ImageView implements NodeView {
       if (decoAttrs && typeof decoAttrs.src === 'string') src = decoAttrs.src
     }
     this.img.src = src
-    this.img.alt = attrs.alt
-    this.img.title = attrs.title
+    // null 不能直接赋给 DOM 属性：DOMString 会把 null 串成 "null"，
+    // 表现为图片旁出现 "null" 提示气泡
+    this.img.alt = attrs.alt ?? ''
+    this.img.title = attrs.title ?? ''
     this.img.style.width = attrs.width != null ? `${attrs.width}px` : ''
     this.img.style.zoom = attrs.zoom != null ? `${attrs.zoom}%` : ''
 
@@ -523,9 +534,14 @@ class ImageView implements NodeView {
   }
 }
 
-const imageView = $view(imageSchemaExt.node, () => (node, view, getPos) => {
-  return new ImageView(node, view, getPos)
-})
+// ProseMirror 以 (node, view, getPos, decorations, innerDecorations) 调用 NodeView
+// 构造器，第 4 参是构造期就作用于本节点的外部装饰——必须原样透传给 ImageView，
+// 否则首帧拿不到 image-resolver 解析的 file:// src（图片要等首次 update 才显示）
+const imageView = $view(
+  imageSchemaExt.node,
+  () => (node, view, getPos, decorations) =>
+    new ImageView(node, view, getPos, decorations),
+)
 
 /** 编辑器装配入口（editor-core 中 use；必须晚于 commonmark） */
 export const imageAttrsPlugins = [imgAttrsRemark, imageSchemaExt, imageView].flat()
