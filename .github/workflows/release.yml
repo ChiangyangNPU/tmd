@@ -83,9 +83,10 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    # GitHub-hosted runner 单 job 硬上限 6 小时（平台限制，设更大也会被掐断）：
-    # Gitee 跨国传输实测 3.7 小时，留 10 分钟余量；传不完就走本地快速通道（§9）
-    timeout-minutes: 350
+    # GitHub-hosted runner 单 job 硬上限 6 小时（平台限制，设超过也会被掐断）：
+    # 取满 6 小时以容纳 Gitee 跨国传输（实测 3.7 小时）；
+    # 若仍传不完，走本地快速通道补发（§9）
+    timeout-minutes: 360
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -117,10 +118,11 @@ jobs:
           done
           echo "GitHub Release assets updated"
 
-      # ---------- Gitee（跨国链路慢：实测 3.7 小时；受 runner 6 小时硬限制约束，
-      # 传不完时本地跑 npm run release:gitee 快速补，见 docs/打包发布.md §9） ----------
+      # ---------- Gitee（跨国链路慢：实测 3.7 小时；受 runner 6 小时硬限制约束。
+      # 步骤取 355 分钟：若超时由本步骤先行报错（错误信息可见），
+      # 而非被平台在 360 分钟整强杀。传不完时本地跑 npm run release:gitee 快速补，见 §9） ----------
       - name: Upload to Gitee
-        timeout-minutes: 330
+        timeout-minutes: 355
         env:
           GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
           GITEE_OWNER: ChiangyangNPU
