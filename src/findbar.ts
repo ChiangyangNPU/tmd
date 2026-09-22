@@ -9,15 +9,35 @@ import {
   findClear,
   findState,
 } from './find'
-import { getPmView, isSourceMode } from './editor-core'
+import { canEditWysiwyg, getPmView, isSourceMode, onViewModeChange } from './editor-core'
 
-/** 打开查找栏（源码模式下不打开，留给 CodeMirror 搜索） */
+/** 刷新「当前/总数」计数展示 */
+function refreshCount() {
+  const s = findState()
+  const countEl = document.getElementById('find-count')
+  if (countEl) countEl.textContent = `${s.matches.length ? s.index + 1 : 0}/${s.matches.length}`
+}
+
+/**
+ * 打开查找栏。
+ * 两种情形不打开：纯源码模式（交给 CodeMirror 自带搜索）、分屏中源码为编辑侧
+ * （所见即所得只读，查找替换会被下一次源码→所见即所得同步覆盖）。
+ */
 export function openFindBar() {
   const bar = document.getElementById('find-bar')
   if (!bar) return
-  if (isSourceMode()) return
+  if (!canEditWysiwyg()) return
   bar.hidden = false
-  ;(document.getElementById('find-input') as HTMLInputElement | null)?.focus()
+  const input = document.getElementById('find-input') as HTMLInputElement | null
+  input?.focus()
+  // 上次关闭时可能留着关键词：重新搜索一次，避免「框里有词却无高亮、无计数」
+  if (input?.value) {
+    const pmView = getPmView()
+    if (pmView) {
+      findSetQuery(pmView, input.value)
+      refreshCount()
+    }
+  }
 }
 
 /** 关闭查找栏并清除高亮 */
@@ -31,16 +51,17 @@ export function closeFindBar() {
 export function wireFindBar() {
   const findInput = document.getElementById('find-input') as HTMLInputElement | null
   const replaceInput = document.getElementById('replace-input') as HTMLInputElement | null
-  const countEl = document.getElementById('find-count')
-
-  function refreshCount() {
-    const s = findState()
-    if (countEl) countEl.textContent = `${s.matches.length ? s.index + 1 : 0}/${s.matches.length}`
-  }
+  // 模式切到不可查找的状态（纯源码 / 分屏中源码为编辑侧）时收起查找栏：
+  // 否则输入框与高亮残留，替换还会改到只读的所见即所得侧并被随后同步覆盖
+  onViewModeChange(() => {
+    if (canEditWysiwyg()) return
+    const bar = document.getElementById('find-bar')
+    if (bar && !bar.hidden) closeFindBar()
+  })
 
   findInput?.addEventListener('input', () => {
     const pmView = getPmView()
-    if (!pmView || isSourceMode()) return
+    if (!pmView || !canEditWysiwyg()) return
     findSetQuery(pmView, findInput.value)
     refreshCount()
   })

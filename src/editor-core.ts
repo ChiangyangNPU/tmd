@@ -156,6 +156,30 @@ export function getSplitActivePane(): SplitPane {
   return activePane
 }
 
+/**
+ * 所见即所得侧当前是否为「可编辑侧」。
+ *
+ * 纯源码模式下它整体不可用；分屏中源码为编辑侧时它是只读跟随——
+ * 这两种情况下对 ProseMirror 的格式化 / 查找替换要么无处生效，要么会被
+ * 下一次源码→所见即所得同步覆盖，调用方（格式菜单、查找栏）应据此跳过。
+ */
+export function canEditWysiwyg(): boolean {
+  return viewMode !== 'source' && activePane === 'pm'
+}
+
+/** 视图模式 / 可编辑侧变化订阅者（查找栏据此在模式切换后收尾） */
+const viewModeListeners = new Set<() => void>()
+
+/** 订阅视图模式或可编辑侧的变化（无取消订阅需求，生命周期与窗口一致） */
+export function onViewModeChange(cb: () => void): void {
+  viewModeListeners.add(cb)
+}
+
+/** 模式或可编辑侧变化后通知订阅者 */
+function notifyViewModeChange() {
+  for (const cb of viewModeListeners) cb()
+}
+
 /** 源码侧 CodeMirror 实例（分屏滚动同步用；无源码栏时为 null） */
 export function getSourceView(): SourceView | null {
   return cmView
@@ -413,6 +437,7 @@ export function setViewMode(mode: ViewMode) {
   activePane = mode === 'source' ? 'cm' : 'pm'
   reapplyViewMode()
   updateSourceModeButton()
+  notifyViewModeChange()
 }
 
 /** 编辑器重建 / 视图模式切换后重新应用：源码栏内容跟随当前文档，布局与可编辑性重设 */
@@ -452,6 +477,7 @@ export function setSplitActivePane(pane: SplitPane, coords?: { x: number; y: num
     cmView.dispatch({ selection: { anchor: caret } })
     cmView.focus()
   }
+  notifyViewModeChange()
 }
 
 /** 销毁源码栏实例并清空容器（切换模式 / 重建编辑器时调用） */

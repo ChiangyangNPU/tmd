@@ -69,6 +69,7 @@ import {
   updateWordCount,
   getPmView,
   isSourceMode,
+  canEditWysiwyg,
   setEditorHooks,
   flushMarkdownSync,
 } from './editor-core'
@@ -481,10 +482,12 @@ async function boot() {
 
     // 菜单（Electron）
     native?.onMenu((action) => {
-      // 格式化命令：统一走 format 命令层（源码模式无 ProseMirror 编辑器，忽略）
+      // 格式化命令：统一走 format 命令层；仅在所见即所得为可编辑侧时生效——
+      // 纯源码模式下它是隐藏的，分屏中源码为编辑侧时它是只读跟随
+      // （改了也不会显示，还会被下一次源码→所见即所得同步覆盖）
       if (action.startsWith('fmt-')) {
         const view = getPmView()
-        if (view && !isSourceMode()) applyFormatAction(view, action)
+        if (view && canEditWysiwyg()) applyFormatAction(view, action)
         return
       }
       const handlers: Record<string, () => void> = {
