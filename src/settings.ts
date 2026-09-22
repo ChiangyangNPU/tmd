@@ -118,6 +118,15 @@ export function getCurrentImageStrategy(): ImageStrategy {
   return imageStrategy
 }
 
+/** HTML 属性值转义：配置值可能含引号，直接拼进 innerHTML 会破坏属性边界 */
+function escapeAttr(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
 /**
  * 渲染指定图床的配置字段输入框
  * @param uploader 图床类型
@@ -133,7 +142,7 @@ function renderPicGoFields(uploader: string, values: Record<string, string> = {}
     <div class="settings-row">
       <label class="settings-row-label" for="picgo-${f.key}">${f.label}</label>
       <input id="picgo-${f.key}" class="settings-input" type="${f.type || 'text'}"
-        value="${values[f.key] || ''}" placeholder="${f.placeholder || ''}" />
+        value="${escapeAttr(values[f.key] || '')}" placeholder="${escapeAttr(f.placeholder || '')}" />
     </div>`,
     )
     .join('')
@@ -697,7 +706,7 @@ export function wireSettings() {
         break
       case 'downloading':
         updateStatus.textContent = t('settings.updateDownloading', {
-          percent: Math.round(status.percent),
+          percent: Math.round(status.percent ?? 0),
         })
         updateCheckBtn.disabled = true
         updateInstallBtn.hidden = true

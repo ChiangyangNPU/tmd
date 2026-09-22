@@ -37,7 +37,7 @@ export const taskListClick = $prose(
             // 嵌套子项有各自缩进，用各自 li 的边界判断，不会误触父项
             const dx = event.clientX - rect.left
             const dy = event.clientY - rect.top
-            if (dx >= HIT_WIDTH || dy < 0 || dy > HIT_HEIGHT) return false
+            if (dx < 0 || dx >= HIT_WIDTH || dy < 0 || dy > HIT_HEIGHT) return false
 
             view.dispatch(
               view.state.tr.setNodeAttribute($pos.before(depth), 'checked', !node.attrs.checked),
