@@ -329,7 +329,13 @@ async function boot() {
       closeMoreMenu()
     })
     document.getElementById('menu-export-latex-btn')?.addEventListener('click', () => {
-      runExport((m) => m.exportLatex(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')))
+      runExport((m) =>
+        m.exportLatex(
+          currentMarkdown(),
+          activeTab()?.name ?? t('tab.untitled'),
+          getActiveBaseDir(),
+        ),
+      )
       closeMoreMenu()
     })
     // 浏览器环境没有离屏渲染能力，隐藏这两项（HTML / PDF 导出仍可用）
@@ -514,7 +520,11 @@ async function boot() {
           ),
         'export-latex': () =>
           runExport((m) =>
-            m.exportLatex(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')),
+            m.exportLatex(
+              currentMarkdown(),
+              activeTab()?.name ?? t('tab.untitled'),
+              getActiveBaseDir(),
+            ),
           ),
         'clear-recent': () => clearRecentDocuments(),
       }

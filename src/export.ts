@@ -110,9 +110,10 @@ async function saveOrDownload(
  * - 公式 $..$ / $$..$$ 原文透传（LaTeX 原生支持）
  * - 中文文档用 ctexart 文档类（需 XeLaTeX 编译）
  * - Mermaid 图表降级为注释保留源码（无离线 LaTeX 方案）
+ * - 相对路径图片按 baseDir 展开为绝对路径（.tex 落点常在文档目录之外）
  */
-export async function exportLatex(markdown: string, currentName: string) {
-  const tex = renderLatexDocument(markdown, currentName)
+export async function exportLatex(markdown: string, currentName: string, baseDir: string | null) {
+  const tex = renderLatexDocument(markdown, currentName, baseDir)
   await saveOrDownload(
     tex,
     currentName.replace(/\.(md|markdown)$/i, '') + '.tex',

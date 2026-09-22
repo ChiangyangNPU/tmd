@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { assembleLatexDocument, containsCJK, escapeLatex, renderLatexDocument } from '../export-latex'
+import {
+  assembleLatexDocument,
+  containsCJK,
+  escapeLatex,
+  renderLatexDocument,
+} from '../export-latex'
 
 /** 取 \begin{document} 与 \end{document} 之间的正文（便于断言） */
 function bodyOf(tex: string): string {
@@ -24,6 +29,11 @@ describe('escapeLatex', () => {
     expect(once).toBe('a\\_b\\textbackslash{}c')
     // 产物里包含 \ 与 _，但已不再逃逸（否则会出现 \\_）
     expect(once).not.toContain('\\\\_')
+  })
+
+  it('输入含私用区字符时原样保留（不被当成占位符改写）', () => {
+    const tricky = 'a\uE000BS\uE000b'
+    expect(escapeLatex(tricky)).toBe(tricky)
   })
 })
 
@@ -156,11 +166,7 @@ describe('renderLatexDocument', () => {
   })
 
   it('表格：对齐映射 longtable 列格式，单元格逃逸', () => {
-    const md = [
-      '| 左 | 中 | 右 |',
-      '| --- | :-: | --: |',
-      '| a_1 | b_c | c# |',
-    ].join('\n')
+    const md = ['| 左 | 中 | 右 |', '| --- | :-: | --: |', '| a_1 | b_c | c# |'].join('\n')
     const body = bodyOf(renderLatexDocument(md, 't.md'))
     expect(body).toContain('\\begin{longtable}[]{@{}l c r@{}}')
     expect(body).toContain('a\\_1 & b\\_c & c\\# \\\\')
@@ -177,6 +183,18 @@ describe('renderLatexDocument', () => {
     expect(body).toContain('\\sout{删除}')
     expect(body).toContain('\\textbf{粗体}')
     expect(body).toContain('\\textit{斜体}')
+  })
+
+  it('图片：相对路径按文档目录展开为绝对路径', () => {
+    const body = bodyOf(renderLatexDocument('![](assets/a.png)', 't.md', '/Users/x/docs'))
+    expect(body).toContain('/Users/x/docs/assets/a.png')
+  })
+
+  it('图片：已是绝对路径或文档未保存时保持原样', () => {
+    const abs = bodyOf(renderLatexDocument('![](/abs/a.png)', 't.md', '/Users/x/docs'))
+    expect(abs).toContain('/abs/a.png')
+    const noDir = bodyOf(renderLatexDocument('![](assets/a.png)', 't.md'))
+    expect(noDir).toContain('assets/a.png')
   })
 
   it('front matter 剥离，TOC 注释标记行移除', () => {

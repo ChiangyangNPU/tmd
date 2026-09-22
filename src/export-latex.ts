@@ -22,6 +22,7 @@
  */
 import type { Token } from 'markdown-it'
 import { createExportMarkdownIt, prepareExportSource } from './export-doc'
+import { isWindowsPath } from './fs-path'
 
 // ---------------------------------------------------------------------------
 // LaTeX 特殊字符逃逸
@@ -29,19 +30,40 @@ import { createExportMarkdownIt, prepareExportSource } from './export-doc'
 
 /**
  * LaTeX 特殊字符逃逸（文本上下文；公式 / 代码 / verbatim 内容不经过此函数）。
- * 反斜杠必须最先处理——先替换为占位符，避免后续替换产物被二次处理。
+ * 单遍扫描替换：不引入占位符，因此结果与输入内容无关
+ * （旧实现用 Unicode 私用区字符充当反斜杠占位符，输入含相同字符时会被误改写）。
  */
 export function escapeLatex(text: string): string {
-  // 占位符用 Unicode 私用区字符（正常文本不可能出现，且规避 no-control-regex）
-  const withPlaceholder = text.replace(/\\/g, '\uE000BS\uE000')
-  const escaped = withPlaceholder
-    .replace(/[{}$%&#_]/g, (ch) => `\\${ch}`)
-    .replace(/~/g, '\\textasciitilde{}')
-    .replace(/\^/g, '\\textasciicircum{}')
-    .replace(/</g, '\\textless{}')
-    .replace(/>/g, '\\textgreater{}')
-    .replace(/\|/g, '\\textbar{}')
-  return escaped.replace(/\uE000BS\uE000/g, '\\textbackslash{}')
+  const MAP: Record<string, string> = {
+    '\\': '\\textbackslash{}',
+    '{': '\\{',
+    '}': '\\}',
+    $: '\\$',
+    '%': '\\%',
+    '&': '\\&',
+    '#': '\\#',
+    _: '\\_',
+    '~': '\\textasciitilde{}',
+    '^': '\\textasciicircum{}',
+    '<': '\\textless{}',
+    '>': '\\textgreater{}',
+    '|': '\\textbar{}',
+  }
+  return text.replace(/[\\{}$%&#_~^<>|]/g, (ch) => MAP[ch] ?? ch)
+}
+
+/**
+ * 图片路径解析：相对路径按当前文档目录展开为绝对路径。
+ *
+ * .tex 常被保存到文档目录之外，保留相对路径会让 XeLaTeX 找不到图片
+ * （Word / 长图管线有 localizeImages 内联图片，LaTeX 侧无等价步骤）；
+ * 文档未保存（无目录）时保持原样，交由用户自行调整。
+ */
+function resolveImagePath(src: string, baseDir: string | null): string {
+  if (!baseDir) return src
+  if (src.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(src)) return src
+  const sep = isWindowsPath(baseDir) ? '\\' : '/'
+  return `${baseDir.replace(/[\\/]+$/, '')}${sep}${src.replace(/^[\\/]+/, '')}`
 }
 
 /** 正文是否含中日韩文字（决定文档类：ctexart 需支持中文的 XeLaTeX 环境） */
@@ -79,10 +101,19 @@ interface LatexEnv {
   captures: string[][]
   footnoteTexts: Map<string, string>
   table: LatexTableState | null
+  /** 当前文档目录：相对路径图片据此展开为绝对路径（.tex 常被存到别处） */
+  baseDir: string | null
 }
 
-function createLatexEnv(): LatexEnv {
-  return { listDepth: 0, linkStack: [], captures: [], footnoteTexts: new Map(), table: null }
+function createLatexEnv(baseDir: string | null = null): LatexEnv {
+  return {
+    listDepth: 0,
+    linkStack: [],
+    captures: [],
+    footnoteTexts: new Map(),
+    table: null,
+    baseDir,
+  }
 }
 
 /** 输出通道：捕获栈非空时内容进栈顶（表格单元格 / 脚注定义），否则直接输出 */
@@ -103,10 +134,7 @@ function alignToColumn(style: string | number | null): string {
 }
 
 /** 安装 LaTeX 渲染规则（白名单：未安装规则的 token 一律零输出） */
-function installLatexRules(
-  md: ReturnType<typeof createExportMarkdownIt>,
-  env: LatexEnv,
-): void {
+function installLatexRules(md: ReturnType<typeof createExportMarkdownIt>, env: LatexEnv): void {
   const rules = md.renderer.rules
 
   // ---- 文本与行内代码 ----
@@ -204,7 +232,8 @@ function installLatexRules(
     const alt = get('alt')
     if (!src) return out(env, escapeLatex(alt))
     const opt = width ? `[width=${escapeLatex(width)}px]` : ''
-    return out(env, `\\includegraphics${opt}{\\detokenize{${escapeLatex(src)}}}`)
+    const path = resolveImagePath(src, env.baseDir)
+    return out(env, `\\includegraphics${opt}{\\detokenize{${escapeLatex(path)}}}`)
   }
 
   // ---- 脚注引用：定义内容已在预扫描阶段按 id 收集 ----
@@ -307,7 +336,11 @@ function installLatexRules(
  * 预扫描脚注定义：markdown-it-footnote 的定义块在引用之后渲染，
  * 而 LaTeX 的 \footnote 必须在引用处内联内容——先把 id → 内容收集进 env。
  */
-function prescanFootnotes(tokens: Token[], pipeline: ReturnType<typeof createExportMarkdownIt>, env: LatexEnv): void {
+function prescanFootnotes(
+  tokens: Token[],
+  pipeline: ReturnType<typeof createExportMarkdownIt>,
+  env: LatexEnv,
+): void {
   for (let i = 0; i < tokens.length; i++) {
     if (tokens[i].type !== 'footnote_open') continue
     const id = String(tokens[i].meta?.id ?? '')
@@ -357,9 +390,13 @@ ${body.trim()}
  * - Mermaid 图表降级为注释保留源码（无离线 LaTeX 方案，见模块头注释）
  * - 图片输出 \includegraphics：相对路径随 .tex 落点解析，远程图片需先下载
  */
-export function renderLatexDocument(markdown: string, title: string): string {
+export function renderLatexDocument(
+  markdown: string,
+  title: string,
+  baseDir: string | null = null,
+): string {
   const pipeline = createExportMarkdownIt()
-  const env = createLatexEnv()
+  const env = createLatexEnv(baseDir)
   installLatexRules(pipeline, env)
   // env 参数对本模块规则无作用（规则经闭包持有 env），传空对象满足 Env 契约
   const tokens = pipeline.parse(prepareExportSource(markdown), {})
