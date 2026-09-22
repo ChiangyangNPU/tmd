@@ -16,7 +16,7 @@ import './style.css'
 
 import { setMermaidTheme } from './mermaid'
 import { insertToc } from './toc'
-import { openFindBar, wireFindBar } from './findbar'
+import { openFindBar, closeFindBar, wireFindBar } from './findbar'
 import { collectOutline, renderOutline } from './outline'
 import { native } from './native'
 import { t, applyDomTexts, menuLabels, getLocale } from './i18n'
@@ -435,6 +435,8 @@ async function boot() {
         closeContextMenu()
         closeQuickSwitch()
         closeSearch()
+        // 焦点在编辑器里时也能用 Esc 收起查找栏（关闭后焦点归还编辑器）
+        closeFindBar()
       }
       const mod = e.metaKey || e.ctrlKey
       if (!mod) return

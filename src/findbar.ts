@@ -40,11 +40,18 @@ export function openFindBar() {
   }
 }
 
-/** 关闭查找栏并清除高亮 */
-export function closeFindBar() {
+/**
+ * 关闭查找栏并清除高亮。未打开时直接返回——全局 Esc 会无条件调用它，
+ * 这里不做拦截就会每次按 Esc 都触发一次装饰重算并抢走焦点。
+ * @param restoreFocus - 是否把焦点还给所见即所得编辑器（默认给回）：否则焦点留在
+ *   已隐藏的输入框上，用户接着敲字没有任何反应；由模式切换触发的关闭不应抢焦点
+ */
+export function closeFindBar(restoreFocus = true) {
   const bar = document.getElementById('find-bar')
-  if (bar) bar.hidden = true
+  if (!bar || bar.hidden) return
+  bar.hidden = true
   findClear(isSourceMode() ? null : getPmView())
+  if (restoreFocus) getPmView()?.focus()
 }
 
 /** 绑定查找栏的输入、上下跳转、替换单个/全部、关闭等交互 */
@@ -55,8 +62,7 @@ export function wireFindBar() {
   // 否则输入框与高亮残留，替换还会改到只读的所见即所得侧并被随后同步覆盖
   onViewModeChange(() => {
     if (canEditWysiwyg()) return
-    const bar = document.getElementById('find-bar')
-    if (bar && !bar.hidden) closeFindBar()
+    closeFindBar(false)
   })
 
   findInput?.addEventListener('input', () => {
@@ -104,5 +110,5 @@ export function wireFindBar() {
       refreshCount()
     }
   })
-  document.getElementById('find-close')?.addEventListener('click', closeFindBar)
+  document.getElementById('find-close')?.addEventListener('click', () => closeFindBar())
 }
