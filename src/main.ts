@@ -36,6 +36,7 @@ import {
   createNewTab,
   updateTitle,
   markDirty,
+  syncDirtyWith,
 } from './tabs'
 import {
   openDocument,
@@ -263,6 +264,9 @@ async function boot() {
         const clean = normalizeEmptyTableCells(md)
         saveDoc(clean)
         updateWordCount(clean)
+        // 按内容比对清脏：撤销 / 回退到打开时内容时清圆点（与 Typora 同款异步，
+        // 复用本防抖回调已算好的 clean，零额外序列化成本）
+        syncDirtyWith(clean)
       },
       onDocUpdate: (doc) => {
         const list = document.getElementById('outline-list')

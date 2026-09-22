@@ -10,6 +10,7 @@ import { setImageBaseDir } from './image-resolver'
 import { native } from './native'
 import { t } from './i18n'
 import { dirOf } from './fs-path'
+import { normalizeEmptyTableCells } from './table-markdown'
 
 /** 打开的文档标签页：一个标签对应一份在编辑的文档 */
 export interface DocTab {
@@ -116,6 +117,28 @@ export function markDirty() {
     renderTabs()
     updateTitle()
   }
+}
+
+/**
+ * 按当前 markdown 与基准内容比对，同步脏状态（撤销 / 回退到原状时清脏）。
+ *
+ * 与 markDirty 的区别：markDirty 是单向置脏（强制，用于历史版本恢复等
+ * 显式动作）；本函数按内容比对，相等清、不等置。基准为 tab.markdown
+ * （打开 / 保存时更新）。两侧都过 normalizeEmptyTableCells 规范化，
+ * 避免空表格单元格 <br /> 占位的往返差异造成伪脏。
+ *
+ * 由 main.ts 的 onMarkdownChange 防抖回调（800ms 节拍）调用，零额外
+ * 序列化成本——复用该回调已算好的 markdown 串。因此清脏有约 800ms
+ * 延迟（与 Typora 同样异步，可接受）。
+ */
+export function syncDirtyWith(md: string) {
+  const tab = activeTab()
+  if (!tab) return
+  const dirty = normalizeEmptyTableCells(md) !== normalizeEmptyTableCells(tab.markdown)
+  if (tab.dirty === dirty) return
+  tab.dirty = dirty
+  renderTabs()
+  updateTitle()
 }
 
 /** 创建一个标签页数据（不激活） */
