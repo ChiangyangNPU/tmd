@@ -62,6 +62,18 @@ describe('SHORTCUT_DEFS 快捷键定义', () => {
     }
   })
 
+  it('默认值互不冲突（同一组合键不能绑到两个动作）', () => {
+    for (const a of SHORTCUT_DEFS) {
+      for (const b of SHORTCUT_DEFS) {
+        if (a.action >= b.action) continue
+        expect(
+          isSameAccelerator(a.default, b.default),
+          `${a.action}(${a.default}) 与 ${b.action}(${b.default}) 默认快捷键重复`,
+        ).toBe(false)
+      }
+    }
+  })
+
   it('分组顺序覆盖所有出现过的分组', () => {
     const groups = new Set(SHORTCUT_DEFS.map((d) => d.group))
     for (const g of groups) {

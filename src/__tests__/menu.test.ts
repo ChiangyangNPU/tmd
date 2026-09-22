@@ -116,7 +116,7 @@ describe('menu.cjs buildMenuTemplate', () => {
 
   it('导出菜单：Word / 长图不绑快捷键（离屏渲染重任务防误触）', () => {
     const { template } = build()
-    expect(findItem(template, '导出 HTML')?.accelerator).toBe('CmdOrCtrl+Shift+H')
+    expect(findItem(template, '导出 HTML')?.accelerator).toBe('CmdOrCtrl+Shift+D')
     expect(findItem(template, '导出 Word')?.accelerator).toBeUndefined()
     expect(findItem(template, '导出长图')?.accelerator).toBeUndefined()
   })

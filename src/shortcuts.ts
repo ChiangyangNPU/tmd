@@ -48,10 +48,12 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
   { action: 'close-tab', labelKey: 'menu.closeTab', default: 'CmdOrCtrl+W', group: 'file' },
 
   // 导出
+  // 导出 HTML 用 Shift+D：原 Shift+H 与格式栏「高亮」撞键，菜单 accelerator
+  // 会先消费按键，用户想高亮却会弹出导出（默认值冲突由单测兜住）
   {
     action: 'export-html',
     labelKey: 'menu.exportHtml',
-    default: 'CmdOrCtrl+Shift+H',
+    default: 'CmdOrCtrl+Shift+D',
     group: 'export',
   },
   {

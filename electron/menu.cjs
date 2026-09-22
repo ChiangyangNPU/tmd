@@ -194,7 +194,8 @@ function buildMenuTemplate(deps) {
       submenu: [
         {
           label: L('exportHtml'),
-          accelerator: accOf(shortcuts, 'export-html', 'CmdOrCtrl+Shift+H'),
+          // Shift+H 让位给格式栏「高亮」（默认值与 src/shortcuts.ts 保持一致）
+          accelerator: accOf(shortcuts, 'export-html', 'CmdOrCtrl+Shift+D'),
           click: () => onAction('export-html'),
         },
         {
