@@ -80,17 +80,33 @@ export async function insertImageFiles(
 ): Promise<number> {
   const images = files.filter((f) => f.type.startsWith('image/'))
   if (!images.length) return 0
-  const sel = selection ?? view.state.selection
+  let anchor = selection ?? view.state.selection
   let inserted = 0
   for (const file of images) {
     if (file.size > MAX_IMAGE_BYTES) {
       console.warn(`[tmd] 图片超过 ${MAX_IMAGE_BYTES / 1024 / 1024}MB，已忽略：${file.name}`)
       continue
     }
-    await insertImage(view, file, sel)
+    await insertImage(view, file, anchor)
+    // 下一张接在上一张之后：插入后选区已落到图片之后，若继续沿用粘贴时刻的
+    // 旧选区，多张图会反复插到同一位置（顺序颠倒，后插入的排在前面）
+    anchor = view.state.selection
     inserted++
   }
   return inserted
+}
+
+/**
+ * 把粘贴时刻捕获的选区映射到当前文档。
+ *
+ * 异步读取 / 落盘 / 上传期间用户可能继续编辑，文档长度变化会让旧位置越界，
+ * 直接 setSelection 会抛 RangeError 导致图片根本没插进去。此处仅在越界时
+ * 退回当前位置；位置仍有效时保持「图片落在粘贴处」的原设计语义。
+ */
+function clampSelection(view: EditorView, selection: Selection): Selection {
+  const size = view.state.doc.content.size
+  if (selection.from <= size && selection.to <= size) return selection
+  return view.state.selection
 }
 
 /** 读取图片并按当前策略插入：assets/hosting 失败时自动降级为内联 */
@@ -113,7 +129,8 @@ async function insertImage(view: EditorView, file: File, selection: Selection) {
   const nodeType = view.state.schema.nodes.image
   if (!nodeType) return
   const node = nodeType.create({ src, alt: file.name })
-  view.dispatch(view.state.tr.setSelection(selection).replaceSelectionWith(node))
+  const target = clampSelection(view, selection)
+  view.dispatch(view.state.tr.setSelection(target).replaceSelectionWith(node))
 }
 
 /** 写入文档同目录 assets/ 文件夹，返回实际文件名；失败返回 null（降级内联） */
