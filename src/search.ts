@@ -279,6 +279,8 @@ export function wireSearch() {
     debounceTimer = setTimeout(() => void runSearch(input.value), SEARCH_DEBOUNCE_MS)
   })
   input.addEventListener('keydown', (e) => {
+    // IME 组字期间回车/方向键/Esc 用于候选词与取消输入，不触发结果跳转与关闭
+    if (e.isComposing) return
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       moveSelection(1)

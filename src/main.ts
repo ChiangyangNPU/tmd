@@ -406,9 +406,21 @@ async function boot() {
     setLinkNavContext({ getBaseDir: () => getActiveBaseDir() })
     wireLinkNav()
 
+    /**
+     * 焦点是否在「非编辑器的」文本输入控件内。
+     * 编辑器本体（ProseMirror / CodeMirror 的 contenteditable）不算——全局
+     * 快捷键在编辑区内须照常生效，只有真正会打断输入的输入框才需要让行。
+     */
+    const isTextFieldTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      !target.closest('#editor, #src-editor') &&
+      (target.isContentEditable || /^(input|textarea|select)$/i.test(target.tagName))
+
     // 快捷键（源码模式下 F 键交给 CodeMirror）
     // 快捷键配置从 localStorage 读取，与主进程菜单 accelerator 保持一致
     window.addEventListener('keydown', (e) => {
+      // IME 组字期间（中文输入法用 Enter/空格确认候选词）与长按重复不响应全局快捷键
+      if (e.isComposing || e.repeat) return
       if (e.key === 'Escape') {
         closeMoreMenu()
         closeSettings()
@@ -421,6 +433,15 @@ async function boot() {
       if (!mod) return
       const shortcuts = loadShortcuts()
       const acc = eventToAccelerator(e)
+      // 焦点在输入框内时只放行保存类快捷键，其余交给输入框：
+      // 否则在链接栏 / 查找栏 / 搜索框 / 设置面板输入时按 Cmd+T 等会打断输入
+      if (
+        isTextFieldTarget(e.target) &&
+        !isSameAccelerator(acc, shortcuts['save']) &&
+        !isSameAccelerator(acc, shortcuts['save-as'])
+      ) {
+        return
+      }
       if (isSameAccelerator(acc, 'CmdOrCtrl+,')) {
         // 设置面板：平台惯例键位（macOS Cmd+, / Windows Ctrl+,）。
         // 浏览器模式无菜单栏，这里是唯一入口；Electron 下菜单 accelerator
@@ -492,7 +513,9 @@ async function boot() {
             ),
           ),
         'export-latex': () =>
-          runExport((m) => m.exportLatex(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))),
+          runExport((m) =>
+            m.exportLatex(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')),
+          ),
         'clear-recent': () => clearRecentDocuments(),
       }
       handlers[action]?.()

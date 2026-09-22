@@ -45,6 +45,8 @@ export function wireFindBar() {
     refreshCount()
   })
   findInput?.addEventListener('keydown', (e) => {
+    // IME 组字期间回车用于确认候选词，不应触发查找跳转
+    if (e.isComposing) return
     const pmView = getPmView()
     if (e.key === 'Enter' && pmView) {
       e.preventDefault()
