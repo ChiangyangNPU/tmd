@@ -306,19 +306,19 @@ function buildMenu() {
   autosaveMenuItem = Menu.getApplicationMenu()?.getMenuItemById('autosave') ?? null
 }
 
+/** 主窗口 CSP 是否已注入：createWindow 可能被多次调用（macOS 关窗后重新激活），
+ *  webRequest 监听器重复注册会叠加，故只注入一次 */
+let mainCspRegistered = false
+
 /**
- * 创建主窗口。
- *
- * 流程：先注入 CSP 响应头（阻断渲染层加载非预期外部资源，防 XSS），
- * 再按当前主题设置窗口底色（深色启动首帧即深色，杜绝白闪），
- * 并按平台选择标题栏样式——macOS 红绿灯沉浸、Windows/Linux 完全自绘，
- * 最后加载渲染层入口。
+ * 注入主窗口 CSP：阻断渲染层加载非预期外部资源（防 XSS）。
+ * script-src 'self'：禁止 eval/内联脚本；style-src 含 'unsafe-inline'
+ * 是因为 Mermaid/KatTeX 生成的 SVG style 标签与 ProseMirror 装饰器依赖内联样式；
+ * img-src 含 data: blob: 支持粘贴图片的内联 data URL 与文件树图标。
  */
-function createWindow() {
-  // CSP：注入到所有响应头，阻断渲染层加载非预期外部资源（防 XSS）。
-  // script-src 'self'：禁止 eval/内联脚本；style-src 含 'unsafe-inline'
-  // 是因为 Mermaid/KatTeX 生成的 SVG style 标签与 ProseMirror 装饰器依赖内联样式；
-  // img-src 含 data: blob: 支持粘贴图片的内联 data URL 与文件树图标。
+function ensureMainCsp() {
+  if (mainCspRegistered) return
+  mainCspRegistered = true
   session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
@@ -329,6 +329,18 @@ function createWindow() {
       },
     })
   })
+}
+
+/**
+ * 创建主窗口。
+ *
+ * 流程：先注入 CSP 响应头（阻断渲染层加载非预期外部资源，防 XSS），
+ * 再按当前主题设置窗口底色（深色启动首帧即深色，杜绝白闪），
+ * 并按平台选择标题栏样式——macOS 红绿灯沉浸、Windows/Linux 完全自绘，
+ * 最后加载渲染层入口。
+ */
+function createWindow() {
+  ensureMainCsp()
 
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -558,6 +570,8 @@ ipcMain.handle(IPC.openFile, async () => {
 
 /** @param {unknown} _event @param {string} filePath */
 ipcMain.handle(IPC.readFile, async (_event, filePath) => {
+  // IPC 入参不可信：非字符串/空路径直接拒绝，避免 fs 错误直穿渲染层
+  if (typeof filePath !== 'string' || !filePath) throw new Error('invalid path')
   const content = await fs.readFile(filePath, 'utf-8')
   return { path: filePath, name: path.basename(filePath), content }
 })
@@ -683,6 +697,9 @@ ipcMain.handle(IPC.logOpenDir, async () => {
 
 /** @param {unknown} _event @param {string} filePath @param {string} content */
 ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
+  if (typeof filePath !== 'string' || !filePath || typeof content !== 'string') {
+    throw new Error('invalid save payload')
+  }
   // 先留旧版快照再覆盖：这是「历史版本」唯一的产生点（自动保存同样经此路径）
   await snapshotBeforeWrite(filePath)
   await fs.writeFile(filePath, content, 'utf-8')
@@ -691,6 +708,7 @@ ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
 
 /** @param {unknown} _event @param {string} content */
 ipcMain.handle(IPC.saveFileAs, async (_event, content) => {
+  if (typeof content !== 'string') return null
   const result = await dialog.showSaveDialog(dialogParent(), {
     defaultPath: '未命名.md',
     filters: MD_FILTERS,
@@ -720,8 +738,13 @@ ipcMain.handle(IPC.historyRead, async (_event, filePath, id) => {
  * @param {{ content: string, defaultName: string, filters: { name: string, extensions: string[] }[] }} options
  */
 ipcMain.handle(IPC.exportAs, async (_event, options) => {
+  // IPC 入参不可信：缺 content 直接取消，其余字段做类型收敛后再交给对话框
+  if (!options || typeof options.content !== 'string') return null
   const { content, defaultName, filters } = options
-  const result = await dialog.showSaveDialog(dialogParent(), { defaultPath: defaultName, filters })
+  const result = await dialog.showSaveDialog(dialogParent(), {
+    defaultPath: typeof defaultName === 'string' ? defaultName : undefined,
+    filters: Array.isArray(filters) ? filters : undefined,
+  })
   if (result.canceled || !result.filePath) return null
   await fs.writeFile(result.filePath, content, 'utf-8')
   return { path: result.filePath, name: path.basename(result.filePath) }
@@ -729,8 +752,12 @@ ipcMain.handle(IPC.exportAs, async (_event, options) => {
 
 // 打印 / 导出 PDF（走系统打印对话框）
 ipcMain.handle(IPC.print, async () => {
-  mainWindow?.webContents.print({ printBackground: true })
-  return true
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return false
+  // 等打印流程回调后再回结果：用户取消/无打印机时渲染层可据此提示
+  return new Promise((resolve) => {
+    win.webContents.print({ printBackground: true }, (success) => resolve(success))
+  })
 })
 
 // 选择文件夹（文件树）
@@ -1058,7 +1085,14 @@ function readShellState() {
  */
 function saveShellState(patch) {
   const state = { ...readShellState(), ...patch }
-  fs.writeFile(shellStateFile, JSON.stringify(state, null, 2), 'utf-8').catch(() => {})
+  const tmp = `${shellStateFile}.tmp`
+  // 走临时文件 + 原子替换：直接覆盖时进程中断会留下截断的 JSON，
+  // 下次启动 readShellState 解析失败即丢失全部壳层状态
+  fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf-8')
+    .then(() => fs.rename(tmp, shellStateFile))
+    .catch(() => {
+      fs.unlink(tmp).catch(() => {})
+    })
 }
 
 app.whenReady().then(() => {

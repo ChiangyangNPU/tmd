@@ -72,8 +72,14 @@ function pushRecentWithRender(path: string, name: string) {
  */
 export async function openDocument() {
   if (native) {
-    const result = await native.openFile()
-    if (result) await openFromData(result)
+    try {
+      const result = await native.openFile()
+      if (result) await openFromData(result)
+    } catch (err) {
+      // 读取失败（权限 / 文件已删除）：提示而不是抛未捕获异常
+      console.error('[tmd] 打开文件失败', err)
+      showToast(t('files.openFailed'))
+    }
     return
   }
   const input = document.createElement('input')
