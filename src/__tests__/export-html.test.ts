@@ -95,6 +95,11 @@ describe('stripFrontMatter', () => {
   it('仅 front matter 无正文时剥为空串', () => {
     expect(stripFrontMatter('---\ntitle: a\n---\n')).toBe('')
   })
+
+  it('文档开头的水平线 + 段落不会被当作 front matter 吞掉', () => {
+    const md = '---\n这是一段正文\n---\n\n后续内容'
+    expect(stripFrontMatter(md)).toBe(md)
+  })
 })
 
 describe('renderMarkdown 扩展语法', () => {
@@ -126,6 +131,12 @@ describe('renderMarkdown 扩展语法', () => {
 
   it('行内代码中的分隔符不被解析', () => {
     expect(renderMarkdown('`a^b^ c==d==`')).toContain('<code>a^b^ c==d==</code>')
+  })
+
+  it('空标题也会生成可用锚点，多个空标题互不冲突', () => {
+    const html = renderMarkdown('# \n\n# ')
+    expect(html).toContain('id="heading"')
+    expect(html).toContain('id="heading-1"')
   })
 })
 
@@ -161,6 +172,11 @@ describe('renderMarkdown 公式保护', () => {
   it('行内代码与代码块中的 $ 不受影响', () => {
     expect(renderMarkdown('`$a^2$`')).toContain('<code>$a^2$</code>')
     expect(renderMarkdown('```\n$$x$$\n```')).toContain('$$x$$')
+  })
+
+  it('公式内的 \\$ 是字面美元符，不作为闭合分隔符提前截断', () => {
+    // 修复前会在 \$ 处闭合，公式只剩 "$a \$"，丢失后半段
+    expect(renderMarkdown('$a \\$ b$')).toContain('$a \\$ b$')
   })
 
   it('其他扩展语法仍在公式之外正常工作', () => {

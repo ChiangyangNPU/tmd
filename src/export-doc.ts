@@ -48,6 +48,24 @@ const mdIt = createExportMarkdownIt()
 const DOLLAR = 0x24
 
 /**
+ * 从 from 起查找未被反斜杠转义的 delim 位置；找不到返回 -1。
+ *
+ * 公式内容里的 `\$` 是字面美元符，不能当作闭合分隔符，否则 `$a \$ b$`
+ * 会在 `\$` 处提前截断成非法公式。前面连续反斜杠为偶数个才算未转义。
+ */
+function findUnescapedDelim(src: string, delim: string, from: number): number {
+  const BACKSLASH = 0x5c
+  let idx = src.indexOf(delim, from)
+  while (idx !== -1) {
+    let backslashes = 0
+    for (let i = idx - 1; i >= 0 && src.charCodeAt(i) === BACKSLASH; i--) backslashes++
+    if (backslashes % 2 === 0) return idx
+    idx = src.indexOf(delim, idx + 1)
+  }
+  return -1
+}
+
+/**
  * 公式保护内联规则：把 `$$…$$` / `$…$` 整段按原文保留为一个文本 token。
  *
  * 必须早于其他内联规则生效，否则 LaTeX 原文会被二次解释：
@@ -59,6 +77,7 @@ const DOLLAR = 0x24
  * 判定规则（与常见 Markdown 编辑器一致）：
  * - `$$…$$` 允许跨行，内容非空
  * - `$…$` 不跨行、内容非空且首尾无空白，避免把「价格 $5 与 $6」误判为公式
+ * - 闭合分隔符跳过被转义的 `\$`（见 findUnescapedDelim）
  */
 function mathRule(state: StateInline, silent: boolean): boolean {
   const start = state.pos
@@ -66,7 +85,7 @@ function mathRule(state: StateInline, silent: boolean): boolean {
   const isDisplay = state.src.charCodeAt(start + 1) === DOLLAR
   const delim = isDisplay ? '$$' : '$'
   const from = start + delim.length
-  const close = state.src.indexOf(delim, from)
+  const close = findUnescapedDelim(state.src, delim, from)
   if (close < 0 || close + delim.length > state.posMax) return false
   const content = state.src.slice(from, close)
   if (content === '') return false
@@ -288,10 +307,15 @@ function inlineText(token: InlineToken): string {
  * 剥离文档起始的 YAML front matter（--- 围栏块）。
  * 元数据不进入导出成稿（与 .md 源文件保留无关，编辑器保存时原样写回）；
  * 只认文档第一行起的围栏，正文中间的 --- 仍是分隔线/Setext 下划线，不动。
+ * 围栏内容还需至少含一行 YAML 键值（`key: value`），否则文档开头的
+ * 「--- 水平线 + 段落 + --- 水平线」会被整块吞掉，导出正文丢失。
  * 导出供单元测试覆盖。
  */
 export function stripFrontMatter(markdown: string): string {
-  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(markdown)
+  if (!match) return markdown
+  if (!/^[ \t]*[^\s:][^:\n]*:[ \t]*\S/m.test(match[1])) return markdown
+  return markdown.slice(match[0].length)
 }
 
 /**
@@ -304,14 +328,13 @@ export function prepareExportSource(markdown: string): string {
   return stripFrontMatter(markdown).replace(/^[ \t]*\\?<!--\s*\/?TOC\s*-->[ \t]*$/gm, '')
 }
 
-/**
- * 渲染 markdown 为导出页正文 HTML（走内部 mdIt 实例：含图片 token 还原与渲染规则）：
- * - ```mermaid 代码块 → <pre class="mermaid">，由消费方（CDN 脚本或离屏页本地 mermaid）渲染
- * - TOC 注释标记行删除（保留中间真实链接列表，正常渲染为可点目录）
- * - 标题加 GitHub 风格 id 锚点（与编辑器内 TOC 链接的 slug 规则一致）
- * 导出供单测。
- */
-export function renderMarkdown(markdown: string): string {
+/** fence 规则是否已安装：本模块的 mdIt 为单例，重复包装会让规则层层嵌套 */
+let fenceRuleInstalled = false
+
+/** 安装 ```mermaid → <pre class="mermaid"> 的 fence 规则（幂等，只装一次） */
+function ensureFenceRule() {
+  if (fenceRuleInstalled) return
+  fenceRuleInstalled = true
   const fence =
     mdIt.renderer.rules.fence ??
     ((tokens, idx, options, _env, self) => self.renderToken(tokens, idx, options))
@@ -322,6 +345,17 @@ export function renderMarkdown(markdown: string): string {
     }
     return fence(tokens, idx, options, env, self)
   }
+}
+
+/**
+ * 渲染 markdown 为导出页正文 HTML（走内部 mdIt 实例：含图片 token 还原与渲染规则）：
+ * - ```mermaid 代码块 → <pre class="mermaid">，由消费方（CDN 脚本或离屏页本地 mermaid）渲染
+ * - TOC 注释标记行删除（保留中间真实链接列表，正常渲染为可点目录）
+ * - 标题加 GitHub 风格 id 锚点（与编辑器内 TOC 链接的 slug 规则一致）
+ * 导出供单测。
+ */
+export function renderMarkdown(markdown: string): string {
+  ensureFenceRule()
 
   // 同名标题计数：第一个为 slug，其后为 slug-1、slug-2（与 toc.ts collectHeadings 一致）
   const slugCount = new Map<string, number>()
@@ -329,7 +363,8 @@ export function renderMarkdown(markdown: string): string {
     const token = tokens[idx]
     const inline = tokens[idx + 1] as InlineToken | undefined
     const text = inline && inline.type === 'inline' ? inlineText(inline) : ''
-    let slug = slugify(text)
+    // 空标题也要有可用锚点：slugify('') 得空串会让多个空标题共用 id=""
+    let slug = slugify(text) || 'heading'
     const seen = slugCount.get(slug) ?? 0
     slugCount.set(slug, seen + 1)
     if (seen > 0) slug = `${slug}-${seen}`
