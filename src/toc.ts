@@ -180,9 +180,12 @@ export function fillTocBlocks(markdown: string, doc: ProseNode): string {
     .join('\n')
   // remark-stringify 会把行首 "<!" 转义为 "\<!"（防 HTML），
   // 开闭标记前的可选反斜杠一并纳入匹配，避免残留可见的 "\"
+  // 替换值用函数形式返回：body 内含标题原文，若直接传字符串，标题里的
+  // $& / $` / $' 等会被 String.replace 当作替换模式解释，进而污染序列化结果
+  // （本函数在保存与导出的序列化链上，污染会随写盘落到文件）
   return markdown.replace(
     /\\?<!--\s*TOC\s*-->[\s\S]*?\\?<!--\s*\/TOC\s*-->/g,
-    `<!-- TOC -->\n\n${body}\n\n<!-- /TOC -->`,
+    () => `<!-- TOC -->\n\n${body}\n\n<!-- /TOC -->`,
   )
 }
 

@@ -144,4 +144,10 @@ describe('fillTocBlocks', () => {
     expect(out).toContain('- [同名](#同名-1)')
     expect(out).toContain('- [\\[特殊\\] 标题](#特殊-标题)')
   })
+
+  it('标题含 $& / $` 等替换模式字符时按原文输出', () => {
+    const doc = makeDoc([1], ['价格 $& 与 $` 说明'])
+    const out = fillTocBlocks('<!-- TOC -->\n\n<!-- /TOC -->', doc)
+    expect(out).toContain('- [价格 $& 与 $` 说明](')
+  })
 })
