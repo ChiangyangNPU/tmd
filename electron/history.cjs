@@ -114,7 +114,7 @@ async function readIndex(dir, fsImpl) {
   try {
     parsed = JSON.parse(raw)
   } catch {
-    parsed = null
+    /* 非法 JSON：按损坏处理（见下） */
   }
   if (parsed && typeof parsed.path === 'string' && Array.isArray(parsed.snapshots)) return parsed
   await fsImpl.rename(file, `${file}.corrupt-${Date.now()}`).catch(() => {})
