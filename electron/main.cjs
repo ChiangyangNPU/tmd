@@ -54,6 +54,7 @@ const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./hi
 // 应用菜单模板：纯数据工厂（零 Electron 依赖，独立单测），状态与副作用注入见 buildMenu
 const { DEFAULT_MENU_LABELS, buildMenuTemplate } = require('./menu.cjs')
 const os = require('node:os')
+const { randomUUID } = require('node:crypto')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
 const { PicGo } = require('picgo')
@@ -828,19 +829,28 @@ function getPicGo() {
   return picgoInstance
 }
 
+/** 图床上传允许的图片扩展名（渲染层按 MIME 推导后传入，白名单外回落 .png） */
+const UPLOAD_EXT_ALLOWED = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
+
 /**
- * 上传图片到图床：渲染层传 base64，主进程写临时文件后交给 PicGo 上传，
+ * 上传图片到图床：渲染层传 base64 与扩展名，主进程写临时文件后交给 PicGo 上传，
  * 返回图片 URL；失败返回 null。
  * @param {unknown} _event
  * @param {unknown} base64  纯 base64 字符串（不含 data:image/...;base64, 前缀）
+ * @param {unknown} ext     图片扩展名（如 '.png'，由渲染层按 MIME 推导）
  */
-ipcMain.handle(IPC.uploadImage, async (_event, base64) => {
+ipcMain.handle(IPC.uploadImage, async (_event, base64, ext) => {
   if (typeof base64 !== 'string' || !base64) return null
+  // PicGo 按扩展名判定 mime，故由渲染层传入并在此校验；缺省/非法一律按 png
+  const safeExt =
+    typeof ext === 'string' && UPLOAD_EXT_ALLOWED.has(ext.toLowerCase())
+      ? ext.toLowerCase()
+      : '.png'
   let tmpFile = ''
   try {
-    // 写临时文件：PicGo 的 path transformer 只接受文件路径
-    const ext = base64.startsWith('/') ? 'jpg' : base64.startsWith('i') ? 'png' : 'png'
-    tmpFile = path.join(os.tmpdir(), `tmd-picgo-${Date.now()}.${ext}`)
+    // 写临时文件：PicGo 的 path transformer 只接受文件路径。
+    // 文件名带随机后缀：多个标签同时粘贴走图床时，仅用时间戳会撞名互相覆盖
+    tmpFile = path.join(os.tmpdir(), `tmd-picgo-${randomUUID()}${safeExt}`)
     await fs.writeFile(tmpFile, Buffer.from(base64, 'base64'))
     const picgo = getPicGo()
     /** @type {unknown} */

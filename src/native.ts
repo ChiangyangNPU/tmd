@@ -88,8 +88,10 @@ export interface NativeFileAPI {
   recentRemove(path: string): void
   /** 订阅主进程「打开最近」菜单项点击（参数为文件绝对路径） */
   onRecentOpen(callback: (filePath: string) => void): void
-  /** 图床上传：把 base64 图片交给主进程用 PicGo 上传，返回图片 URL */
-  uploadImage(base64: string): Promise<string | null>
+  /** 图床上传：把 base64 图片交给主进程用 PicGo 上传，返回图片 URL。
+   *  ext 为按图片 MIME 推导的扩展名（如 '.png'），主进程白名单校验后用于临时文件——
+   *  PicGo 按扩展名判定 mime，不能由主进程猜。 */
+  uploadImage(base64: string, ext: string): Promise<string | null>
   /** 获取 PicGo 当前配置（图床类型及各图床参数） */
   getPicGoConfig(): Promise<PicGoConfig>
   /** 保存 PicGo 配置到 userData 目录 */

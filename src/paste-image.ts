@@ -105,7 +105,8 @@ async function insertImage(view: EditorView, file: File, selection: Selection) {
     if (savedName) src = `assets/${savedName}`
   } else if (strategy === 'hosting' && native) {
     const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
-    const url = await native.uploadImage(base64)
+    // 扩展名按图片 MIME 推导后传给主进程：base64 首字符无法区分 gif/webp 等格式
+    const url = await native.uploadImage(base64, MIME_EXT[file.type] ?? '.png')
     if (url) src = url
   }
 

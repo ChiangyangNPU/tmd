@@ -110,8 +110,8 @@ const api = {
   onRecentOpen: (callback) => {
     ipcRenderer.on(IPC.recentOpen, (_event, filePath) => callback(filePath))
   },
-  /** 图床上传：base64 图片交给主进程 PicGo 上传，返回 URL */
-  uploadImage: (base64) => ipcRenderer.invoke(IPC.uploadImage, base64),
+  /** 图床上传：base64 图片交给主进程 PicGo 上传，返回 URL（ext 为按 MIME 推导的扩展名） */
+  uploadImage: (base64, ext) => ipcRenderer.invoke(IPC.uploadImage, base64, ext),
   /** 获取 PicGo 配置（图床类型及各图床参数） */
   getPicGoConfig: () => ipcRenderer.invoke(IPC.getPicGoConfig),
   /** 保存 PicGo 配置到 userData 目录 */
