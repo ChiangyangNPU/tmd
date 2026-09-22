@@ -274,20 +274,25 @@ export function formatAccelerator(acc: string): string {
 
 /**
  * 检查 accelerator 是否可用作快捷键。
- * 必须包含 CmdOrCtrl/Ctrl/Alt 之一：只带 Shift 会与正常输入（大写字母）冲突。
+ * 必须包含 CmdOrCtrl/Ctrl/Alt 之一：只带 Shift 会与正常输入（大写字母）冲突；
+ * 且必须带主键——`CmdOrCtrl+` 这类写法只匹配修饰键 + 空键，不可用。
  */
 export function isValidShortcut(acc: string): boolean {
-  return /(^|\+)(CmdOrCtrl|CommandOrControl|Ctrl|Alt)(\+|$)/.test(acc) && acc.includes('+')
+  if (!/(^|\+)(CmdOrCtrl|CommandOrControl|Ctrl|Alt)(\+|$)/.test(acc)) return false
+  if (acc.split('+').some((p) => p.trim() === '')) return false
+  return !isModifierOnly(acc)
 }
 
 /**
- * 检查两个 accelerator 是否冲突（忽略修饰键顺序）。
+ * 检查两个 accelerator 是否冲突（忽略修饰键顺序与大小写）。
+ * 大小写需归一：Electron 的 accelerator 主键大小写不敏感，
+ * 'CmdOrCtrl+S' 与 'CmdOrCtrl+s' 是同一个键位。
  */
 export function isSameAccelerator(a: string, b: string): boolean {
   const norm = (s: string) =>
     s
       .split('+')
-      .map((p) => p.trim())
+      .map((p) => p.trim().toLowerCase())
       .sort()
       .join('+')
   return norm(a) === norm(b)

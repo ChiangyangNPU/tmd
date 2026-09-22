@@ -179,11 +179,21 @@ describe('isValidShortcut 合法性校验', () => {
     expect(isValidShortcut('Shift+B')).toBe(false)
     expect(isValidShortcut('B')).toBe(false)
   })
+
+  it('缺主键（修饰键后为空）不合法', () => {
+    expect(isValidShortcut('CmdOrCtrl+')).toBe(false)
+    expect(isValidShortcut('CmdOrCtrl')).toBe(false)
+    expect(isValidShortcut('Ctrl+Shift+')).toBe(false)
+  })
 })
 
 describe('isSameAccelerator 冲突比较', () => {
   it('修饰键顺序不同视为相同', () => {
     expect(isSameAccelerator('CmdOrCtrl+Shift+B', 'Shift+CmdOrCtrl+B')).toBe(true)
+  })
+
+  it('大小写不同视为同一键位', () => {
+    expect(isSameAccelerator('CmdOrCtrl+S', 'cmdorctrl+s')).toBe(true)
   })
 
   it('不同组合视为不同', () => {
