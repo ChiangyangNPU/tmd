@@ -23,6 +23,8 @@ let hooks: HistoryHooks | null = null
 let current: FileHistory | null = null
 /** 当前选中的快照 id（未选中为 null，恢复按钮据此置灰） */
 let selectedId: string | null = null
+/** 预览请求序号：快速点选多条快照时，只认最后一次请求的结果 */
+let previewSeq = 0
 
 /**
  * 时间展示：跟随界面语言，强制 24 小时制（列表列宽有限，
@@ -90,7 +92,10 @@ async function selectSnapshot(id: string) {
   if (!native || !tab?.path) return
   selectedId = id
   renderList()
+  const seq = ++previewSeq
   const entry = await native.readHistory(tab.path, id).catch(() => null)
+  // 期间用户又点了别的快照：本次结果作废，避免预览与列表高亮不一致
+  if (seq !== previewSeq) return
   if (!entry) {
     setPreview('')
     showToast(t('history.loadFailed'))
@@ -108,7 +113,14 @@ async function restoreSelected() {
     showToast(t('history.loadFailed'))
     return
   }
-  await hooks.onRestore(entry.content)
+  try {
+    await hooks.onRestore(entry.content)
+  } catch (err) {
+    // 写回编辑器失败（如编辑器正在重建）：提示并保持面板打开，便于重试
+    console.error('[tmd] 恢复历史版本失败', err)
+    showToast(t('history.restoreFailed'))
+    return
+  }
   closeHistory()
   showToast(t('history.restored'))
 }

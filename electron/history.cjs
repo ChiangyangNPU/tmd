@@ -94,32 +94,50 @@ function contentHash(content) {
 }
 
 /**
- * 读取某快照目录的 index.json；缺失或损坏一律视为无历史（返回 null）。
+ * 读取某快照目录的 index.json；缺失视为无历史（返回 null）。
+ * 内容不可用（JSON 非法或结构异常）时先把原文件改名留档再返回 null——
+ * 否则调用方的 writeSnapshot 会以空列表为基底覆盖，旧快照的元信息永久丢失
+ * （正文 .md 仍在磁盘，但列表再也列不出来）。
  * @param {string} dir
  * @param {typeof fs} fsImpl
  * @returns {Promise<{ path: string, name: string, snapshots: { id: string, ts: string, size: number, hash: string }[] } | null>}
  */
 async function readIndex(dir, fsImpl) {
+  const file = path.join(dir, 'index.json')
+  let raw
   try {
-    const raw = await fsImpl.readFile(path.join(dir, 'index.json'), 'utf-8')
-    const parsed = JSON.parse(raw)
-    if (!parsed || typeof parsed.path !== 'string' || !Array.isArray(parsed.snapshots)) return null
-    return parsed
+    raw = await fsImpl.readFile(file, 'utf-8')
   } catch {
     return null
   }
+  let parsed = null
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    parsed = null
+  }
+  if (parsed && typeof parsed.path === 'string' && Array.isArray(parsed.snapshots)) return parsed
+  await fsImpl.rename(file, `${file}.corrupt-${Date.now()}`).catch(() => {})
+  return null
 }
 
 /**
  * 写入 index.json（失败静默：历史记录不值得打扰用户）。
+ * 走临时文件 + 原子替换：直接覆盖时写入中断会留下截断的 JSON，
+ * 整份历史清单将不可读。
  * @param {string} dir
  * @param {{ path: string, name: string, snapshots: unknown[] }} index
  * @param {typeof fs} fsImpl
  */
 async function writeIndex(dir, index, fsImpl) {
-  await fsImpl
-    .writeFile(path.join(dir, 'index.json'), JSON.stringify(index, null, 2), 'utf-8')
-    .catch(() => {})
+  const file = path.join(dir, 'index.json')
+  const tmp = `${file}.tmp`
+  try {
+    await fsImpl.writeFile(tmp, JSON.stringify(index, null, 2), 'utf-8')
+    await fsImpl.rename(tmp, file)
+  } catch {
+    await fsImpl.rm(tmp, { force: true }).catch(() => {})
+  }
 }
 
 /**
@@ -129,6 +147,8 @@ async function writeIndex(dir, index, fsImpl) {
  * @param {typeof fs} fsImpl
  */
 async function removeSnapshot(dir, id, fsImpl) {
+  // id 来自 index.json（可能被外部改动）：删除前再校验一次，杜绝目录穿越
+  if (!isValidId(id)) return
   await fsImpl.rm(path.join(dir, `${id}.md`), { force: true }).catch(() => {})
 }
 

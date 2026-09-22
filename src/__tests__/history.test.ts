@@ -266,6 +266,9 @@ describe('writeSnapshot 写入与去重', () => {
     const result = await historyMod.writeSnapshot(root, { path: FILE, name: 's.md', content: 'v1' })
     expect(result.saved).toBe(true)
     expect((await readIndexJson()).snapshots).toHaveLength(1)
+    // 损坏内容需留档，否则旧快照元信息会被空列表静默覆盖
+    const files = await readdir(dir)
+    expect(files.some((f) => f.includes('.corrupt-'))).toBe(true)
   })
 })
 

@@ -171,6 +171,7 @@
     "previewHint": "选择左侧的版本以预览",
     "restore": "恢复此版本",
     "restored": "已载入编辑器，保存后才会写入磁盘",
+    "restoreFailed": "恢复失败，请重试",
     "loadFailed": "读取历史版本失败"
   },
   "tt": {

@@ -171,6 +171,7 @@
     "previewHint": "選擇左側的版本以預覽",
     "restore": "還原此版本",
     "restored": "已載入編輯器，儲存後才會寫入磁碟",
+    "restoreFailed": "還原失敗，請重試",
     "loadFailed": "讀取歷史版本失敗"
   },
   "tt": {

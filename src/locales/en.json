@@ -171,6 +171,7 @@
     "previewHint": "Select a version on the left to preview",
     "restore": "Restore this version",
     "restored": "Loaded into the editor; saved to disk only after you save",
+    "restoreFailed": "Restore failed, please retry",
     "loadFailed": "Failed to read the version"
   },
   "tt": {
