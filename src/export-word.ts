@@ -101,6 +101,24 @@ function isFullyVisible(rect: DOMRect): boolean {
 }
 
 /**
+ * 超出栅格化上限的视觉块降级为源码文本：
+ * - Mermaid：去掉 mermaid 类，按普通代码块转换，保留图表源码
+ * - KaTeX 独占公式：优先取 MathML 里 annotation 的 LaTeX 原文，取不到则退回纯文本
+ */
+function degradeUnrasterizedBlocks(blocks: HTMLElement[]): void {
+  for (const el of blocks) {
+    if (el.matches('pre.mermaid')) {
+      el.classList.remove('mermaid')
+      continue
+    }
+    const tex = el.querySelector('annotation[encoding="application/x-tex"]')?.textContent
+    const fallback = document.createElement('pre')
+    fallback.textContent = tex?.trim() || el.textContent?.trim() || ''
+    el.replaceWith(fallback)
+  }
+}
+
+/**
  * 把复杂视觉块（独占公式、Mermaid 图表）栅格化为位图（替换原元素）：
  * 逐条滚动到视口内 → 区域截帧 → 用 <img> 替换，尺寸取自测量矩形。
  * 任一步失败即保留原 DOM（降级为文本/矢量，不影响导出成功）。
@@ -115,10 +133,9 @@ export async function rasterizeVisualBlocks(
   root: HTMLElement,
   zoom: number,
 ): Promise<number> {
-  const targets = Array.from(root.querySelectorAll<HTMLElement>(RASTERIZE_SELECTOR)).slice(
-    0,
-    MAX_RASTERIZED_BLOCKS,
-  )
+  const all = Array.from(root.querySelectorAll<HTMLElement>(RASTERIZE_SELECTOR))
+  const targets = all.slice(0, MAX_RASTERIZED_BLOCKS)
+  degradeUnrasterizedBlocks(all.slice(MAX_RASTERIZED_BLOCKS))
   let done = 0
   for (const el of targets) {
     try {
