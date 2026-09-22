@@ -32,7 +32,9 @@
     "next": "Next (Enter)",
     "replace": "Replace",
     "replaceAll": "All",
-    "close": "Close (Esc)"
+    "close": "Close (Esc)",
+    "regexTitle": "Regular expression (case-insensitive; $1 / $& work in the replacement)",
+    "regexInvalid": "Invalid regex"
   },
   "sidebar": {
     "outline": "Outline",

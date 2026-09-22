@@ -59,3 +59,16 @@ html.dark .find-hit {
   color: #fff;
   border-radius: 2px;
 }
+
+/* 正则模式按钮的按下态：与其它激活态按钮同一视觉语言 */
+.find-bar .tool-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--code-bg);
+}
+
+/* 正则表达式非法：计数位改为错误提示（加宽以容纳文案） */
+.find-count-error {
+  color: var(--error-fg);
+  min-width: 56px;
+}
