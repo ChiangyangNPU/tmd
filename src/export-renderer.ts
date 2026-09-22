@@ -90,9 +90,12 @@ function renderMath(): void {
 }
 
 /** 图表渲染：```mermaid 占位块交给本地 mermaid（离线可用，主题随深浅模式）；
- *  mermaid 较重且仅在文档含图表时需要，动态加载避免并入两入口共享分包 */
+ *  mermaid 较重且仅在文档含图表时需要，动态加载避免并入两入口共享分包。
+ *
+ *  逐块渲染并各自兜错：单个图表语法错误只让该块降级为源码文本，
+ *  不阻断整篇导出（mermaid.run 对语法错误会整体 reject）。 */
 async function renderMermaid(isDark: boolean): Promise<void> {
-  const nodes = document.body.querySelectorAll<HTMLElement>('pre.mermaid')
+  const nodes = Array.from(document.body.querySelectorAll<HTMLElement>('pre.mermaid'))
   if (nodes.length === 0) return
   const { default: mermaid } = await import('mermaid')
   mermaid.initialize({
@@ -100,7 +103,17 @@ async function renderMermaid(isDark: boolean): Promise<void> {
     securityLevel: 'strict',
     theme: isDark ? 'dark' : 'default',
   })
-  await mermaid.run({ nodes: Array.from(nodes) })
+  for (const node of nodes) {
+    // 渲染失败时 mermaid 可能已就地改写节点内容，先留一份源码用于降级还原
+    const source = node.textContent ?? ''
+    try {
+      await mermaid.run({ nodes: [node] })
+    } catch (err) {
+      console.warn('[tmd] Mermaid 渲染失败，该块降级为源码文本', err)
+      node.classList.remove('mermaid')
+      node.textContent = source
+    }
+  }
 }
 
 /**
