@@ -117,7 +117,12 @@ const DEMO_DOC = ''
  * 不加载；单测仍可静态 import './export'，不受影响。
  */
 function runExport(run: (m: typeof import('./export')) => unknown) {
-  void import('./export').then(run)
+  // 动态导入失败（分包缺失）或导出执行异常时给出提示：
+  // 原先的 void import().then(run) 只会产生一个未捕获的 rejection，用户看不到任何反馈
+  void import('./export').then(run).catch((err) => {
+    console.error('[tmd] 导出失败', err)
+    showToast(t('menu.failed'))
+  })
 }
 
 // ---------------------------------------------------------------------------
