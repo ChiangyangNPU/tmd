@@ -76,6 +76,29 @@ export const toggleBlockquote: Command = (state, dispatch) => {
   return wrapIn(state.schema.nodes.blockquote)(state, dispatch)
 }
 
+/**
+ * 块级类型 toggle：当前光标所在块就是目标类型 + 目标属性时变回段落，
+ * 否则变成目标类型（setBlockType 单向设为 → Typora 式 toggle）。
+ *
+ * - 普通段落按 Ctrl+1 → h1；h1 再按 Ctrl+1 → 段落（toggle off）
+ * - h2 按 Ctrl+1 → h1（切换 level，不 toggle off）
+ * - 选区跨多块时按光标所在块判定（与 Typora 一致）
+ */
+function toggleBlockType(
+  nodeType: import('@milkdown/kit/prose/model').NodeType,
+  attrs: Record<string, unknown> | null,
+): Command {
+  return (state, dispatch) => {
+    const current = state.selection.$from.parent
+    const sameType = current.type === nodeType
+    const sameAttrs = attrs == null || Object.entries(attrs).every(([k, v]) => current.attrs[k] === v)
+    if (sameType && sameAttrs) {
+      return setBlockType(state.schema.nodes.paragraph)(state, dispatch)
+    }
+    return setBlockType(nodeType, attrs ?? undefined)(state, dispatch)
+  }
+}
+
 /** 列表切换：在任何列表内则把当前列表项提升退出，否则包成目标列表 */
 export function toggleList(listName: 'bullet_list' | 'ordered_list'): Command {
   return (state, dispatch) => {
@@ -171,15 +194,15 @@ export const MENU_COMMANDS: Record<string, (view: EditorView) => Command> = {
   'fmt-mark': (v) => toggleMark(v.state.schema.marks.highlight),
   'fmt-sup': (v) => toggleMark(v.state.schema.marks.superscript),
   'fmt-sub': (v) => toggleMark(v.state.schema.marks.subscript),
-  'fmt-h1': (v) => setBlockType(v.state.schema.nodes.heading, { level: 1 }),
-  'fmt-h2': (v) => setBlockType(v.state.schema.nodes.heading, { level: 2 }),
-  'fmt-h3': (v) => setBlockType(v.state.schema.nodes.heading, { level: 3 }),
-  'fmt-h4': (v) => setBlockType(v.state.schema.nodes.heading, { level: 4 }),
-  'fmt-h5': (v) => setBlockType(v.state.schema.nodes.heading, { level: 5 }),
-  'fmt-h6': (v) => setBlockType(v.state.schema.nodes.heading, { level: 6 }),
+  'fmt-h1': (v) => toggleBlockType(v.state.schema.nodes.heading, { level: 1 }),
+  'fmt-h2': (v) => toggleBlockType(v.state.schema.nodes.heading, { level: 2 }),
+  'fmt-h3': (v) => toggleBlockType(v.state.schema.nodes.heading, { level: 3 }),
+  'fmt-h4': (v) => toggleBlockType(v.state.schema.nodes.heading, { level: 4 }),
+  'fmt-h5': (v) => toggleBlockType(v.state.schema.nodes.heading, { level: 5 }),
+  'fmt-h6': (v) => toggleBlockType(v.state.schema.nodes.heading, { level: 6 }),
   'fmt-paragraph': (v) => setBlockType(v.state.schema.nodes.paragraph),
   'fmt-quote': () => toggleBlockquote,
-  'fmt-codeblock': (v) => setBlockType(v.state.schema.nodes.code_block),
+  'fmt-codeblock': (v) => toggleBlockType(v.state.schema.nodes.code_block, null),
   'fmt-bullet': () => toggleList('bullet_list'),
   'fmt-ordered': () => toggleList('ordered_list'),
 }
