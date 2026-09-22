@@ -187,9 +187,15 @@ function createExporter(deps) {
       },
     })
     const target = win
-    // 离屏页只加载一次导出入口，不随任务变化（复用 mermaid/katex 的加载成本）
+    // 离屏页只加载一次导出入口，不随任务变化（复用 mermaid/katex 的加载成本）。
+    // 加载失败时也放行等待并销毁窗口：否则 dispatch 会一直挂到 3 分钟任务超时，
+    // 用户只看到「导出超时」而无从判断是入口损坏
     loaded = new Promise((resolve) => {
       target.webContents.once('did-finish-load', () => resolve())
+      target.webContents.once('did-fail-load', () => {
+        destroyWindow()
+        resolve()
+      })
     })
     target.webContents.on('will-navigate', (event) => event.preventDefault())
     target.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -201,11 +207,11 @@ function createExporter(deps) {
       }
       destroyWindow()
     })
-    if (rendererUrl) {
-      target.loadURL(`${rendererUrl}/export-renderer.html`)
-    } else {
-      target.loadFile(path.join(__dirname, '../dist/export-renderer.html'))
-    }
+    const load = rendererUrl
+      ? target.loadURL(`${rendererUrl}/export-renderer.html`)
+      : target.loadFile(path.join(__dirname, '../dist/export-renderer.html'))
+    // 加载失败由 did-fail-load 放行等待；此处兜住 Promise 拒绝，避免未捕获 rejection
+    load.catch(() => {})
     return loaded.then(() => target)
   }
 
@@ -320,7 +326,8 @@ function createExporter(deps) {
      */
     ipcMain.handle(IPC.exporterCapture, async (event, req) => {
       const target = BrowserWindow.fromWebContents(event.sender)
-      if (!target || target.isDestroyed() || !req) return null
+      // 只接受离屏导出窗口自身的调用（与 exporterDone 同一防御口径）
+      if (!target || target.isDestroyed() || target !== win || !req) return null
       const zoom = Number(req.zoom) > 0 ? Number(req.zoom) : 1
       // 页面 CSS px 与窗口 DIP 的换算：1 个（zoom 生效后的）CSS px = zoom 个 DIP
       /** @param {number} v @returns {number} */
@@ -357,8 +364,12 @@ function createExporter(deps) {
       }
     })
 
-    /** @param {unknown} _event @param {unknown} fileUrl */
-    ipcMain.handle(IPC.exporterReadImage, async (_event, fileUrl) => readImageAsDataUri(fileUrl))
+    /** @param {import('electron').IpcMainInvokeEvent} event @param {unknown} fileUrl */
+    ipcMain.handle(IPC.exporterReadImage, (event, fileUrl) => {
+      // 只接受离屏导出窗口自身的调用：该原语可读取任意本地图片，须限定来源
+      if (!win || win.isDestroyed() || event.sender !== win.webContents) return null
+      return readImageAsDataUri(fileUrl)
+    })
   }
 
   return { register, run, destroyWindow }
