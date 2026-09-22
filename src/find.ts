@@ -40,10 +40,15 @@ export function findTextRanges(text: string, query: string): MatchRange[] {
   const results: MatchRange[] = []
   const needle = query.toLowerCase()
   const haystack = text.toLowerCase()
-  let idx = haystack.indexOf(needle)
+  // toLowerCase 对个别字符会改变长度（如 'İ' → 'i̇'），此时小写串的下标无法
+  // 映射回原文，退回大小写敏感匹配，保证区间始终落在原文的准确位置
+  const sameLength = haystack.length === text.length
+  const source = sameLength ? haystack : text
+  const pattern = sameLength ? needle : query
+  let idx = source.indexOf(pattern)
   while (idx !== -1) {
-    results.push({ from: idx, to: idx + query.length })
-    idx = haystack.indexOf(needle, idx + needle.length)
+    results.push({ from: idx, to: idx + pattern.length })
+    idx = source.indexOf(pattern, idx + pattern.length)
   }
   return results
 }
@@ -56,10 +61,14 @@ export function findMatches(doc: ProseNode, query: string): MatchRange[] {
   doc.descendants((node, pos) => {
     if (!node.isText || !node.text) return true
     const haystack = node.text.toLowerCase()
-    let idx = haystack.indexOf(needle)
+    // 同 findTextRanges：小写化改变长度时退回大小写敏感匹配，避免位置偏移
+    const sameLength = haystack.length === node.text.length
+    const source = sameLength ? haystack : node.text
+    const pattern = sameLength ? needle : query
+    let idx = source.indexOf(pattern)
     while (idx !== -1) {
-      results.push({ from: pos + idx, to: pos + idx + query.length })
-      idx = haystack.indexOf(needle, idx + needle.length)
+      results.push({ from: pos + idx, to: pos + idx + pattern.length })
+      idx = source.indexOf(pattern, idx + pattern.length)
     }
     return true
   })
@@ -93,12 +102,21 @@ export const findPlugin = $prose(
     }),
 )
 
-/** 设置查找词：重算匹配列表并定位到第一个匹配 */
-export function findSetQuery(view: EditorView, query: string) {
+/**
+ * 重算匹配列表并把当前序号停在指定位置（clamp 到有效范围）。
+ * 无匹配时序号保持 -1，与 findSetQuery 的不变量一致。
+ */
+function recompute(view: EditorView, query: string, index: number): FindState {
   const matches = findMatches(view.state.doc, query)
-  state = { query, matches, index: matches.length ? 0 : -1 }
+  const next = matches.length ? Math.min(Math.max(index, 0), matches.length - 1) : -1
+  state = { query, matches, index: next }
   sync(view)
   return state
+}
+
+/** 设置查找词：重算匹配列表并定位到第一个匹配 */
+export function findSetQuery(view: EditorView, query: string) {
+  return recompute(view, query, 0)
 }
 
 /** 跳到上/下一个匹配（循环），选中并滚动到目标位置 */
@@ -115,24 +133,29 @@ export function findStep(view: EditorView, delta: 1 | -1): FindState {
   return state
 }
 
-/** 替换当前匹配项，随后重算匹配列表 */
+/** 替换当前匹配项，随后重算匹配列表（序号停在原位 = 下一个匹配，便于连续替换） */
 export function findReplaceCurrent(view: EditorView, replacement: string): FindState {
   if (state.index < 0 || !state.matches[state.index]) return state
   const { from, to } = state.matches[state.index]
+  const index = state.index
   view.dispatch(view.state.tr.insertText(replacement, from, to))
-  return findSetQuery(view, state.query)
+  return recompute(view, state.query, index)
 }
 
 /** 替换全部匹配项并重算（内部从后往前替换，避免位置偏移） */
 export function findReplaceAll(view: EditorView, replacement: string): FindState {
   if (!state.matches.length) return state
+  const query = state.query
   const tr = view.state.tr
   // 从后往前替换，避免位置偏移
   for (const match of [...state.matches].sort((a, b) => b.from - a.from)) {
     tr.insertText(replacement, match.from, match.to)
   }
+  // dispatch 前先清空匹配列表：该帧装饰器会重算，若沿用已被替换掉的旧区间，
+  // 会算出错误甚至越界的高亮（紧随其后的 recompute 再填回正确结果）
+  state = { query, matches: [], index: -1 }
   view.dispatch(tr)
-  return findSetQuery(view, state.query)
+  return recompute(view, query, 0)
 }
 
 /** 清空查找状态并移除高亮 */

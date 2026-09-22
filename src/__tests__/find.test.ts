@@ -42,6 +42,11 @@ describe('findMatches', () => {
     const d = doc(['aaa'])
     expect(findMatches(d, 'aa')).toEqual([{ from: 1, to: 3 }])
   })
+
+  it('小写化改变字符长度时退回大小写敏感匹配，节点内位置不偏移', () => {
+    // 'İ'.toLowerCase() 长度为 2，直接用小写串下标会算出错误区间
+    expect(findMatches(doc(['İx']), 'İx')).toEqual([{ from: 1, to: 3 }])
+  })
 })
 
 describe('findTextRanges', () => {
@@ -62,5 +67,9 @@ describe('findTextRanges', () => {
 
   it('未命中返回空数组', () => {
     expect(findTextRanges('abc', 'zzz')).toEqual([])
+  })
+
+  it('小写化改变字符长度时退回大小写敏感匹配，下标不偏移', () => {
+    expect(findTextRanges('İx', 'İx')).toEqual([{ from: 0, to: 2 }])
   })
 })
