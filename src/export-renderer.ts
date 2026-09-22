@@ -71,7 +71,15 @@ async function localizeImages(bridge: ExporterBridge, baseDir: string | null): P
       const ref = resolveExportImageRef(img.getAttribute('src'), baseDir)
       if (ref.kind !== 'local') return
       const dataUri = await bridge.readImage(ref.fileUrl)
-      if (dataUri) img.src = dataUri
+      if (dataUri) {
+        img.src = dataUri
+        return
+      }
+      // 读取失败（文件缺失 / 超限 / 无权限）：去掉 src 让浏览器渲染 alt 文本占位，
+      // 避免破图图标；不阻断整篇导出
+      img.removeAttribute('src')
+      img.style.display = 'inline-block'
+      img.style.minHeight = '1.5em'
     }),
   )
 }
@@ -117,6 +125,18 @@ async function renderMermaid(isDark: boolean): Promise<void> {
 }
 
 /**
+ * 画布底色：取页面 body 背景；未设色或为全透明时回退白底，
+ * 否则导出的长图会带透明背景（在深色查看器里像缺底）。
+ */
+function resolveBackgroundColor(): string {
+  const color = getComputedStyle(document.body).backgroundColor
+  if (!color || color === 'transparent') return '#ffffff'
+  const rgba = color.match(/^rgba\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([\d.]+)\s*\)$/)
+  if (rgba && Number(rgba[1]) === 0) return '#ffffff'
+  return color
+}
+
+/**
  * 长图导出：按显示像素比归一清晰度后分段截图拼接。
  * @returns PNG 字节
  */
@@ -141,7 +161,7 @@ async function exportLongImage(bridge: ExporterBridge): Promise<Uint8Array> {
     await nextFrames()
   }
   const capture = (req: Parameters<ExporterBridge['capture']>[0]) => bridge.capture(req)
-  const background = getComputedStyle(document.body).backgroundColor || '#ffffff'
+  const background = resolveBackgroundColor()
 
   return composeLongPng(
     planned.plan,

@@ -81,8 +81,21 @@ export function planSegments(
     segments.push({ scrollYCss: Math.round(y), heightCss: Math.ceil(h) })
     y += requestHeightCss
   }
-  // 空文档也截一段（至少得到页面背景，避免输出 0 高度图片）
-  if (segments.length === 0) segments.push({ scrollYCss: 0, heightCss: requestHeightCss })
+  // 空文档也截一段（至少得到页面背景，避免输出 0 高度图片）。
+  // 输出高度必须非零：拼接循环以 physicalHeight 为终止条件，为 0 时循环不执行、
+  // 直接抛「分段截图未产生内容」，长图导出整体失败
+  if (segments.length === 0) {
+    segments.push({ scrollYCss: 0, heightCss: requestHeightCss })
+    return {
+      ok: true,
+      plan: {
+        segments,
+        physicalWidth,
+        physicalHeight: Math.round(requestHeightCss * ratio),
+        requestHeightCss,
+      },
+    }
+  }
   return { ok: true, plan: { segments, physicalWidth, physicalHeight, requestHeightCss } }
 }
 

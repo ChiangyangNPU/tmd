@@ -82,6 +82,8 @@ describe('planSegments 长图分段', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.plan.segments).toEqual([{ scrollYCss: 0, heightCss: 4000 }])
+    // 输出高度须非零：拼接循环以它为终止条件，为 0 会长图导出整体失败
+    expect(r.plan.physicalHeight).toBeGreaterThan(0)
   })
 
   it('总物理高超过 120000 拒绝并返回实际高度', () => {
