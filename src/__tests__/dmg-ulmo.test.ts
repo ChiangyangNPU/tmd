@@ -28,7 +28,9 @@ describe('patchUpdateYml', () => {
 
   it('按 url 修补 files 条目与顶层引用的 sha512/size', () => {
     const out = patchUpdateYml(SAMPLE, 'TMD-0.1.0-arm64.dmg', patch)
-    expect(out).toContain('- url: TMD-0.1.0-arm64.dmg\n    sha512: BBBBNEW/SHA==\n    size: 85241120')
+    expect(out).toContain(
+      '- url: TMD-0.1.0-arm64.dmg\n    sha512: BBBBNEW/SHA==\n    size: 85241120',
+    )
     expect(out).toContain('path: TMD-0.1.0-arm64.dmg\nsha512: BBBBNEW/SHA==\nsize: 85241120')
     expect(out).not.toContain('AAAAOLD')
   })

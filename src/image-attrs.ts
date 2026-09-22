@@ -542,8 +542,7 @@ class ImageView implements NodeView {
 // 否则首帧拿不到 image-resolver 解析的 file:// src（图片要等首次 update 才显示）
 const imageView = $view(
   imageSchemaExt.node,
-  () => (node, view, getPos, decorations) =>
-    new ImageView(node, view, getPos, decorations),
+  () => (node, view, getPos, decorations) => new ImageView(node, view, getPos, decorations),
 )
 
 /** 编辑器装配入口（editor-core 中 use；必须晚于 commonmark） */

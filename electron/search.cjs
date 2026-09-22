@@ -17,9 +17,24 @@ const path = require('node:path')
 
 /** 搜索时跳过的目录名（依赖 / 版本库 / 构建产物） */
 const SEARCH_SKIP_DIRS = new Set([
-  'node_modules', '.git', '.svn', '.hg', 'dist', 'release', 'build', 'out',
-  'target', '.next', '.nuxt', '.output', '.cache', '__pycache__', '.idea',
-  '.vscode', 'coverage', 'vendor',
+  'node_modules',
+  '.git',
+  '.svn',
+  '.hg',
+  'dist',
+  'release',
+  'build',
+  'out',
+  'target',
+  '.next',
+  '.nuxt',
+  '.output',
+  '.cache',
+  '__pycache__',
+  '.idea',
+  '.vscode',
+  'coverage',
+  'vendor',
 ])
 
 /** 搜索收录的文件扩展名（纯文本类，避免把二进制当文本读） */

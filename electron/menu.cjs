@@ -184,9 +184,7 @@ function buildMenuTemplate(deps) {
           click: () => onAction('open-settings'),
         },
         { type: 'separator' },
-        isMac
-          ? { role: /** @type {const} */ ('close') }
-          : { role: /** @type {const} */ ('quit') },
+        isMac ? { role: /** @type {const} */ ('close') } : { role: /** @type {const} */ ('quit') },
       ],
     },
     {

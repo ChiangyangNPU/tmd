@@ -44,8 +44,8 @@ const DOCS_DIR = join(WORK, 'docs')
  * 警告——临时目录残留不应让清理问题掩盖基准结果本身。
  */
 async function removeWorkDir() {
-  await rm(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch(
-    (err) => console.warn(`警告：临时目录清理未完成（${err.code ?? err}），可手动删除 ${WORK}`),
+  await rm(WORK, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }).catch((err) =>
+    console.warn(`警告：临时目录清理未完成（${err.code ?? err}），可手动删除 ${WORK}`),
   )
 }
 /** 纯文本文档目标体积 */

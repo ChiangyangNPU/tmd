@@ -214,7 +214,11 @@ export function tableFromPipeRow(
 
   const table = grid
     ? buildGridTableNode(state, grid.rows, grid.cols)
-    : buildTableNode(state, headers, headers.map(() => null))
+    : buildTableNode(
+        state,
+        headers,
+        headers.map(() => null),
+      )
   if (!table) return false
 
   // 替换当前段落为表格

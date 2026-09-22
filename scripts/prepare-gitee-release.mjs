@@ -113,7 +113,11 @@ async function main() {
   if (localMode) {
     // CI 模式：产物就在本地 release/（刚构建完），无需绕道 GitHub
     const names = readdirSync(RELEASE_DIR)
-    assets = names.map((name) => ({ name, url: '', size: statSync(path.join(RELEASE_DIR, name)).size }))
+    assets = names.map((name) => ({
+      name,
+      url: '',
+      size: statSync(path.join(RELEASE_DIR, name)).size,
+    }))
     ymls = names
       .filter((n) => /^latest.*\.yml$/.test(n))
       .map((name) => ({ name, text: readFileSync(path.join(RELEASE_DIR, name), 'utf8') }))

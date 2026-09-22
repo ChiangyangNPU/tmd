@@ -91,7 +91,8 @@ function toggleBlockType(
   return (state, dispatch) => {
     const current = state.selection.$from.parent
     const sameType = current.type === nodeType
-    const sameAttrs = attrs == null || Object.entries(attrs).every(([k, v]) => current.attrs[k] === v)
+    const sameAttrs =
+      attrs == null || Object.entries(attrs).every(([k, v]) => current.attrs[k] === v)
     if (sameType && sameAttrs) {
       return setBlockType(state.schema.nodes.paragraph)(state, dispatch)
     }
@@ -231,21 +232,22 @@ export function applyFormatAction(view: EditorView, action: string): boolean {
  * - 浏览器模式无菜单栏，靠这条路径触发格式化命令
  * - 源码模式（CodeMirror）不挂 ProseMirror 编辑器，本插件自然失效
  */
-export const formatKeymap = $prose(() =>
-  new Plugin({
-    key: new PluginKey('tmd-format-keymap'),
-    props: {
-      handleKeyDown(view, event) {
-        const acc = eventToAccelerator(event)
-        // 必须带修饰键：避免单字符键吞掉正常输入（设置面板亦按此约束校验）
-        if (!acc.includes('+')) return false
-        const shortcuts = loadShortcuts()
-        for (const [action, accelerator] of Object.entries(shortcuts)) {
-          if (!action.startsWith('fmt-')) continue
-          if (isSameAccelerator(acc, accelerator)) return applyFormatAction(view, action)
-        }
-        return false
+export const formatKeymap = $prose(
+  () =>
+    new Plugin({
+      key: new PluginKey('tmd-format-keymap'),
+      props: {
+        handleKeyDown(view, event) {
+          const acc = eventToAccelerator(event)
+          // 必须带修饰键：避免单字符键吞掉正常输入（设置面板亦按此约束校验）
+          if (!acc.includes('+')) return false
+          const shortcuts = loadShortcuts()
+          for (const [action, accelerator] of Object.entries(shortcuts)) {
+            if (!action.startsWith('fmt-')) continue
+            if (isSameAccelerator(acc, accelerator)) return applyFormatAction(view, action)
+          }
+          return false
+        },
       },
-    },
-  }),
+    }),
 )

@@ -141,9 +141,7 @@ function cellHasContent(children: MdastNodeLike[]): boolean {
 function convertCellBrTags(cell: MdastNodeLike): void {
   if (!cell.children || !cellHasContent(cell.children)) return
   cell.children = cell.children.map((node) =>
-    node.type === 'html' && BR_TAG_RE.test((node.value ?? '').trim())
-      ? { type: 'break' }
-      : node,
+    node.type === 'html' && BR_TAG_RE.test((node.value ?? '').trim()) ? { type: 'break' } : node,
   )
 }
 

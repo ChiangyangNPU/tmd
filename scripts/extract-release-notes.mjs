@@ -51,10 +51,14 @@ function main() {
 
   if (sections.has(version)) {
     writeFileSync(OUTPUT, sections.get(version) + '\n')
-    console.log(`release notes ← CHANGELOG [${version}]（${sections.get(version).split('\n').length} 行）`)
+    console.log(
+      `release notes ← CHANGELOG [${version}]（${sections.get(version).split('\n').length} 行）`,
+    )
   } else if (sections.has('未发布') && !strict) {
     writeFileSync(OUTPUT, sections.get('未发布') + '\n')
-    console.warn(`警告：CHANGELOG 缺少 [${version}] 小节，release notes 回退用 [未发布]（发版前须转正，见 docs/打包发布.md §3）`)
+    console.warn(
+      `警告：CHANGELOG 缺少 [${version}] 小节，release notes 回退用 [未发布]（发版前须转正，见 docs/打包发布.md §3）`,
+    )
   } else {
     console.error(
       strict

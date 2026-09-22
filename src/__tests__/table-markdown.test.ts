@@ -120,7 +120,13 @@ describe('tableCellBrRemark（格内 <br> 标签还原为 hardbreak）', () => {
     const tree = runCellBrRemark(parseTable('| x<br>y<br/>z<BR />w | |\n| --- | --- |'))
     const [firstCell] = tableCells(tree)
     expect(firstCell?.children.map((n) => n.type)).toEqual([
-      'text', 'break', 'text', 'break', 'text', 'break', 'text',
+      'text',
+      'break',
+      'text',
+      'break',
+      'text',
+      'break',
+      'text',
     ])
   })
 
@@ -141,7 +147,9 @@ describe('tableCellBrRemark（格内 <br> 标签还原为 hardbreak）', () => {
     const para = tree.children[0]
     expect(para?.type).toBe('paragraph')
     expect(para.type === 'paragraph' && para.children.map((n) => n.type)).toEqual([
-      'text', 'html', 'text',
+      'text',
+      'html',
+      'text',
     ])
   })
 

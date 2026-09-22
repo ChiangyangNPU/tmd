@@ -29,7 +29,11 @@ import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
 import { tableToolbar } from './table-toolbar'
 import { tableInputPlugin } from './table-input'
-import { normalizeEmptyTableCells, patchTableHardbreak, tableHardbreakPlugin } from './table-markdown'
+import {
+  normalizeEmptyTableCells,
+  patchTableHardbreak,
+  tableHardbreakPlugin,
+} from './table-markdown'
 import { patchTextEscaping, pipeBreakEscapingRemark } from './text-escaping'
 import { formatKeymap } from './format'
 import { focusPlugin } from './writing-modes'

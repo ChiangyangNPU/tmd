@@ -52,11 +52,15 @@ function main() {
   rmSync(OUT, { force: true })
   // qlmanage 输出名 = <源文件名>.svg.png；缩略图强制方形（1320×1320，内容居中、
   // 上下各 260px 透明带），用 sips 居中裁剪回 1320×800
-  execFileSync('qlmanage', ['-t', '-s', String(W), '-o', 'build', 'build/dmg-background.svg'], { stdio: 'pipe' })
+  execFileSync('qlmanage', ['-t', '-s', String(W), '-o', 'build', 'build/dmg-background.svg'], {
+    stdio: 'pipe',
+  })
   if (!existsSync('build/dmg-background.svg.png')) {
     throw new Error('qlmanage 未产出缩略图，检查 SVG 内容')
   }
-  execFileSync('sips', ['-c', String(H), String(W), 'build/dmg-background.svg.png', '--out', OUT], { stdio: 'pipe' })
+  execFileSync('sips', ['-c', String(H), String(W), 'build/dmg-background.svg.png', '--out', OUT], {
+    stdio: 'pipe',
+  })
   rmSync('build/dmg-background.svg', { force: true })
   rmSync('build/dmg-background.svg.png', { force: true })
   console.log(`dmg 背景图已生成：${OUT}（TMD ${version}）`)

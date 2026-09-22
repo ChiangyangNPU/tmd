@@ -52,7 +52,11 @@ describe('groupMatches', () => {
   })
 
   it('按文件路径分组，保持首次出现顺序与文件内行序', () => {
-    const groups = groupMatches([match('/a/one.md', 1), match('/b/two.md', 2), match('/a/one.md', 5)])
+    const groups = groupMatches([
+      match('/a/one.md', 1),
+      match('/b/two.md', 2),
+      match('/a/one.md', 5),
+    ])
     expect(groups.map((g) => g.path)).toEqual(['/a/one.md', '/b/two.md'])
     expect(groups[0].matches.map((m) => m.line)).toEqual([1, 5])
     expect(groups[1].matches.map((m) => m.line)).toEqual([2])

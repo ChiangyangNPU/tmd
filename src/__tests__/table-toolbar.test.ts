@@ -5,7 +5,12 @@ import { EditorState, TextSelection } from '@milkdown/kit/prose/state'
 import type { Transaction } from '@milkdown/kit/prose/state'
 import { CellSelection, TableMap } from '@milkdown/kit/prose/tables'
 import { history, undo } from '@milkdown/kit/prose/history'
-import { findTableContext, isAnchorVisible, computeToolbarPlacement, runTableAction } from '../table-toolbar'
+import {
+  findTableContext,
+  isAnchorVisible,
+  computeToolbarPlacement,
+  runTableAction,
+} from '../table-toolbar'
 import { tableFromPipeRow } from '../table-input'
 import type { EditorView } from '@milkdown/kit/prose/view'
 

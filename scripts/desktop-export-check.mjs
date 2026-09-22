@@ -540,7 +540,11 @@ async function main() {
       const img2 = JSON.parse(info)
       // 期望宽 924×2；Windows 的 capturePage 对 DIP 矩形做设备像素取整，
       // 实测宽会多出 2 物理像素（925×2），故断言取 ±2px 容差而非精确相等
-      check('长图为 2x 物理清晰度（宽 = 924×2 ±2px 取整容差）', Math.abs(img2.width - 1848) <= 2, info)
+      check(
+        '长图为 2x 物理清晰度（宽 = 924×2 ±2px 取整容差）',
+        Math.abs(img2.width - 1848) <= 2,
+        info,
+      )
       check('长图高度覆盖整篇（> 5000px 说明已分段拼接）', img2.height > 5000, info)
       check('长图非空白（颜色多样且含大量非背景像素）', img2.colors > 20 && img2.nonBg > 50, info)
       check(
@@ -630,7 +634,10 @@ async function main() {
       check(
         'LaTeX 无 HTML 泄漏且 front matter 剥离',
         !/<p>|<div|<span|<mark|title: 导出验证/.test(tex) && tex.includes('% [TMD] Mermaid'),
-        JSON.stringify({ htmlLeak: /<p>|<div|<span|<mark/.test(tex), frontMatterLeak: tex.includes('title: 导出验证') }),
+        JSON.stringify({
+          htmlLeak: /<p>|<div|<span|<mark/.test(tex),
+          frontMatterLeak: tex.includes('title: 导出验证'),
+        }),
       )
     }
 

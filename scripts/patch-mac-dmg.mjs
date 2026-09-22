@@ -52,12 +52,18 @@ export function patchUpdateYml(yamlText, filename, patch) {
   if (!entryRe.test(yamlText)) {
     throw new Error(`update yml 中找不到 ${filename} 的更新条目，拒绝产出不一致的元数据`)
   }
-  let out = yamlText.replace(entryRe, (_m, shaKey, sizeKey) => `- url: ${filename}\n${shaKey}${patch.sha512}\n${sizeKey}${patch.size}`)
+  let out = yamlText.replace(
+    entryRe,
+    (_m, shaKey, sizeKey) =>
+      `- url: ${filename}\n${shaKey}${patch.sha512}\n${sizeKey}${patch.size}`,
+  )
   // 顶层引用：path: <名> 后紧跟的 sha512 行（mac 元数据顶层没有 size 行——
   // size 只在 files 条目里；若未来格式出现顶层 size 也一并修补）
   const topRe = new RegExp(`(path: ${esc}\\nsha512: )[^\\n]+(\\nsize: )?\\d*`)
   out = out.replace(topRe, (_m, head, sizeKey) =>
-    sizeKey !== undefined ? `${head}${patch.sha512}${sizeKey}${patch.size}` : `${head}${patch.sha512}`,
+    sizeKey !== undefined
+      ? `${head}${patch.sha512}${sizeKey}${patch.size}`
+      : `${head}${patch.sha512}`,
   )
   return out
 }
@@ -98,11 +104,16 @@ function main() {
     console.log(`${name}: ${(before / 1e6).toFixed(1)}MB → ${(after / 1e6).toFixed(1)}MB (ULMO)`)
 
     const ymlPath = path.join(OUTPUT_DIR, 'latest-mac.yml')
-    writeFileSync(ymlPath, patchUpdateYml(readFileSync(ymlPath, 'utf8'), name, { sha512, size: after }))
+    writeFileSync(
+      ymlPath,
+      patchUpdateYml(readFileSync(ymlPath, 'utf8'), name, { sha512, size: after }),
+    )
 
     const staleBlockmap = dmg.replace(/\.dmg$/, '.dmg.blockmap')
     rmSync(staleBlockmap, { force: true })
-    console.log(`latest-mac.yml 已按新文件重算；过期 blockmap 已移除（${path.basename(staleBlockmap)}）`)
+    console.log(
+      `latest-mac.yml 已按新文件重算；过期 blockmap 已移除（${path.basename(staleBlockmap)}）`,
+    )
   }
 }
 

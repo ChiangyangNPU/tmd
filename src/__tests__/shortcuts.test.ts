@@ -146,7 +146,9 @@ describe('eventToAccelerator 按键转换', () => {
 
   it('修饰键本身不作为主键（仅返回修饰符）', () => {
     expect(eventToAccelerator(keyEvent('Control', { ctrl: true }))).toBe('CmdOrCtrl')
-    expect(eventToAccelerator(keyEvent('Shift', { ctrl: true, shift: true }))).toBe('CmdOrCtrl+Shift')
+    expect(eventToAccelerator(keyEvent('Shift', { ctrl: true, shift: true }))).toBe(
+      'CmdOrCtrl+Shift',
+    )
   })
 
   it('空格键规范化为 Space', () => {

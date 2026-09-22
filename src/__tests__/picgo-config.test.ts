@@ -50,8 +50,6 @@ describe('PICGO_FIELDS 图床配置字段定义', () => {
 
   it('GitHub 包含 repo/branch/token/path/customUrl', () => {
     const keys = PICGO_FIELDS.github.map((f) => f.key)
-    expect(keys).toEqual(
-      expect.arrayContaining(['repo', 'branch', 'token', 'path', 'customUrl']),
-    )
+    expect(keys).toEqual(expect.arrayContaining(['repo', 'branch', 'token', 'path', 'customUrl']))
   })
 })

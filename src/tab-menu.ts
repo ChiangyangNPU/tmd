@@ -14,12 +14,7 @@ import { listTabs, closeTab, closeTabsBulk } from './tabs'
 
 /** 菜单项动作，DOM 用 data-tm-action 关联 */
 export type TabMenuAction =
-  | 'close'
-  | 'closeOthers'
-  | 'closeLeft'
-  | 'closeRight'
-  | 'closeSaved'
-  | 'closeAll'
+  'close' | 'closeOthers' | 'closeLeft' | 'closeRight' | 'closeSaved' | 'closeAll'
 
 /** 全部菜单项（顺序即显示顺序） */
 const ACTIONS: TabMenuAction[] = [
