@@ -182,8 +182,24 @@ export function renderTabs() {
   bar.appendChild(plus)
 }
 
+/**
+ * 激活操作串行化：连点两个标签时，第二次若在第一次的编辑器重建完成前
+ * 读取当前内容，会把"尚未切换完成的旧文档内容"当作第一个标签的 markdown
+ * 暂存下来，其未保存修改即被覆盖。入队串行执行，保证「暂存当前内容」
+ * 总是发生在上一轮重建之后。
+ */
+let activateQueue: Promise<void> = Promise.resolve()
+
 /** 激活指定标签页：暂存当前标签内容与滚动位置 → 重建编辑器载入目标内容 */
-export async function activateTab(id: string) {
+export function activateTab(id: string): Promise<void> {
+  activateQueue = activateQueue
+    .then(() => doActivateTab(id))
+    .catch((err) => console.error('[tmd] 标签切换失败', err))
+  return activateQueue
+}
+
+/** 实际切换逻辑（由 activateTab 串行调用） */
+async function doActivateTab(id: string) {
   if (id === activeTabId) return
   const current = activeTab()
   if (current) {
