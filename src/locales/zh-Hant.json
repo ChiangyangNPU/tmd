@@ -59,6 +59,7 @@
     "empty": "尚無紀錄",
     "emptyFolder": "尚無開啟的資料夾",
     "openFailed": "檔案已被移動或刪除，無法開啟",
+    "saveFailed": "儲存失敗，請檢查磁碟空間或檔案權限",
     "folderOpenFailed": "資料夾已被移動或刪除，無法開啟",
     "removeRecent": "從最近檔案中移除",
     "removeFolder": "從清單中移除資料夾（不會刪除磁碟檔案）",

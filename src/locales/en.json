@@ -59,6 +59,7 @@
     "empty": "No history",
     "emptyFolder": "No open folders",
     "openFailed": "The file has been moved or deleted and cannot be opened",
+    "saveFailed": "Failed to save. Check disk space or file permissions",
     "folderOpenFailed": "The folder has been moved or deleted and cannot be opened",
     "removeRecent": "Remove from Recent Files",
     "removeFolder": "Remove folder from list (files on disk are kept)",

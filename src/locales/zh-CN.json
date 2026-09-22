@@ -59,6 +59,7 @@
     "empty": "暂无记录",
     "emptyFolder": "暂无打开的文件夹",
     "openFailed": "文件已被移动或删除，无法打开",
+    "saveFailed": "保存失败，请检查磁盘空间或文件权限",
     "folderOpenFailed": "文件夹已被移动或删除，无法打开",
     "removeRecent": "从最近文件中移除",
     "removeFolder": "从列表中移除文件夹（不删除磁盘文件）",

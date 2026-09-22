@@ -15,6 +15,7 @@ import {
   findByPath,
   blankTab,
   hasDirty,
+  type DocTab,
 } from './tabs'
 import {
   pushRecent,
@@ -118,25 +119,53 @@ export async function openFromData(data: { path?: string; name: string; content:
 }
 
 /**
+ * 保存操作串行化：手动保存（Cmd+S）与定时自动保存可能在同一时刻触发，
+ * 并发写同一文件时两次 writeFile 的完成顺序不可控——后发起的先落盘时，
+ * 磁盘反而退回旧内容，而内存与 tab.markdown 都是新内容、脏标记又被清掉，
+ * 用户完全无从察觉。入队串行执行，保证后一次写入的一定是更新的内容。
+ */
+let saveQueue: Promise<void> = Promise.resolve()
+
+/**
  * 保存当前标签页：
  * - 已关联磁盘文件 → 直接写回；未关联 → 弹"另存为"
  * - 浏览器降级为下载 .md 文件
+ *
+ * 目标标签与内容在调用时刻捕获（"保存我按下的那一刻"），写盘动作入队串行执行；
+ * 写盘失败保留脏标记并提示，绝不静默当作成功。
  */
-export async function saveDocument(saveAs = false) {
+export function saveDocument(saveAs = false): Promise<void> {
   const tab = activeTab()
-  if (!tab) return
+  if (!tab) return Promise.resolve()
   const markdown = currentMarkdown()
   tab.markdown = markdown
+  saveQueue = saveQueue
+    .then(() => doSaveDocument(tab, markdown, saveAs))
+    .catch((err) => {
+      console.error('[tmd] 保存流程异常', err)
+      showToast(t('files.saveFailed'))
+    })
+  return saveQueue
+}
 
+/** 实际写盘（由 saveDocument 串行调用）：成功后清脏并清恢复副本，失败保留脏标记 */
+async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
   if (native) {
-    if (tab.path && !saveAs) {
-      await native.saveFile(tab.path, markdown)
-    } else {
-      const result = await native.saveFileAs(markdown)
-      if (!result) return
-      tab.path = result.path
-      tab.name = result.name
-      pushRecentWithRender(result.path, result.name)
+    try {
+      if (tab.path && !saveAs) {
+        await native.saveFile(tab.path, markdown)
+      } else {
+        const result = await native.saveFileAs(markdown)
+        if (!result) return
+        tab.path = result.path
+        tab.name = result.name
+        pushRecentWithRender(result.path, result.name)
+      }
+    } catch (err) {
+      // 磁盘满 / 权限拒绝 / 路径失效：保留脏标记（关闭时仍会确认），并明确告知用户
+      console.error('[tmd] 保存失败', err)
+      showToast(t('files.saveFailed'))
+      return
     }
   } else {
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
