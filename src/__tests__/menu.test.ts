@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
+import { IS_MAC, SHORTCUT_DEFS } from '../shortcuts'
 
 // electron/menu.cjs 是纯 Node CJS 模块（不依赖 Electron），
 // 经 createRequire 直接加载验证菜单模板结构（与 logger.test.ts 同范式）：
@@ -130,5 +131,35 @@ describe('menu.cjs buildMenuTemplate', () => {
       item?.click?.({ checked: false })
     }
     expect(calls.actions).toEqual(['fmt-h1', 'fmt-h2', 'fmt-h3', 'fmt-h4', 'fmt-h5', 'fmt-h6'])
+  })
+
+  it('菜单 fallback accelerator 与渲染层快捷键默认值一致', () => {
+    // menu.cjs 与 shortcuts.ts 各存一份默认键位（菜单用 fallback、渲染层用 default），
+    // 两处漂移会让「菜单显示的键位」与实际生效的键位不一致（本轮导出 HTML 撞键即此类）
+    const { template, calls } = build({ isMac: IS_MAC })
+    const byAction = new Map<string, string>()
+    const walk = (items: MenuItemLike[]) => {
+      for (const item of items) {
+        if (item.submenu) walk(item.submenu)
+        if (!item.accelerator || !item.click) continue
+        const before = calls.actions.length
+        item.click({ checked: false })
+        const action = calls.actions[before]
+        if (action) byAction.set(action, item.accelerator)
+      }
+    }
+    walk(template)
+
+    let covered = 0
+    for (const def of SHORTCUT_DEFS) {
+      const acc = byAction.get(def.action)
+      if (!acc) continue
+      expect(acc, `${def.action} 的菜单 accelerator 与 SHORTCUT_DEFS.default 不一致`).toBe(
+        def.default,
+      )
+      covered++
+    }
+    // 防止映射失效导致断言空转：可自定义动作绝大多数都应绑定在菜单上
+    expect(covered).toBeGreaterThanOrEqual(20)
   })
 })
