@@ -299,8 +299,19 @@ const subscriptSchema = defineExtMark('subscript', 'sub')
  */
 export function inUnclosedSpan(before: string): boolean {
   return ['`', '$'].some((ch) => {
-    const escaped = new RegExp(`(?<!\\\\)\\${ch}`, 'g')
-    return (before.match(escaped)?.length ?? 0) % 2 === 1
+    // 逐字符统计"未被转义的围栏字符"：前面连续反斜杠为偶数个才算未转义
+    // （正则 lookbehind 只能看到紧邻的一个反斜杠，`\\$` 会被误判为已转义）
+    let count = 0
+    let backslashes = 0
+    for (const c of before) {
+      if (c === '\\') {
+        backslashes++
+        continue
+      }
+      if (c === ch && backslashes % 2 === 0) count++
+      backslashes = 0
+    }
+    return count % 2 === 1
   })
 }
 

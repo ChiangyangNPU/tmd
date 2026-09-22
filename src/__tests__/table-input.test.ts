@@ -31,6 +31,10 @@ describe('splitPipeRow', () => {
     expect(splitPipeRow('| a \\| b | c |')).toEqual(['a | b', 'c'])
   })
 
+  it('末尾管道按反斜杠奇偶判断是否转义（x\\\\| 的 | 是行边界）', () => {
+    expect(splitPipeRow('x\\\\|')).toEqual(['x\\\\'])
+  })
+
   it('没有管道时整体作为一个单元格', () => {
     expect(splitPipeRow('  hello  ')).toEqual(['hello'])
   })
@@ -87,6 +91,10 @@ describe('parseGridSpec（|NxM| 网格表速记）', () => {
     expect(parseGridSpec('|x5|')).toBeNull()
     expect(parseGridSpec('3x5')).toBeNull()
     expect(parseGridSpec('| 3 x 5 |')).toBeNull()
+  })
+
+  it('列数为 0 不触发（表格至少一列）', () => {
+    expect(parseGridSpec('|0x2|')).toBeNull()
   })
 })
 

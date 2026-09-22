@@ -62,7 +62,13 @@ const DELIM_CELL_RE = /^:?-+:?$/
 export function splitPipeRow(line: string): string[] {
   let s = line.trim()
   if (s.startsWith('|')) s = s.slice(1)
-  if (s.endsWith('|') && !s.endsWith('\\|')) s = s.slice(0, -1)
+  // 末尾管道是否为行边界：看它前面连续反斜杠的奇偶（`\|` 才是字面管道，
+  // `\\|` 是转义反斜杠 + 边界管道）
+  if (s.endsWith('|')) {
+    let backslashes = 0
+    for (let i = s.length - 2; i >= 0 && s[i] === '\\'; i--) backslashes++
+    if (backslashes % 2 === 0) s = s.slice(0, -1)
+  }
   return s.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'))
 }
 
@@ -102,7 +108,10 @@ const GRID_SPEC_RE = /^\|(\d+)[xX](\d+)\|$/
 export function parseGridSpec(text: string): { cols: number; rows: number } | null {
   const m = text.trim().match(GRID_SPEC_RE)
   if (!m) return null
-  return { cols: Number(m[1]), rows: Math.max(Number(m[2]), 2) }
+  // 列数下限 1：`|0x2|` 会生成 0 列的退化表格（schema 层无合法表格节点）
+  const cols = Number(m[1])
+  if (cols < 1) return null
+  return { cols, rows: Math.max(Number(m[2]), 2) }
 }
 
 // ---------------------------------------------------------------------------

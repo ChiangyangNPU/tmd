@@ -198,6 +198,10 @@ describe('inUnclosedSpan 输入规则围栏守卫', () => {
     expect(inUnclosedSpan('\\`x^2')).toBe(false)
     expect(inUnclosedSpan('\\$5，x^2')).toBe(false)
   })
+
+  test('偶数个反斜杠不构成转义（\\\\$ 的 $ 仍计入围栏）', () => {
+    expect(inUnclosedSpan('\\\\$a^{b')).toBe(true)
+  })
 })
 
 describe('脚注输入规则正则', () => {
