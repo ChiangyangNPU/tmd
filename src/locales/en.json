@@ -61,6 +61,7 @@
     "openFailed": "The file has been moved or deleted and cannot be opened",
     "saveFailed": "Failed to save. Check disk space or file permissions",
     "folderOpenFailed": "The folder has been moved or deleted and cannot be opened",
+    "imageDropInSource": "Images can't be inserted in source mode; switch to WYSIWYG",
     "removeRecent": "Remove from Recent Files",
     "removeFolder": "Remove folder from list (files on disk are kept)",
     "clearRecent": "Clear",

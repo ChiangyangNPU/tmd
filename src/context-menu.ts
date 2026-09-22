@@ -152,4 +152,10 @@ export function wireContextMenu(): void {
     if (!menu || menu.hidden) return
     if (!(e.target as HTMLElement).closest('#context-menu')) closeContextMenu()
   })
+
+  // 编辑器外右键（侧边栏 / 标题栏等）：先关掉残留菜单，避免旧菜单停在原处
+  document.addEventListener('contextmenu', (e) => {
+    if (!menu || menu.hidden) return
+    if (!(e.target as HTMLElement).closest('#editor')) closeContextMenu()
+  })
 }

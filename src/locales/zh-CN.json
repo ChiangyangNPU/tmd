@@ -61,6 +61,7 @@
     "openFailed": "文件已被移动或删除，无法打开",
     "saveFailed": "保存失败，请检查磁盘空间或文件权限",
     "folderOpenFailed": "文件夹已被移动或删除，无法打开",
+    "imageDropInSource": "源码模式下无法插入图片，请切换到所见即所得",
     "removeRecent": "从最近文件中移除",
     "removeFolder": "从列表中移除文件夹（不删除磁盘文件）",
     "clearRecent": "清空",

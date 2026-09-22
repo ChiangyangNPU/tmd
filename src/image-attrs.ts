@@ -447,6 +447,9 @@ class ImageView implements NodeView {
   private startDrag(e: MouseEvent) {
     if (e.button !== 0) return
     e.preventDefault()
+    // 上一轮拖拽若没收到 mouseup（在窗口外释放）仍留有 document 监听：
+    // 先清理，避免本轮出现重复的 mousemove/mouseup 与重复提交
+    this.cleanupDrag?.()
     const pos = this.getPos()
     if (pos == null) return
     const startX = e.clientX

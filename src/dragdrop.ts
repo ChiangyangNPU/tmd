@@ -14,9 +14,10 @@
  * @author chiangyang
  */
 import { native } from './native'
-import { openFromData, openPath } from './files'
+import { openFromData, openPath, showToast } from './files'
 import { insertImageFiles } from './paste-image'
 import { getPmView, isSourceMode } from './editor-core'
+import { t } from './i18n'
 
 const MD_EXTS = ['.md', '.markdown']
 
@@ -37,8 +38,13 @@ async function handleDrop(files: File[]) {
   const { markdown, images } = classifyDroppedFiles(files)
 
   const view = getPmView()
-  if (images.length && view && !isSourceMode()) {
-    await insertImageFiles(view, images)
+  if (images.length) {
+    if (view && !isSourceMode()) {
+      await insertImageFiles(view, images)
+    } else {
+      // 源码模式（或编辑器未就绪）不支持插入图片：明确提示，避免拖入后毫无反馈
+      showToast(t('files.imageDropInSource'))
+    }
   }
 
   for (const file of markdown) {
