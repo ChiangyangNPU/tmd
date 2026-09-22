@@ -423,9 +423,18 @@ async function main() {
       }
       check('Mermaid 源码未泄漏为正文文本（已被图表位图取代）', !/graph LR/.test(xml), '')
       check(
-        'Mermaid 图表与独占公式已栅格化为位图（media ≥ 3）',
-        media.length >= 3,
+        'Mermaid 图表已栅格化为位图（独占公式不再走位图）',
+        media.length >= 2,
         `media 数=${media.length}：${media.join(',')}`,
+      )
+      // 注意 <m:oMathPara> 也以 <m:oMath 开头，用 [ >] 收尾避免把它算成公式本体
+      const oMathCount = (xml.match(/<m:oMath[ >]/g) ?? []).length
+      const hasMathStructure = /<m:f>|<m:nary>/.test(xml)
+      const leftover = /@@TMDMATH/.test(xml)
+      check(
+        '独占公式转为可编辑 OMML（Word 原生公式对象）',
+        oMathCount >= 1 && hasMathStructure && !leftover,
+        `oMath=${oMathCount}，含分式/积分结构=${hasMathStructure}，残留占位=${leftover}`,
       )
       const sizes = media.map((n) => entries[n].length)
       check(

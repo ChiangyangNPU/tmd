@@ -17,6 +17,7 @@
 import { convertHtmlToDocxUint8Array } from 'dom-docx/browser'
 import type { ImageResolver, ResolvedImage } from 'dom-docx/browser'
 import type { ExporterBridge } from './export-bridge'
+import { injectOmmlFormulas, mathPlaceholder } from './export-omml'
 
 /**
  * Word 转换前设置的离屏视口：需容纳最高的那张图表/公式（区域截帧只能取可见部分），
@@ -32,11 +33,12 @@ const BLOCK_PADDING = 2
 
 /**
  * 需栅格化的复杂视觉块选择器（按文档顺序处理）：
- * - .katex-display：独占公式（KaTeX span 结构）
  * - pre.mermaid：Mermaid 图表（取其外层 pre 而非内层 svg，避免图片被困在
  *   等宽 pre 块里；该 SVG 含 foreignObject，不能走画布栅格化）
+ *
+ * 独占公式不在其中：它改为导出后注入 OMML（Word 原生可编辑公式），见 export-omml.ts
  */
-const RASTERIZE_SELECTOR = '.katex-display, pre.mermaid'
+const RASTERIZE_SELECTOR = 'pre.mermaid'
 
 /** 支持的位图 MIME → dom-docx 的 ImageType */
 const MIME_TO_IMAGE_TYPE: Record<string, ResolvedImage['type']> = {
@@ -101,25 +103,35 @@ function isFullyVisible(rect: DOMRect): boolean {
 }
 
 /**
- * 超出栅格化上限的视觉块降级为源码文本：
- * - Mermaid：去掉 mermaid 类，按普通代码块转换，保留图表源码
- * - KaTeX 独占公式：优先取 MathML 里 annotation 的 LaTeX 原文，取不到则退回纯文本
+ * 超出栅格化上限的 Mermaid 图表降级为源码文本：去掉 mermaid 类，
+ * 按普通代码块转换，保留图表源码（独占公式走 OMML 注入，不在此列）
  */
 function degradeUnrasterizedBlocks(blocks: HTMLElement[]): void {
-  for (const el of blocks) {
-    if (el.matches('pre.mermaid')) {
-      el.classList.remove('mermaid')
-      continue
-    }
-    const tex = el.querySelector('annotation[encoding="application/x-tex"]')?.textContent
-    const fallback = document.createElement('pre')
-    fallback.textContent = tex?.trim() || el.textContent?.trim() || ''
-    el.replaceWith(fallback)
-  }
+  for (const el of blocks) el.classList.remove('mermaid')
 }
 
 /**
- * 把复杂视觉块（独占公式、Mermaid 图表）栅格化为位图（替换原元素）：
+ * 把独占公式（KaTeX 的 .katex-display）换成占位段落，并收集其 LaTeX 源码。
+ *
+ * 占位文本随 HTML 转换进入文档，导出后由 injectOmmlFormulas 按序号定位并整段
+ * 替换为 OMML。源码取自 KaTeX MathML 中的 annotation；取不到时按空源码处理，
+ * 后续会降级为纯文本。
+ * @returns 公式的 LaTeX 源码列表（下标即占位序号）
+ */
+function extractDisplayFormulas(root: HTMLElement): string[] {
+  const formulas: string[] = []
+  for (const el of Array.from(root.querySelectorAll<HTMLElement>('.katex-display'))) {
+    const tex = el.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim()
+    const placeholder = document.createElement('p')
+    placeholder.textContent = mathPlaceholder(formulas.length)
+    el.replaceWith(placeholder)
+    formulas.push(tex ?? '')
+  }
+  return formulas
+}
+
+/**
+ * 把 Mermaid 图表栅格化为位图（替换原元素）：
  * 逐条滚动到视口内 → 区域截帧 → 用 <img> 替换，尺寸取自测量矩形。
  * 任一步失败即保留原 DOM（降级为文本/矢量，不影响导出成功）。
  *
@@ -184,7 +196,9 @@ export async function buildDocxBytes(
   lang: string,
   zoom: number,
 ): Promise<Uint8Array> {
-  // 先固定视口：区域截帧只能取到可见部分，故需足够高的视口容纳图表/公式
+  // 独占公式先换成占位段（导出后注入 OMML），再截帧 Mermaid 图表
+  const formulas = extractDisplayFormulas(root)
+  // 先固定视口：区域截帧只能取到可见部分，故需足够高的视口容纳图表
   await bridge.capture({ ...WORD_VIEWPORT, zoom })
   await rasterizeVisualBlocks(bridge, root, zoom)
 
@@ -205,5 +219,6 @@ export async function buildDocxBytes(
     pageSize: 'a4',
   })
   if (warnings.length) console.warn('[tmd] Word 导出降级告警', warnings)
-  return bytes
+  // 后处理：公式占位段落 → OMML（转换失败的段落降级为 LaTeX 源码文本）
+  return injectOmmlFormulas(bytes, formulas)
 }
