@@ -2,11 +2,12 @@
  * 大文档性能基准（MB 级纯文本 / 数十 Mermaid 图表），用于量化「大文档性能兜底」的
  * 优化前后差异，并作为防回归基线。
  *
- * 四类指标（均在真实 dist 产物 + 真实编辑器链路上测得）：
+ * 四类计时指标 + 一项渲染契约断言（均在真实 dist 产物 + 真实编辑器链路上测得）：
  *  - 打开耗时：菜单「打开」到编辑器内容就绪的墙钟时间（含解析、全量 DOM 构建、首屏）
  *  - 输入延迟：beforeinput 到下一帧的耗时（同步阻塞全部计入，取中位与最大）
  *  - 滚动 FPS：程序化连续滚动 2 秒内的 rAF 帧率与最长帧间隔
  *  - 长任务：PerformanceObserver 记录的 longtask 数量/总时长/最长（决定"打开后多久能操作"）
+ *  - 懒渲染覆盖：帧率采样后按视口逐屏滚完全篇，断言每张图表都被按需补渲（只断言不计时）
  *
  * 与 desktop-app-check / desktop-export-check 共享 scripts/lib/desktop-harness.mjs。
  * 本脚本只测不判：输出人类可读报告；带 --json 时额外在末行输出机器可读结果便于前后对比。
@@ -352,6 +353,53 @@ async function takeLongTasks(renderer) {
   }
 }
 
+/**
+ * 分块滚到底，统计「滚完全篇后共补渲多少张图」。
+ *
+ * 为什么需要单独一步：measureScroll 的位移预算固定（2 秒 × 每 16ms 推进 240px
+ * ≈ 3 万像素）且与文档高度无关，400KB 级混排文档只扫得过开头一成，后半篇图表能否
+ * 按需补渲根本测不到。这里按视口高逐屏推进到触底，等渲染稳定后取数；未全渲则再滚
+ * 一轮（图表渲出会改变文档总高，首轮可能因高度变化而错过后段）。
+ *
+ * 结束时清空长任务缓冲：补渲阶段的耗时不属于任何测量窗口，留着会混进下一场景的
+ * 「打开阶段」统计。
+ *
+ * @param {Cdp} renderer @param {number} expected 图表总数
+ */
+async function sweepToBottom(renderer, expected) {
+  const stepPx = await renderer.evalJson(`(() => {
+    const s = document.querySelector('.page-scroll')
+    return s ? Math.max(200, Math.floor(s.clientHeight * 0.9)) : 0
+  })()`)
+  if (!stepPx) return { charts: 0, passes: 0 }
+  let charts = 0
+  let passes = 0
+  for (let pass = 1; pass <= 3; pass++) {
+    passes = pass
+    await renderer.evalJson(`(() => {
+      const s = document.querySelector('.page-scroll')
+      if (s) s.scrollTop = 0
+      return true
+    })()`)
+    await sleep(150)
+    for (let i = 0; i < 800; i++) {
+      const atBottom = await renderer.evalJson(`(() => {
+        const s = document.querySelector('.page-scroll')
+        if (!s) return true
+        s.scrollTop += ${stepPx}
+        return s.scrollTop + s.clientHeight >= s.scrollHeight - 4
+      })()`)
+      // 每屏留一点时间给 IntersectionObserver 派发与 mermaid 渲染
+      await sleep(30)
+      if (atBottom) break
+    }
+    charts = (await waitCharts(renderer, expected, Date.now(), 10000)).count
+    if (charts >= expected) break
+  }
+  await takeLongTasks(renderer)
+  return { charts, passes }
+}
+
 async function main() {
   if (!existsSync(join(REPO, 'dist', 'index.html'))) {
     console.error('未找到 dist 构建产物，请先执行：npm run build')
@@ -431,10 +479,8 @@ async function main() {
     )
     const longBOpen = await takeLongTasks(rendererCdp)
     const scrollB = await measureScroll(rendererCdp)
-    // 滚动后新增的渲染张数：验证「滚到图表处才渲染」的按需行为
-    const chartsAfterScrollB = /** @type {number} */ (
-      await rendererCdp.evalJson(`document.querySelectorAll('.mermaid-render svg').length`)
-    )
+    // 帧率采样之后再把全篇滚一遍：验证每张图都能「滚到此处才渲」地按需补上
+    const sweepB = await sweepToBottom(rendererCdp, chartsTotal)
     report.push({
       name: '多图表文档',
       sizeKb: Math.round(charts.bytes / 1024),
@@ -443,7 +489,8 @@ async function main() {
       chars: openB.chars,
       chartsRendered: chartsB.count,
       chartsTotal,
-      chartsAfterScroll: chartsAfterScrollB,
+      chartsAfterScroll: sweepB.charts,
+      chartsPasses: sweepB.passes,
       inputSyncMs: median(inputB.sync),
       inputFrameMs: median(inputB.frame),
       inputMaxFrameMs: inputB.frame.length ? Math.max(...inputB.frame) : 0,
@@ -471,9 +518,11 @@ async function main() {
     const chartsC = await waitCharts(rendererCdp, mixed.charts, readyAtC)
     const longCOpen = await takeLongTasks(rendererCdp)
     const scrollC = await measureScroll(rendererCdp)
-    const chartsAfterScrollC = /** @type {number} */ (
-      await rendererCdp.evalJson(`document.querySelectorAll('.mermaid-render svg').length`)
+    // 与 B 同样滚完全篇；期望张数取实时 DOM 数，避免生成器与解析结果不一致时空等
+    const chartsTotalC = /** @type {number} */ (
+      await rendererCdp.evalJson(`document.querySelectorAll('.mermaid-block').length`)
     )
+    const sweepC = await sweepToBottom(rendererCdp, chartsTotalC)
     report.push({
       name: '图文混合大文档',
       sizeKb: Math.round(mixed.bytes / 1024),
@@ -481,8 +530,9 @@ async function main() {
       openMs: openC.ms,
       chars: openC.chars,
       chartsRendered: chartsC.count,
-      chartsTotal: mixed.charts,
-      chartsAfterScroll: chartsAfterScrollC,
+      chartsTotal: chartsTotalC,
+      chartsAfterScroll: sweepC.charts,
+      chartsPasses: sweepC.passes,
       inputSyncMs: median(inputC.sync),
       inputFrameMs: median(inputC.frame),
       inputMaxFrameMs: inputC.frame.length ? Math.max(...inputC.frame) : 0,
@@ -501,7 +551,8 @@ async function main() {
       console.log(`  打开耗时          ${r.openMs} ms（就绪 ${r.chars} 字符）`)
       if (r.chartsRendered !== undefined) {
         console.log(
-          `  图表渲染          未滚动 ${r.chartsRendered}/${r.chartsTotal} 张，滚动后 ${r.chartsAfterScroll}/${r.chartsTotal} 张`,
+          `  图表渲染          未滚动 ${r.chartsRendered}/${r.chartsTotal} 张，滚完全篇 ${r.chartsAfterScroll}/${r.chartsTotal} 张` +
+            `${r.chartsPasses > 1 ? `（第 ${r.chartsPasses} 轮才渲齐）` : ''}`,
         )
       }
       console.log(
@@ -518,7 +569,7 @@ async function main() {
       }
     }
     // 回归门禁：只拦明显退化；懒渲染契约（未滚动不渲染视口外图表、
-    // 滚动后按需补上）是本项的核心行为，单独校验
+    // 滚完全篇后每张都按需补上）是本项的核心行为，单独校验
     /** @type {string[]} */
     const failures = []
     for (const r of report) {
@@ -537,9 +588,9 @@ async function main() {
             `${r.name}：视口懒渲染未生效（未滚动即渲染 ${r.chartsRendered}/${r.chartsTotal} 张）`,
           )
         }
-        if (!((r.chartsAfterScroll ?? 0) > (r.chartsRendered ?? 0))) {
+        if (!((r.chartsAfterScroll ?? 0) >= r.chartsTotal)) {
           failures.push(
-            `${r.name}：滚动后未按需补渲（${r.chartsRendered} → ${r.chartsAfterScroll}）`,
+            `${r.name}：滚完全篇仍有图表未渲（${r.chartsAfterScroll}/${r.chartsTotal}）`,
           )
         }
       }
