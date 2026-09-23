@@ -1,0 +1,22 @@
+# 仓库 blob 一直是 LF，但 core.autocrlf=true 的机器检出为 CRLF，会让 prettier
+# （endOfLine 默认 lf）在本地必然报不合规、format:check 形同虚设。显式固定检出为 LF。
+* text=auto eol=lf
+
+# 二进制文件禁止任何行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.pdf binary
+*.exe binary
+*.dll binary
+*.node binary
+*.dmg binary
+*.blockmap binary
