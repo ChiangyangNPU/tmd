@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * mac dmg 后处理：UDBZ/UDZO → ULMO（lzfse）压缩 + 更新元数据一致性修补。
  *

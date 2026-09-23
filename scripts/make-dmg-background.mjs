@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * 生成 dmg 安装窗口背景图 build/dmg-background.png（660×400，与安装窗口 1:1；
  * electron-builder 规则：背景图像素分辨率即窗口分辨率，不做 @2x）。

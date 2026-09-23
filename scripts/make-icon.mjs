@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * 一键重建应用图标：build/icon.svg → build/icon.png / icon.icns / icon.ico
  *

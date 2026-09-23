@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * 生成发布到 Gitee 所需的元数据与待上传清单（方案 C：Gitee 手动发布）。
  *

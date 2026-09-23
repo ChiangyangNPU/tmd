@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * 从 CHANGELOG.md 提取「当前版本」的更新说明，写入 .release-notes.md。
  *
