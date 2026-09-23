@@ -64,7 +64,7 @@ const NO_ASSERT = process.argv.includes('--no-assert')
  * （同机不同负载下数值本就有波动）。
  *
  * 阈值在开发机上标定（macOS）；不同平台的单核性能差异直接改变绝对耗时
- * （Windows 实测纯文本输入同步约 77ms vs mac 约 40ms），故时间类门限乘以
+ * （Windows 纯文本输入同步约 88–97ms vs mac 约 40ms），故时间类门限乘以
  * 平台系数——门禁的目的是拦同机上的代码退化，不是跨平台比性能。
  */
 const PLATFORM_FACTOR = process.platform === 'win32' ? 1.5 : 1
@@ -74,8 +74,15 @@ const LIMITS = {
   maxOpenMs: 3000 * PLATFORM_FACTOR,
   /** 滚动帧率下限（帧率类门限不受平台系数影响，45fps 是交互底线） */
   minFps: 45,
-  /** 单次输入的同步处理耗时上限 */
-  maxInputSyncMs: 60 * PLATFORM_FACTOR,
+  /**
+   * 单次输入的同步处理耗时上限。2026-09-23 按 Windows 实测分布重标定（原 60×1.5=90ms
+   * 已落在噪声带内）：场景 A 在首屏渲染未完时按键（就绪 368K / 全文 1048K 字符），
+   * 样本混着剩余的 DOM 构建，同一构建连续 5 次 bench 得 86–106ms（中位 93）。
+   * 用 git worktree 检出标定提交 351d454 同机对照：该构建今日亦为 87–89ms，而两个构建
+   * 「文档渲染完成后」的单键同步成本分别 26.2 / 26.8ms——漂移来自机器负载不是代码退化。
+   * 故取中位的约 1.3 倍为宽松上界；退化到逐键全量序列化（+90ms 量级）仍能拦住。
+   */
+  maxInputSyncMs: 80 * PLATFORM_FACTOR,
   /** 至少这么多张图时才校验懒渲染契约 */
   lazyCheckMinCharts: 20,
 }
