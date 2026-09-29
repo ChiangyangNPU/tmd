@@ -785,6 +785,35 @@ async function main() {
     await rendererCdp.evalJson(`document.querySelector('#src-editor .cm-content')?.focus()`)
     await rendererCdp.send('Input.insertText', { text: SOURCE_MARKER })
     await sleep(500)
+
+    // ---------- 场景 6g2：源码侧编辑置脏 + 恢复副本（仍在源码模式中断言） ----------
+    // 源码侧编辑是真实编辑：须同步置脏（关闭保护/自动保存依赖），且恢复副本在
+    // 低优序列化节拍后以源码内容为权威覆盖（否则崩溃恢复回退到进源码模式前）
+    const sourceDirtyState = JSON.parse(
+      await rendererCdp.evalJson(`JSON.stringify({
+        title: document.title,
+        tabLabel: document.querySelector('#tab-bar .tab.active span')?.textContent ?? '',
+      })`),
+    )
+    let sourceRecovery = null
+    for (let i = 0; i < 20; i++) {
+      sourceRecovery = await rendererCdp.evalJson(`localStorage.getItem('tmd:doc:v1')`)
+      if (typeof sourceRecovery === 'string' && sourceRecovery.includes(SOURCE_MARKER)) break
+      await sleep(250)
+    }
+    check(
+      '场景6g2 源码模式编辑置脏且恢复副本覆盖源码内容',
+      typeof sourceRecovery === 'string' &&
+        sourceRecovery.includes(SOURCE_MARKER) &&
+        sourceDirtyState.title.startsWith('• ') === true &&
+        sourceDirtyState.tabLabel.startsWith('• ') === true,
+      JSON.stringify({
+        title: sourceDirtyState.title,
+        tabLabel: sourceDirtyState.tabLabel,
+        recovered: typeof sourceRecovery === 'string' ? sourceRecovery.includes(SOURCE_MARKER) : null,
+      }),
+    )
+
     await rendererCdp.evalJson(`document.getElementById('source-mode-btn')?.click()`)
     // 退出源码模式后：视图回到单栏，且源码侧改动已并回所见即所得
     let afterSourceExit = ''

@@ -15,6 +15,7 @@ import {
   findByPath,
   blankTab,
   hasDirty,
+  syncDirtyWith,
   type DocTab,
 } from './tabs'
 import {
@@ -29,6 +30,7 @@ import {
   clearFolders,
 } from './store'
 import { renderRecent, renderFolders } from './filetree'
+import { normalizeEmptyTableCells } from './table-markdown'
 import { t } from './i18n'
 
 /** 已打开文件夹的目录树缓存（绝对路径 → 子节点）；重启后首次展开时懒加载 */
@@ -138,13 +140,14 @@ let saveQueue: Promise<void> = Promise.resolve()
  * - 浏览器降级为下载 .md 文件
  *
  * 目标标签与内容在调用时刻捕获（"保存我按下的那一刻"），写盘动作入队串行执行；
- * 写盘失败保留脏标记并提示，绝不静默当作成功。
+ * 基准（tab.markdown）只在写盘成功后推进——若在捕获时就推进，写盘失败 / 另存
+ * 取消后基准已前移，用户撤销回原内容会被 syncDirtyWith 清脏（磁盘还是旧内容），
+ * 关闭确认与自动保存随之失效。写盘失败保留脏标记并提示，绝不静默当作成功。
  */
 export function saveDocument(saveAs = false): Promise<void> {
   const tab = activeTab()
   if (!tab) return Promise.resolve()
   const markdown = currentMarkdown()
-  tab.markdown = markdown
   saveQueue = saveQueue
     .then(() => doSaveDocument(tab, markdown, saveAs))
     .catch((err) => {
@@ -154,7 +157,7 @@ export function saveDocument(saveAs = false): Promise<void> {
   return saveQueue
 }
 
-/** 实际写盘（由 saveDocument 串行调用）：成功后清脏并清恢复副本，失败保留脏标记 */
+/** 实际写盘（由 saveDocument 串行调用）：成功后推进基准并按需清脏，失败保留脏标记 */
 async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
   if (native) {
     try {
@@ -182,10 +185,20 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
     a.click()
     URL.revokeObjectURL(url)
   }
-  tab.dirty = false
+  // 落盘期间内容可能又变了（捕获后继续输入），须与磁盘内容比对后才清脏——
+  // 一致才清，不一致保持置脏（等待下一次自动保存 / 手动保存）
+  if (activeTab() === tab) {
+    tab.markdown = markdown
+    syncDirtyWith(currentMarkdown())
+  } else {
+    // 已切走的标签：tab.markdown 是切走时的内容暂存（重新激活时加载），不能覆盖；
+    // 只按暂存内容与落盘内容比对重算脏标记。基准推进留给重新激活后的下一次保存
+    tab.dirty = normalizeEmptyTableCells(tab.markdown) !== normalizeEmptyTableCells(markdown)
+  }
+  // 另存为会改标签名：脏标记未变时 syncDirtyWith 会早退，这里无条件重绘
+  renderTabs()
   // 已无未保存内容时清除恢复副本，避免下次启动"复活"已保存的旧文档
   if (!hasDirty()) clearDoc()
-  renderTabs()
   updateTitle()
 }
 

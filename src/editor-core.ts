@@ -129,7 +129,9 @@ function runMarkdownSync() {
   mdSyncFirstPendingAt = Infinity
   // 编辑器已销毁（换标签 / 关窗的间隙）：跳过本次，不把空串写进恢复副本
   if (!editor) return
-  const md = pmMarkdown()
+  // 以当前编辑侧为权威取串：纯源码 / 分屏源码编辑时 PM 是只读跟随（存在同步
+  // 防抖滞后），取 pmMarkdown 会把陈旧内容写进恢复副本与脏比对
+  const md = currentMarkdown()
   // 分屏且所见即所得为编辑侧时，把改动同步给只读的源码栏（内部自带防抖）
   syncPmToSource(md)
   hooks.onMarkdownChange(md)
@@ -558,11 +560,18 @@ function syncPmToSource(markdown: string) {
 
 /**
  * 源码栏变更回调。
- * 纯源码模式不实时同步（退出时一次性并回，与既有行为一致）；
- * 分屏且源码为编辑侧时，防抖把改动推给只读的所见即所得侧。
+ *
+ * 源码侧编辑是真实编辑：置脏与恢复副本调度在此补位——脏标记与恢复副本的
+ * 唯一数据源原本只有 PM 的 listener.updated，纯源码模式下 PM 不感知源码变更，
+ * 缺口的后果是关闭标签不弹确认、崩溃恢复到进源码模式前的陈旧内容、退出清副本。
+ * （内容取串由 runMarkdownSync 经 currentMarkdown() 完成，天然以源码为权威。）
+ * 分屏且源码为编辑侧时，另防抖把改动推给只读的所见即所得侧。
  */
 function onSourceChange(markdown: string) {
-  if (syncing || viewMode !== 'split' || activePane !== 'cm') return
+  if (syncing) return
+  hooks.onDocDirty()
+  scheduleMarkdownSync()
+  if (viewMode !== 'split' || activePane !== 'cm') return
   window.clearTimeout(cmSyncTimer)
   cmSyncTimer = window.setTimeout(() => {
     if (viewMode !== 'split' || activePane !== 'cm') return
