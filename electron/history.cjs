@@ -26,6 +26,10 @@ const crypto = require('node:crypto')
 const HISTORY_MAX_PER_FILE = 50
 /** 历史目录总容量上限（字节）；超出后跨文件按时间最旧优先删除 */
 const HISTORY_MAX_TOTAL_BYTES = 200 * 1024 * 1024
+/** 全局容量剪枝的执行频率：每 N 次快照写入跑一次（写入侧降频，见 writeSnapshot） */
+const PRUNE_EVERY_WRITES = 20
+/** 进程内写入计数（跨全部源文件累计；仅用于剪枝节流，不持久化） */
+let writeCount = 0
 /** 快照 id 形状：YYYYMMDD-HHmmss，同秒冲突时追加 -2、-3… */
 const ID_PATTERN = /^\d{8}-\d{6}(-\d+)?$/
 
@@ -170,7 +174,8 @@ function uniqueId(used, now) {
  * 记录一条快照（在写盘覆盖之前调用，content 为即将被覆盖的旧内容）。
  *
  * 跳过规则：空内容不存（无恢复价值）；与最新一条内容相同不存（自动保存
- * 每 5 秒写盘，靠内容指纹挡住重复）。写入后立即剪枝。
+ * 每 5 秒写盘，靠内容指纹挡住重复）。写入后收口单文件数量上限；全局容量
+ * 剪枝按 PRUNE_EVERY_WRITES 降频执行（成本原因，见 writeSnapshot 内注释）。
  *
  * @param {string} root - historyDir() 返回值
  * @param {{ path: string, name: string, content: string, now?: Date }} entry
@@ -207,8 +212,20 @@ async function writeSnapshot(root, entry, options = {}) {
       ...snapshots,
     ],
   }
+
+  // 单文件数量上限内联收口：只触碰本文件的 index 与快照文件
+  const overflow = next.snapshots.slice(HISTORY_MAX_PER_FILE)
+  if (overflow.length > 0) next.snapshots = next.snapshots.slice(0, HISTORY_MAX_PER_FILE)
   await writeIndex(dir, next, fsImpl)
-  await pruneHistory(root, { fsImpl })
+  for (const s of overflow) await removeSnapshot(dir, s.id, fsImpl)
+
+  // 全局容量剪枝降频：pruneHistory 会对历史根下每个目录 stat + 读 index.json，
+  // autosave 约每 5 秒一次保存，每次都全量扫描会让保存关键路径的成本随历史
+  // 条目线性增长。改为每 N 次写入或本文件触及单文件上限时执行一次
+  writeCount += 1
+  if (writeCount % PRUNE_EVERY_WRITES === 0 || overflow.length > 0) {
+    await pruneHistory(root, { fsImpl })
+  }
   return { saved: true, id }
 }
 

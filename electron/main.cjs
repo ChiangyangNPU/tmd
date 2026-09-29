@@ -36,7 +36,6 @@ const {
   SEARCH_MAX_MATCHES,
 } = require('./search.cjs')
 const {
-  themesDir,
   listThemeFiles,
   readThemeFile,
   ensureThemesDirWithSample,
@@ -234,6 +233,10 @@ function sendToRenderer(channel, payload) {
 /** @param {string} filePath */
 function queueOpenPath(filePath) {
   pendingOpenPaths.push(filePath)
+  // ready 前不能建窗口（macOS 经文件关联启动时 open-file 早于 ready 到达）：
+  // 路径已在队列里，whenReady → createWindow → did-finish-load 会补发，
+  // 这里提前 createWindow 只会抛 "Cannot create BrowserWindow before app is ready"
+  if (!app.isReady()) return
   if (!mainWindow || mainWindow.isDestroyed()) {
     // 应用在后台无窗口（上次窗口已全部关闭）：重建窗口承载打开的文件，
     // did-finish-load 后补发；并把应用带到前台（Finder 双击的用户预期）
@@ -666,10 +669,12 @@ ipcMain.handle(IPC.searchFiles, async (_event, roots, query) => {
 })
 
 // ---------- 文件式主题（~/.tmd/themes/*.css） ----------
+// 主题目录基于 tmdRoot（TMD_HOME_DIR 可重定位）而非硬编码真实主目录：
+// history/logs/crash-dumps 均随 tmdRoot 走，主题不跟随会破坏 E2E 隔离与便携版约定
 
 /** 列出主题目录中的全部主题文件 + 目录绝对路径（目录不存在返回空列表） */
 ipcMain.handle(IPC.themesList, async () => {
-  const dir = themesDir(app.getPath('home'))
+  const dir = path.join(tmdRoot, 'themes')
   const themes = await listThemeFiles(dir, sortLocale || app.getLocale())
   return { dir, themes }
 })
@@ -677,13 +682,13 @@ ipcMain.handle(IPC.themesList, async () => {
 /** 读取单个主题文件内容（裸文件名经主进程 basename 校验，失败返回 null） */
 /** @param {unknown} _event @param {unknown} name */
 ipcMain.handle(IPC.themesRead, async (_event, name) => {
-  const dir = themesDir(app.getPath('home'))
+  const dir = path.join(tmdRoot, 'themes')
   return readThemeFile(dir, name)
 })
 
 /** 在系统文件管理器中打开主题目录：不存在则创建，并在空目录写入示例主题 */
 ipcMain.handle(IPC.themesOpenDir, async () => {
-  const dir = themesDir(app.getPath('home'))
+  const dir = path.join(tmdRoot, 'themes')
   try {
     await ensureThemesDirWithSample(dir)
     const error = await shell.openPath(dir)
@@ -1076,8 +1081,10 @@ if (!gotSingleInstanceLock) {
 }
 
 app.on('second-instance', (_event, argv) => {
-  const filePath = argv.find((arg) => /\.(md|markdown)$/i.test(arg))
-  if (filePath) queueOpenPath(filePath)
+  // 拖多个文件到任务栏图标 / 选中多个 .md 打开时逐个入队（渲染层有多标签承载）
+  for (const filePath of argv.filter((arg) => /\.(md|markdown)$/i.test(arg))) {
+    queueOpenPath(filePath)
+  }
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore()
     mainWindow.focus()
