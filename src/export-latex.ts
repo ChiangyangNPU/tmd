@@ -66,6 +66,46 @@ function resolveImagePath(src: string, baseDir: string | null): string {
   return `${baseDir.replace(/[\\/]+$/, '')}${sep}${src.replace(/^[\\/]+/, '')}`
 }
 
+/**
+ * 还原 markdown-it 对图片 src 的 URL 规范化（空格→%20、反斜杠→%5C 等）。
+ * LaTeX 需要磁盘上的真实文件名（HTML 导出交给浏览器解码，此处需自行还原）；
+ * 含非法 % 序列的 src 按原文处理。
+ */
+function decodeImagePath(src: string): string {
+  try {
+    return decodeURIComponent(src)
+  } catch {
+    return src
+  }
+}
+
+/**
+ * 供 \detokenize{} 包裹的逐字路径处理。
+ *
+ * \detokenize 的语义是把 token 序列还原为字符字面量——路径若先过 escapeLatex，
+ * `\_` 会被还原成带反斜杠的两个字符而非下划线，文件名含 `_ # $ & ~ \` 的图片
+ * 全部找不到文件。正确做法是不做文本级转义，只处理会破坏参数词法结构的字符：
+ * - `\` → `/`：graphics 宏包在全部平台接受正斜杠；原始反斜杠会构成控制序列，
+ *   \detokenize 也无法还原
+ * - `%`、`{`、`}`：分别破坏参数的注释 / 分组结构，转义后在 \detokenize 中
+ *   退化为带反斜杠的字面名（编译可通过、文件名失真），属已知边界
+ * - `#`、`_`、`$`、`~`、空格等其余字符按字面输出均可被 \detokenize 正确还原
+ */
+function detokenizePath(path: string): string {
+  return path
+    .replaceAll('\\', '/')
+    .replace(/[%{}]/g, (ch) => (ch === '%' ? '\\%' : ch === '{' ? '\\{' : '\\}'))
+}
+
+/**
+ * \href URL 参数的最小转义：hyperref 仅要求 `%` 与 `#` 转义，其余字符
+ * （含 `~`）按字面输出——文本级转义会把 URL 变成非 URL 文本
+ * （如 GitHub 个人页等含 `~` 的链接会失效）。
+ */
+function escapeHrefUrl(url: string): string {
+  return url.replaceAll('%', '\\%').replaceAll('#', '\\#')
+}
+
 /** 正文是否含中日韩文字（决定文档类：ctexart 需支持中文的 XeLaTeX 环境） */
 export function containsCJK(text: string): boolean {
   return /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul}/u.test(text)
@@ -212,14 +252,14 @@ function installLatexRules(md: ReturnType<typeof createExportMarkdownIt>, env: L
     const href = raw == null ? null : String(raw)
     const external = href != null && /^(https?:|mailto:)/i.test(href)
     env.linkStack.push(external ? href : null)
-    return external ? `\\href{${escapeLatex(href ?? '')}}{` : ''
+    return external ? `\\href{${escapeHrefUrl(href ?? '')}}{` : ''
   }
   rules.link_close = () => {
     const href = env.linkStack.pop()
     return href != null ? '}' : ''
   }
 
-  // ---- 图片：\includegraphics + \detokenize（路径含空格等特殊字符仍可编译）----
+  // ---- 图片：\includegraphics + \detokenize（路径逐字处理，见 detokenizePath）----
   rules.image = (tokens, idx) => {
     const token = tokens[idx]
     // attrGet 官方类型为 string | number | null（本处 attrs 全为 string），归一后使用
@@ -232,8 +272,8 @@ function installLatexRules(md: ReturnType<typeof createExportMarkdownIt>, env: L
     const alt = get('alt')
     if (!src) return out(env, escapeLatex(alt))
     const opt = width ? `[width=${escapeLatex(width)}px]` : ''
-    const path = resolveImagePath(src, env.baseDir)
-    return out(env, `\\includegraphics${opt}{\\detokenize{${escapeLatex(path)}}}`)
+    const path = resolveImagePath(decodeImagePath(src), env.baseDir)
+    return out(env, `\\includegraphics${opt}{\\detokenize{${detokenizePath(path)}}}`)
   }
 
   // ---- 脚注引用：定义内容已在预扫描阶段按 id 收集 ----

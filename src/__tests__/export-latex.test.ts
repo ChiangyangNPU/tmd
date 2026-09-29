@@ -158,6 +158,27 @@ describe('renderLatexDocument', () => {
     expect(body).toContain('\\includegraphics[width=300px]{\\detokenize{assets/my file.png}}')
   })
 
+  it('图片路径含下划线等常见字符时逐字输出（回归：曾过 escapeLatex 致文件名失真）', () => {
+    const md = '![a](assets/screenshot_1.png) ![b](a$b&c#d~e.png)'
+    const body = bodyOf(renderLatexDocument(md, 't.md'))
+    // \detokenize 是逐字语境：_ $ & # ~ 必须原样保留，文件名才能与磁盘一致
+    expect(body).toContain('\\detokenize{assets/screenshot_1.png}')
+    expect(body).toContain('\\detokenize{a$b&c#d~e.png}')
+  })
+
+  it('图片 Windows 路径的反斜杠归一为正斜杠（graphics 全平台接受）', () => {
+    const md = '![w](E:\\docs\\a_b.png)'
+    const body = bodyOf(renderLatexDocument(md, 't.md'))
+    expect(body).toContain('\\detokenize{E:/docs/a_b.png}')
+    expect(body).not.toContain('textbackslash')
+  })
+
+  it('href URL 仅最小转义（% 与 #），~ 按字面保留', () => {
+    const md = '[主页](https://example.com/~user/a%20b#top)'
+    const body = bodyOf(renderLatexDocument(md, 't.md'))
+    expect(body).toContain('\\href{https://example.com/~user/a\\%20b\\#top}{主页}')
+  })
+
   it('脚注：引用处内联 \footnote，定义块不重复输出', () => {
     const md = '正文有脚注[^1]。\n\n[^1]: 这里是脚注内容'
     const body = bodyOf(renderLatexDocument(md, 't.md'))
