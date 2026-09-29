@@ -118,12 +118,23 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ 导出相关：
 │  │  ├─ export-doc.ts           导出核心（渲染管线 / 样式 / 图片引用分类，四格式共用）
 │  │  ├─ export-word.ts          Word 导出（区域截帧栅格化 + OOXML 转换）
+│  │  ├─ export-omml.ts          Word 公式可编辑化（LaTeX → MathML → OMML 后处理）
 │  │  ├─ export-image.ts         长图导出（分段计划 + canvas 拼接）
 │  │  └─ export-renderer.ts      离屏导出页引导（渲染管线 + 任务分派）
 │  ├─ 编辑器功能：
 │  │  ├─ mark-ext.ts             语法扩展（高亮 / 上下标：解析、序列化、输入规则）
 │  │  ├─ frontmatter.ts          YAML front matter（属性表 ⇄ 源码双态编辑）
 │  │  ├─ paste-image.ts          粘贴图片插件（inline / assets / 图床 三策略）
+│  │  ├─ paste-html.ts           HTML 粘贴转换（白名单清洗 → schema 解析）
+│  │  ├─ table-input.ts          Typora 式表格输入（管道行 + 回车即时成表）
+│  │  ├─ table-toolbar.ts        表格悬浮工具栏（行列增删 / 对齐 / 删除整表）
+│  │  ├─ image-attrs.ts          图片缩放 / 对齐（拖拽改宽 + 对齐浮层）
+│  │  ├─ writing-modes.ts        专注模式 / 打字机模式
+│  │  ├─ typography.ts           排版设置（字体/字号/行距/宽度/自动换行 → CSS 变量）
+│  │  ├─ context-menu.ts         编辑区右键上下文菜单
+│  │  ├─ tab-menu.ts             标签栏右键菜单（关闭当前/其他/左右侧/已保存/全部）
+│  │  ├─ link-nav.ts             链接点击跳转（Mod+点击，外部/本地分发）
+│  │  ├─ quick-switch.ts         快速切换面板（Ctrl+P 模糊搜索）
 │  │  ├─ toc.ts                  目录（TOC）块
 │  │  ├─ split.ts                左右分屏交互（分隔条拖拽 / 点选可编辑侧 / 滚动近似同步）
 │  │  ├─ history.ts              历史版本面板（快照列表 / 预览 / 恢复到编辑器）

@@ -118,12 +118,23 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ Export:
 │  │  ├─ export-doc.ts           Export core (render pipeline / styles / image-ref classification, shared by all four formats)
 │  │  ├─ export-word.ts          Word export (region capture rasterization + OOXML conversion)
+│  │  ├─ export-omml.ts          Editable Word formulas (LaTeX → MathML → OMML post-processing)
 │  │  ├─ export-image.ts         Long-image export (segment planning + canvas stitching)
 │  │  └─ export-renderer.ts      Offscreen export page bootstrap (render pipeline + task dispatch)
 │  ├─ Editor features:
 │  │  ├─ mark-ext.ts             Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)
 │  │  ├─ frontmatter.ts          YAML front matter (property table ⇄ source dual-mode editing)
 │  │  ├─ paste-image.ts          Pasted-image plugin (inline / assets / image host — triple strategy)
+│  │  ├─ paste-html.ts           HTML paste conversion (whitelist sanitize → schema parsing)
+│  │  ├─ table-input.ts          Typora-style table input (pipe row + Enter builds the table)
+│  │  ├─ table-toolbar.ts        Floating table toolbar (row/col add-remove / alignment / delete table)
+│  │  ├─ image-attrs.ts          Image resize / alignment (drag handle + alignment overlay)
+│  │  ├─ writing-modes.ts        Focus mode / typewriter mode
+│  │  ├─ typography.ts           Typography settings (font/size/line-height/width/word-wrap → CSS variables)
+│  │  ├─ context-menu.ts         Editor right-click context menu
+│  │  ├─ tab-menu.ts             Tab-bar right-click menu (close current/others/left/right/saved/all)
+│  │  ├─ link-nav.ts             Link following (Mod+click, external / local dispatch)
+│  │  ├─ quick-switch.ts         Quick switch panel (Ctrl+P fuzzy search)
 │  │  ├─ toc.ts                  Table-of-contents (TOC) block
 │  │  ├─ split.ts                Split-view interaction (divider drag / click to pick the editable pane / approximate scroll sync)
 │  │  ├─ history.ts              Version-history panel (snapshot list / preview / restore into the editor)
