@@ -19,7 +19,7 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import { mermaidPlugins } from './mermaid'
 import { pasteImage } from './paste-image'
 import { pasteHtml } from './paste-html'
-import { findPlugin, findClear, findTextRanges } from './find'
+import { findPlugin, findClear, findState, findRefreshAfterReplace, findTextRanges } from './find'
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
 import { markPlugins } from './mark-ext'
@@ -345,6 +345,9 @@ async function doReplaceEditor(markdown: string, options: ReplaceOptions) {
     editorEl.style.minHeight = `${prevHeight}px`
   }
 
+  // 换文档（切标签 / 打开文件 / 历史恢复）：查找栏保持打开时按新文档重算匹配——
+  // 匹配坐标属于旧文档，清掉后若仍持有关键词，重算一次避免「框里有词却无高亮」
+  const prevFind = findState()
   findClear(pmView)
   await editor?.destroy()
   editor = await createEditor(markdown)
@@ -356,6 +359,7 @@ async function doReplaceEditor(markdown: string, options: ReplaceOptions) {
   if (list && pmView) renderOutline(list, collectOutline(pmView.state.doc), pmView)
   // 重建后重新应用视图模式：分屏/源码下切换标签应保持该模式，源码栏内容换成新文档
   reapplyViewMode()
+  if (pmView) findRefreshAfterReplace(pmView, prevFind.query, prevFind.options)
 
   if (preserveScroll && editorEl) {
     const inner = editorEl.firstElementChild as HTMLElement | null

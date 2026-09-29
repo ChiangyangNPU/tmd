@@ -233,23 +233,94 @@ function sync(view: EditorView) {
   view.dispatch(view.state.tr.setMeta('find-update', true))
 }
 
+/** 查找状态变化的订阅者（查找栏据此刷新计数；recompute 时通知） */
+const stateListeners = new Set<() => void>()
+
+/** 订阅查找状态变化（匹配数 / 当前序号可能变化时回调，无取消订阅需求） */
+export function onFindStateChange(cb: () => void): void {
+  stateListeners.add(cb)
+}
+
+/** 通知查找状态变化 */
+function notifyStateChange() {
+  for (const cb of stateListeners) cb()
+}
+
+/**
+ * 按查询词在文档中计算查找状态（纯函数，导出供单测覆盖）。
+ * @returns 匹配列表与钳制后的当前序号
+ */
+export function computeFindState(
+  doc: ProseNode,
+  query: string,
+  options: FindOptions,
+  index: number,
+): FindState {
+  const matches = findMatches(doc, query, options)
+  const next = matches.length ? Math.min(Math.max(index, 0), matches.length - 1) : -1
+  return { query, options, matches, index: next }
+}
+
+/**
+ * 把匹配区间随事务批次映射到新文档坐标（appendTransaction 用，导出供单测覆盖）。
+ *
+ * 映射是坐标级的权宜精度：被编辑的匹配项内容可能已不对应查询词——但映射保证
+ * 坐标始终合法（不会映射出文档边界），消除「高亮错位 / findStep 越界 RangeError /
+ * 替换写错位置」三连问题；内容层面的修正交给防抖重算与替换前校验。
+ */
+export function mapMatchesThroughTrs(
+  matches: MatchRange[],
+  trs: readonly { docChanged: boolean; mapping: { map: (pos: number, assoc?: number) => number } }[],
+): MatchRange[] {
+  let current = matches
+  for (const tr of trs) {
+    if (!tr.docChanged) continue
+    current = current.map((m) => ({ ...m, from: tr.mapping.map(m.from), to: tr.mapping.map(m.to) }))
+  }
+  return current
+}
+
 /** 查找高亮插件：全部匹配项加 find-hit 类，当前项追加 find-current */
-export const findPlugin = $prose(
-  () =>
-    new Plugin({
-      props: {
-        decorations: (s) => {
-          if (!state.query || !state.matches.length) return DecorationSet.empty
-          const decos = state.matches.map((m, i) =>
-            Decoration.inline(m.from, m.to, {
-              class: i === state.index ? 'find-hit find-current' : 'find-hit',
-            }),
-          )
-          return DecorationSet.create(s.doc, decos)
-        },
+export const findPlugin = $prose(createFindProsePlugin)
+
+/**
+ * 创建查找高亮 ProseMirror 插件（$prose 包装的展开形式，导出供单测直接装配）。
+ *
+ * 职责分三层：decorations 按 state 重画高亮；appendTransaction 在文档变更的
+ * 事务里同步映射匹配坐标（同帧生效，装饰不错位）；插件视图在文档变更后安排
+ * 一次防抖重算，修正「映射后区间内容已不对应查询词」的陈旧精度。
+ */
+export function createFindProsePlugin(): Plugin {
+  return new Plugin({
+    props: {
+      decorations: (s) => {
+        if (!state.query || !state.matches.length) return DecorationSet.empty
+        const decos = state.matches.map((m, i) =>
+          Decoration.inline(m.from, m.to, {
+            class: i === state.index ? 'find-hit find-current' : 'find-hit',
+          }),
+        )
+        return DecorationSet.create(s.doc, decos)
+      },
+    },
+    appendTransaction: (trs) => {
+      if (!state.query || !state.matches.length) return null
+      if (!trs.some((tr) => tr.docChanged)) return null
+      state = { ...state, matches: mapMatchesThroughTrs(state.matches, trs) }
+      // 仅映射坐标，不追加事务：本帧装饰器读到的已是映射后的区间
+      return null
+    },
+    view: () => ({
+      update(view, prevState) {
+        if (!view.state.doc.eq(prevState.doc) && state.query) scheduleRecompute(view)
+      },
+      destroy() {
+        window.clearTimeout(recomputeTimer)
+        recomputeTimer = undefined
       },
     }),
-)
+  })
+}
 
 interface FindState {
   query: string
@@ -259,6 +330,20 @@ interface FindState {
 }
 
 let state: FindState = { query: '', options: {}, matches: [], index: -1 }
+
+/** 文档变更后延迟重算的窗口：映射保住坐标合法性，内容修正不必逐键做 */
+const RECOMPUTE_DEBOUNCE_MS = 300
+let recomputeTimer: number | undefined
+
+/** 安排一次防抖重算（文档变更后，映射后的区间内容可能已不对应查询词） */
+function scheduleRecompute(view: EditorView) {
+  window.clearTimeout(recomputeTimer)
+  recomputeTimer = window.setTimeout(() => {
+    recomputeTimer = undefined
+    if (!state.query) return
+    recompute(view, state.query, state.options, state.index < 0 ? 0 : state.index)
+  }, RECOMPUTE_DEBOUNCE_MS)
+}
 
 /**
  * 重算匹配列表并把当前序号停在指定位置（clamp 到有效范围）。
@@ -270,10 +355,9 @@ function recompute(
   options: FindOptions,
   index: number,
 ): FindState {
-  const matches = findMatches(view.state.doc, query, options)
-  const next = matches.length ? Math.min(Math.max(index, 0), matches.length - 1) : -1
-  state = { query, options, matches, index: next }
+  state = computeFindState(view.state.doc, query, options, index)
   sync(view)
+  notifyStateChange()
   return state
 }
 
@@ -287,6 +371,10 @@ export function findStep(view: EditorView, delta: 1 | -1): FindState {
   if (!state.matches.length) return state
   state.index = (state.index + delta + state.matches.length) % state.matches.length
   const match = state.matches[state.index]
+  // 映射保证区间不越界；此处仍守住不变量，防御异常数据构造选区时抛 RangeError
+  if (match.from < 0 || match.to > view.state.doc.content.size) {
+    return recompute(view, state.query, state.options, state.index)
+  }
   const selection = TextSelection.create(view.state.doc, match.from, match.to)
   view.dispatch(view.state.tr.setSelection(selection))
   // ProseMirror 自带的 tr.scrollIntoView() 对自定义滚动容器（.page-scroll）不生效，
@@ -296,12 +384,39 @@ export function findStep(view: EditorView, delta: 1 | -1): FindState {
   return state
 }
 
+/**
+ * 校验命中区间当前文本是否仍匹配查询词（映射只保坐标合法，内容可能已被编辑）。
+ * 失配时替换会写进无关正文（静默数据破坏），调用方须先重算再放弃本次替换。
+ */
+export function rangeMatchesQuery(
+  doc: ProseNode,
+  match: MatchRange,
+  query: string,
+  options: FindOptions,
+): boolean {
+  if (match.from < 0 || match.from >= match.to || match.to > doc.content.size) return false
+  const text = doc.textBetween(match.from, match.to, '', '')
+  if (options.regex) {
+    const re = compileQuery(query)
+    if (!re) return false
+    re.lastIndex = 0
+    const m = re.exec(text)
+    return m != null && m.index === 0 && m[0].length === text.length
+  }
+  return text.toLowerCase() === query.toLowerCase()
+}
+
 /** 替换当前匹配项，随后重算匹配列表（序号停在原位 = 下一个匹配，便于连续替换） */
 export function findReplaceCurrent(view: EditorView, replacement: string): FindState {
   if (state.index < 0 || !state.matches[state.index]) return state
   const match = state.matches[state.index]
   const { query, options } = state
   const index = state.index
+  // 命中区间内容已变（映射后区间文本不再对应查询词）：重算并放弃本次替换，
+  // 绝不把替换文本写进无关正文；序号不变，用户再按一次替换即可
+  if (!rangeMatchesQuery(view.state.doc, match, query, options)) {
+    return recompute(view, query, options, index)
+  }
   // 同 findReplaceAll：先清空匹配列表，避免 dispatch 那一帧沿用已被替换掉的旧区间
   state = { query, options, matches: [], index: -1 }
   view.dispatch(
@@ -314,6 +429,11 @@ export function findReplaceCurrent(view: EditorView, replacement: string): FindS
 export function findReplaceAll(view: EditorView, replacement: string): FindState {
   if (!state.matches.length) return state
   const { query, options } = state
+  // 任一命中区间失配即整体放弃：部分替换会把替换文本写进无关正文；
+  // 重算后用户再点一次即可（映射后的失配仅在查找栏打开期间编辑过命中文本时出现）
+  if (!state.matches.every((m) => rangeMatchesQuery(view.state.doc, m, query, options))) {
+    return recompute(view, query, options, 0)
+  }
   const tr = view.state.tr
   // 从后往前替换，避免位置偏移
   for (const match of [...state.matches].sort((a, b) => b.from - a.from)) {
@@ -324,6 +444,15 @@ export function findReplaceAll(view: EditorView, replacement: string): FindState
   state = { query, options, matches: [], index: -1 }
   view.dispatch(tr)
   return recompute(view, query, options, 0)
+}
+
+/**
+ * 编辑器重建后按给定查询词在新文档上重算匹配（换标签 / 打开新文件后，
+ * 匹配坐标属于旧文档；查询词为空时为 no-op）。由 editor-core 的重建流程调用。
+ */
+export function findRefreshAfterReplace(view: EditorView, query: string, options: FindOptions): void {
+  if (!query) return
+  recompute(view, query, options, 0)
 }
 
 /** 清空查找状态并移除高亮 */

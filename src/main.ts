@@ -268,11 +268,13 @@ async function boot() {
       // 避免 <br /> 占位（及其连带的转义伪影）经恢复副本污染文档
       onMarkdownChange: (md) => {
         const clean = normalizeEmptyTableCells(md)
-        saveDoc(clean)
         updateWordCount(clean)
-        // 按内容比对清脏：撤销 / 回退到打开时内容时清圆点（与 Typora 同款异步，
-        // 复用本防抖回调已算好的 clean，零额外序列化成本）
+        // 先按内容比对同步脏标记，仅在确有未保存内容时写恢复副本——
+        // 写盘成功清副本后，milkdown 200ms 防抖的 updated 回调仍会携带
+        // 已落盘内容在迟到拍点到达，无脑写副本会让已保存的文档
+        // 以恢复副本"复活"（下次启动多出与磁盘相同的 recovered 标签）
         syncDirtyWith(clean)
+        if (activeTab()?.dirty) saveDoc(clean)
       },
       onDocUpdate: (doc) => {
         const list = document.getElementById('outline-list')

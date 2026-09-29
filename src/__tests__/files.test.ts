@@ -17,6 +17,7 @@ vi.mock('../native', () => ({
   },
 }))
 vi.mock('../editor-core', () => ({
+  flushMarkdownSync: vi.fn(),
   currentMarkdown: vi.fn(),
   replaceEditor: vi.fn(),
 }))

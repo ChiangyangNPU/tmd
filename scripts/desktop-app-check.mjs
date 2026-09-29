@@ -416,6 +416,54 @@ async function main() {
     }
     check('场景3 编辑后脏标记出现且恢复副本已写入', dirtyAndSaved, editDetail)
 
+    // ---------- 场景 3b：查找高亮随文档编辑映射（边搜边改） ----------
+    // 回归：匹配列表曾只在查询变化时重算，编辑后旧坐标导致高亮错位、跳转越界
+    // RangeError、替换写错位置。现由插件随事务映射坐标 + 防抖重算修正内容。
+    await rendererCdp.evalJson(`(() => {
+      document.getElementById('menu-find-btn')?.click()
+      const input = document.getElementById('find-input')
+      if (input) {
+        input.value = 'E2E'
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+      }
+    })()`)
+    let findHits = 0
+    for (let i = 0; i < 20; i++) {
+      findHits = await rendererCdp.evalJson(`document.querySelectorAll('.find-hit').length`)
+      if (findHits > 0) break
+      await sleep(250)
+    }
+    // 跳到第一个匹配（光标落在命中起点），随后在命中内打字：映射应保住该命中
+    await rendererCdp.evalJson(`document.getElementById('find-next')?.click()`)
+    await insertText(rendererCdp, 'ZZ')
+    let findMappedOk = false
+    let findMapDetail = ''
+    for (let i = 0; i < 20; i++) {
+      findMapDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          hits: document.querySelectorAll('.find-hit').length,
+          text: document.querySelector('#editor .ProseMirror')?.innerText?.includes('ZZ') ?? false,
+        })`)
+      )
+      const s = JSON.parse(findMapDetail)
+      if (s.hits > 0 && s.text) {
+        findMappedOk = true
+        break
+      }
+      await sleep(250)
+    }
+    // 编辑后「下一个」仍可用（旧实现在坐标陈旧时可能抛 RangeError）
+    await rendererCdp.evalJson(`document.getElementById('find-next')?.click()`)
+    const afterStep = await rendererCdp.evalJson(
+      `document.querySelectorAll('.find-hit.find-current').length`,
+    )
+    await rendererCdp.evalJson(`document.getElementById('find-close')?.click()`)
+    check(
+      '场景3b 查找高亮随编辑映射且跳转不失效',
+      findHits > 0 && findMappedOk && afterStep >= 1,
+      JSON.stringify({ initialHits: findHits, findMapDetail, afterStep }),
+    )
+
     // ---------- 场景 4：保存写回磁盘 ----------
     await clickFileAction(mainCdp, 'save')
     let savedOk = false

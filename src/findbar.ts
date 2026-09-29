@@ -12,6 +12,7 @@ import {
   findReplaceAll,
   findClear,
   findState,
+  onFindStateChange,
   type FindOptions,
 } from './find'
 import { canEditWysiwyg, getPmView, isSourceMode, onViewModeChange } from './editor-core'
@@ -108,6 +109,9 @@ export function wireFindBar() {
     if (canEditWysiwyg()) return
     closeFindBar(false)
   })
+
+  // 文档编辑触发的防抖重算会改变匹配数：计数不依赖用户操作也保持准确
+  onFindStateChange(() => refreshCount())
 
   findInput?.addEventListener('input', () => {
     runSearch(findInput.value)

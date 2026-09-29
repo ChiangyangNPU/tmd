@@ -5,7 +5,7 @@
  * 与恢复副本）、filetree（纯渲染）。
  */
 import { native } from './native'
-import { replaceEditor, currentMarkdown } from './editor-core'
+import { replaceEditor, currentMarkdown, flushMarkdownSync } from './editor-core'
 import {
   activeTab,
   activateTab,
@@ -147,6 +147,11 @@ let saveQueue: Promise<void> = Promise.resolve()
 export function saveDocument(saveAs = false): Promise<void> {
   const tab = activeTab()
   if (!tab) return Promise.resolve()
+  // 先冲刷挂起中的低优序列化：其回调会把恢复副本写回，若排在写盘成功
+  // clearDoc 之后执行，已保存的文档会以「恢复副本」复活（下次启动多出
+  // 一个与磁盘相同的 recovered 标签）。冲刷后捕获的内容即最新，写盘成功
+  // 清副本时不再有悬挂回调
+  flushMarkdownSync()
   const markdown = currentMarkdown()
   saveQueue = saveQueue
     .then(() => doSaveDocument(tab, markdown, saveAs))

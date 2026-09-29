@@ -151,3 +151,82 @@ describe('expandReplacement 替换串展开', () => {
     expect(expandReplacement({ from: 0, to: 1 }, '$1')).toBe('$1')
   })
 })
+
+// ---------------------------------------------------------------------------
+// 查找状态随文档编辑的映射与校验（回归：匹配列表曾只在查询变化时重算，
+// 编辑后旧坐标导致高亮错位、findStep 越界、替换写错位置）
+// ---------------------------------------------------------------------------
+import { EditorState } from '@milkdown/kit/prose/state'
+import {
+  computeFindState,
+  mapMatchesThroughTrs,
+  rangeMatchesQuery,
+} from '../find'
+
+describe('computeFindState', () => {
+  it('返回匹配列表并把序号钳制到有效范围', () => {
+    const d = doc(['aXbXc'])
+    const s = computeFindState(d, 'x', {}, 99)
+    expect(s.matches).toHaveLength(2)
+    expect(s.index).toBe(1)
+    expect(computeFindState(d, 'x', {}, -5).index).toBe(0)
+    expect(computeFindState(d, 'zzz', {}, 0).index).toBe(-1)
+  })
+})
+
+describe('mapMatchesThroughTrs', () => {
+  const st = EditorState.create({ doc: doc(['hello world']) })
+
+  it('匹配前的插入整体后移区间', () => {
+    const tr = st.tr.insertText('XY', 1)
+    const mapped = mapMatchesThroughTrs([{ from: 7, to: 12 }], [tr])
+    expect(mapped[0].from).toBe(9)
+    expect(mapped[0].to).toBe(14)
+  })
+
+  it('匹配内的插入扩展区间（打字落在命中内）', () => {
+    // 'world' = [7,12)；在 9 处（wo|rld 之间）插入
+    const tr = st.tr.insertText('ZZ', 9)
+    const mapped = mapMatchesThroughTrs([{ from: 7, to: 12 }], [tr])
+    expect(mapped[0].from).toBe(7)
+    expect(mapped[0].to).toBe(14)
+  })
+
+  it('删除使区间收缩且不出界', () => {
+    const tr = st.tr.delete(1, 7) // 删掉 'hello '
+    const mapped = mapMatchesThroughTrs([{ from: 7, to: 12 }], [tr])
+    expect(mapped[0]).toEqual({ from: 1, to: 6 })
+  })
+
+  it('多事务按顺序复合映射，docChanged 为假的事务被跳过', () => {
+    const trInsert = st.tr.insertText('Q', 1)
+    const meta = st.tr.setMeta('find-update', true)
+    const trDelete = st.tr.delete(1, 3)
+    const mapped = mapMatchesThroughTrs([{ from: 7, to: 12 }], [trInsert, meta, trDelete])
+    // 插入 +1 后删除 -2 → 净 -1
+    expect(mapped[0].from).toBe(6)
+    expect(mapped[0].to).toBe(11)
+  })
+})
+
+describe('rangeMatchesQuery', () => {
+  it('区间文本仍对应查询词时通过（大小写不敏感）', () => {
+    const d = doc(['hello world'])
+    expect(rangeMatchesQuery(d, { from: 1, to: 6 }, 'hello', {})).toBe(true)
+    expect(rangeMatchesQuery(d, { from: 1, to: 6 }, 'HELLO', {})).toBe(true)
+    expect(rangeMatchesQuery(d, { from: 1, to: 6 }, 'world', {})).toBe(false)
+  })
+
+  it('正则模式要求区间整体命中', () => {
+    const d = doc(['hello world'])
+    expect(rangeMatchesQuery(d, { from: 1, to: 6 }, 'h(e)llo', { regex: true })).toBe(true)
+    expect(rangeMatchesQuery(d, { from: 1, to: 6 }, 'h(e)lloX', { regex: true })).toBe(false)
+    expect(rangeMatchesQuery(d, { from: 1, to: 6 }, 'e', { regex: true })).toBe(false)
+  })
+
+  it('越界或倒置区间直接失配', () => {
+    const d = doc(['hello world'])
+    expect(rangeMatchesQuery(d, { from: 1, to: 999 }, 'hello', {})).toBe(false)
+    expect(rangeMatchesQuery(d, { from: 6, to: 6 }, 'hello', {})).toBe(false)
+  })
+})
