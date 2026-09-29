@@ -422,8 +422,12 @@ function createWindow() {
 
   // 未保存关闭确认：渲染层通过 IPC 同步脏标记，这里用原生对话框拦截关闭。
   // 不能在渲染层用 window.confirm —— Electron 关闭流程中它不可靠，会导致窗口无法关闭。
+  // closingDialogOpen：对话框弹出期间再点自绘 ✕ 会再次触发 close——不做防重入
+  // 会叠出多个对话框，且各自回调交错执行 destroy 与 rendererDirty 复位
+  let closingDialogOpen = false
   mainWindow.on('close', (event) => {
-    if (!rendererDirty) return
+    if (!rendererDirty || closingDialogOpen) return
+    closingDialogOpen = true
     event.preventDefault()
     dialog
       .showMessageBox(dialogParent(), {
@@ -431,22 +435,37 @@ function createWindow() {
         message: '有未保存的修改',
         detail: '关闭前会丢失未保存的内容。',
         buttons: ['放弃修改并关闭', '取消'],
-        defaultId: 0,
+        // 破坏性动作不做默认按钮：回车/空格落在这个按钮上会直接丢弃内容，
+        // 与数据安全惯例相反，默认落在「取消」上
+        defaultId: 1,
         cancelId: 1,
       })
       .then(async ({ response }) => {
-        if (response === 0) {
-          rendererDirty = false
-          // 用户明确放弃修改：绕过渲染层 beforeunload，需在主进程直接清除恢复副本，
-          // 否则下次启动会"复活"被放弃的内容（与"放弃修改"语义冲突）。
-          // 注意：此键名与渲染层 src/store.ts 的 DOC_KEY 一致，改键名时须同步
-          try {
-            await mainWindow?.webContents.executeJavaScript("localStorage.removeItem('tmd:doc:v1')")
-          } catch (err) {
-            console.warn('[tmd] 清除恢复副本失败', err)
-          }
-          mainWindow?.destroy()
+        closingDialogOpen = false
+        if (response !== 0) return
+        rendererDirty = false
+        // 用户明确放弃修改：绕过渲染层 beforeunload，需在主进程直接清除恢复副本，
+        // 否则下次启动会"复活"被放弃的内容（与"放弃修改"语义冲突）。
+        // 注意：此键名与渲染层 src/store.ts 的 DOC_KEY 一致，改键名时须同步
+        try {
+          // 渲染层卡死（非崩溃）时 executeJavaScript 永不返回，destroy 将被
+          // 无限挂起——3s 兜底后放弃清除直接销毁（副本多留一份的代价小于
+          // 窗口关不掉）
+          await Promise.race([
+            mainWindow?.webContents.executeJavaScript(
+              "localStorage.removeItem('tmd:doc:v1')",
+            ),
+            new Promise((resolve) => setTimeout(resolve, 3000)),
+          ])
+        } catch (err) {
+          console.warn('[tmd] 清除恢复副本失败', err)
         }
+        mainWindow?.destroy()
+      })
+      .catch((err) => {
+        // 对话框本身失败（极少见）：复位防重入，让用户能再次发起关闭
+        closingDialogOpen = false
+        console.warn('[tmd] 关闭确认对话框失败', err)
       })
   })
 }

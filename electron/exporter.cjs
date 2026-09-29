@@ -188,14 +188,20 @@ function createExporter(deps) {
     })
     const target = win
     // 离屏页只加载一次导出入口，不随任务变化（复用 mermaid/katex 的加载成本）。
-    // 加载失败时也放行等待并销毁窗口：否则 dispatch 会一直挂到 3 分钟任务超时，
-    // 用户只看到「导出超时」而无从判断是入口损坏
-    loaded = new Promise((resolve) => {
+    // 加载失败时以明确错误拒绝等待：否则 dispatch 会拿到已销毁的窗口继续
+    // send（同步抛 "Object has been destroyed"），用户只看到底层 TypeError
+    // 而非「导出入口损坏」
+    loaded = new Promise((resolve, reject) => {
       target.webContents.once('did-finish-load', () => resolve())
-      target.webContents.once('did-fail-load', () => {
-        destroyWindow()
-        resolve()
-      })
+      target.webContents.once(
+        'did-fail-load',
+        (_event, _code, _desc, _url, isMainFrame) => {
+          // 子框架加载失败不致命（远程图片等），只处理主框架
+          if (isMainFrame === false) return
+          destroyWindow()
+          reject(new Error('导出页面加载失败'))
+        },
+      )
     })
     target.webContents.on('will-navigate', (event) => event.preventDefault())
     target.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -250,11 +256,18 @@ function createExporter(deps) {
   async function dispatch(task) {
     const target = await ensureWindow()
     return new Promise((resolve, reject) => {
+      /** @type {{ resolve: (bytes: Uint8Array) => void, reject: (err: Error) => void } | null} */
+      let waiter = null
       const timer = setTimeout(() => {
+        if (pending !== waiter) return
         pending = null
+        // 超时多因离屏页挂死（超大文档同步转换 / 病态 mermaid / 慢网图片），
+        // 页面侧 busy 标志无法清除：销毁窗口强制复位，后续任务重建窗口自愈，
+        // 否则一次挂死 = 之后所有导出连环失败直至重启应用
+        destroyWindow()
         reject(new Error('导出超时'))
       }, TASK_TIMEOUT_MS)
-      pending = {
+      waiter = {
         resolve: (bytes) => {
           clearTimeout(timer)
           resolve(bytes)
@@ -264,7 +277,16 @@ function createExporter(deps) {
           reject(err)
         },
       }
-      target.webContents.send(IPC.exporterTask, task)
+      pending = waiter
+      try {
+        target.webContents.send(IPC.exporterTask, task)
+      } catch (err) {
+        // 已销毁窗口的 send 会同步抛出：清理本轮的 pending 与定时器，
+        // 不让任务悬挂到超时、也不让残留定时器抹掉后续任务的结果
+        if (pending === waiter) pending = null
+        clearTimeout(timer)
+        reject(err instanceof Error ? err : new Error(String(err)))
+      }
     })
   }
 
