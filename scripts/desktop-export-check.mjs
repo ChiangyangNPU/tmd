@@ -198,6 +198,10 @@ async function main() {
   await writeFile(mdPath, buildSampleMarkdown(), 'utf-8')
   await writeFile(join(WORK, 'docs', 'assets', 'pic.png'), makePng(80, 40, [220, 60, 60, 255]))
 
+  // 启动闸门：与 desktop-app-check 同款——上一次运行的实例退出后端口释放有
+  // 短暂窗口，不复闸直接 spawn 会连到残留实例的调试端口（表现为 stub 注入
+  // 成功但页面目标永不出现，最终等待超时）
+  await waitForPortsFree()
   const child = spawnApp({ repo: REPO, profile: PROFILE })
   const logs = []
   child.stdout.on('data', (d) => logs.push('OUT ' + d.toString()))

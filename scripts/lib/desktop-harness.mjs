@@ -108,7 +108,9 @@ export class Cdp {
  * @param {(target: { type?: string, url?: string, webSocketDebuggerUrl?: string }) => boolean} predicate
  * @param {number} [timeoutMs]
  */
-export async function waitForTarget(port, predicate, timeoutMs = 30000) {
+// 默认 90s：冷启动 + 打包产物首次解码在低负载差（1~10s）与高负载（>30s）间波动，
+// 30s 阈值在连续跑完 app-check 后的机器上偶发不够用
+export async function waitForTarget(port, predicate, timeoutMs = 90000) {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
     try {
