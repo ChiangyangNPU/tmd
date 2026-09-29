@@ -392,6 +392,18 @@ function createWindow() {
     event.preventDefault()
   })
 
+  // window.open（正文链接 Shift+点击 / 中键等 Chromium 默认行为，link-nav 只拦
+  // Mod+点击）会创建继承本窗口 webPreferences 的新窗口：远程页面将持有完整
+  // preload，tmdAPI 的任意路径读写对它完全可用。一律拒绝 window.open，
+  // http(s)/mailto 链接转交系统浏览器（复用 openExternal 的协议白名单，
+  // 与 exporter.cjs 离屏窗口的 deny 口径一致）
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) {
+      shell.openExternal(url).catch(() => {})
+    }
+    return { action: 'deny' }
+  })
+
   // 渲染进程消失（崩溃 / 被杀 / OOM）：这是渲染器维度的权威事件。
   // app 级 child-process-gone 主要覆盖 GPU / utility，forcefullyCrashRenderer 等
   // 场景只触发本事件；details 无 type 字段，补 'renderer' 与日志函数入参形状对齐。
@@ -815,16 +827,22 @@ ipcMain.handle(IPC.saveImage, async (_event, options) => {
 
 // ---------- IPC：链接跳转 ----------
 
-// 外部链接：仅放行 http/https/mailto，防任意协议（file:/javascript: 等）注入系统打开器
-/** @param {unknown} _event @param {unknown} url */
-ipcMain.handle(IPC.openExternal, (_event, url) => {
+// 外部链接：仅放行 http/https/mailto，防任意协议（file:/javascript: 等）注入系统打开器。
+// 渲染层 IPC（openExternal）与主窗口 setWindowOpenHandler 共用此白名单
+/** @param {unknown} url @returns {boolean} */
+function isSafeExternalUrl(url) {
   if (typeof url !== 'string') return false
   try {
     const parsed = new URL(url)
-    if (!['http:', 'https:', 'mailto:'].includes(parsed.protocol)) return false
+    return ['http:', 'https:', 'mailto:'].includes(parsed.protocol)
   } catch {
     return false
   }
+}
+
+/** @param {unknown} _event @param {unknown} url */
+ipcMain.handle(IPC.openExternal, (_event, url) => {
+  if (!isSafeExternalUrl(url)) return false
   return shell.openExternal(url).then(
     () => true,
     () => false,
