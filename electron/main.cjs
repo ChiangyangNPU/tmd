@@ -517,8 +517,8 @@ function setUpdateSource(source) {
 /**
  * 装配自动更新：监听 electron-updater 事件，经 IPC 推送状态给渲染层。
  * 发现新版本后用原生 dialog 询问用户，不静默下载。
- * macOS 自用场景为未签名构建（package.json 的 build.mac 已设 identity: null），
- * 此处不强制签名校验。
+ * macOS 为 ad-hoc 签名构建（package.json 的 build.mac.identity = "-"，不使用
+ * 开发者证书）；ad-hoc 已能满足 Squirrel.Mac 的签名校验，此处不再额外强制校验。
  */
 
 function setupAutoUpdater() {

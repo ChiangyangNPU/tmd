@@ -13,8 +13,7 @@
  * 2. latest-mac.yml 的 sha512 / size 按新文件重算（electron-updater 校验依据）
  * 3. 删除过期 dmg blockmap——blockmap 描述的是转换前文件的分块哈希，与新
  *    文件不匹配会让差量下载拼出坏文件；删除后 electron-updater 对 404 回退
- *    全量下载（mac 未签名场景自动更新本就无法完成安装，待签名落地时连同
- *    差量更新一起重新评估）
+ *    全量下载（mac 侧本就不走 dmg 自动更新——Squirrel 只认 zip，dmg 供手动安装）
  *
  * 仅 macOS 可运行（依赖 hdiutil），非 darwin 直接返回（Windows job 不受影响）。
  *
