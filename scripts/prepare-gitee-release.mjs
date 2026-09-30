@@ -10,10 +10,12 @@
  * 1. 从 GitHub Release（公开 API，无需 token）下载 latest*.yml——**必须用 CI 的
  *    元数据**：本地打包的安装包与 CI 构建的二进制不同、sha512 也不同，只有
  *    CI 的元数据与用户从 Gitee 下载到的产物匹配
- * 2. 把 yml 的 url / path 由「文件名」改为 Gitee Release 附件的**绝对 URL**
- *    （`{repo}/releases/download/{tag}/{文件名}`）——应用内置的 generic 更新源
+ * 2. 把 yml 的 url / path 由「文件名」改为**绝对 URL**——应用内置的 generic 更新源
  *    只按 baseUrl 拼接相对路径，若仍是文件名，更新器会去 raw 目录找安装包而
- *    404（安装包在 Release 附件区）；绝对 URL 会被直接使用
+ *    404（安装包在 Release 附件区）；绝对 URL 会被直接使用。
+ *    唯一例外：mac zip 走 **GitHub** Release 的绝对 URL——它约 112MB（deflate
+ *    已到最高压缩级，无法再小），超过 Gitee Release 附件 100MB 上限无法上传；
+ *    若仍指向 Gitee 会命中不存在的附件（mac 自动更新 404）。详见 toAbsolute
  * 3. 元数据写入仓库 releases/（随 pushall 同步双端，无需 CI 推送，也就不存在
  *    master 分叉），并打印需在 Gitee Release 手动上传的文件清单
  *
@@ -101,9 +103,17 @@ async function main() {
   const repos = reposOf(pkg)
   const tag = `v${pkg.version}`
   const localMode = process.argv.includes('--local')
-  /** @param {string} name @returns {string} */
+  /**
+   * 文件名 → 绝对下载 URL。
+   * mac zip 走 GitHub：其体积约 112MB（deflate 已到最高压缩级，无法再小），
+   * 超过 Gitee Release 附件 100MB 上限无法上传；若指向 Gitee 会命中不存在的
+   * 附件（mac 自动更新 404）。其余产物（dmg / exe / blockmap）走 Gitee。
+   * @param {string} name @returns {string}
+   */
   const toAbsolute = (name) =>
-    `https://gitee.com/${repos.gitee.owner}/${repos.gitee.repo}/releases/download/${tag}/${name}`
+    /-mac\.zip$/i.test(name)
+      ? `https://github.com/${repos.github.owner}/${repos.github.repo}/releases/download/${tag}/${name}`
+      : `https://gitee.com/${repos.gitee.owner}/${repos.gitee.repo}/releases/download/${tag}/${name}`
 
   /** @type {Array<{ name: string, url: string, size: number }>} */
   let assets
@@ -164,13 +174,21 @@ async function main() {
 
   if (localMode) return // CI 模式：无需打印手动上传指引
 
-  // 待上传清单：安装包与差量索引（元数据走 git 提交，不作为 Release 附件）
-  // mac zip 必须上传：electron-updater 在 macOS 上只识别 zip 更新包，
-  // 缺失会让 autoUpdater 报 "ZIP file not provided"
-  const uploads = assets.filter((a) => /\.(dmg|zip|exe|blockmap)$/.test(a.name))
+  // 待上传清单：安装包与差量索引（元数据走 git 提交，不作为 Release 附件）。
+  // 不含 mac zip——体积超 Gitee 附件 100MB 上限，上传必然失败并让 CI 红掉；
+  // 它改由 GitHub Release 承载（见 toAbsolute）
+  const uploads = assets.filter((a) => /\.(dmg|exe|blockmap)$/.test(a.name))
   console.log(`\n请到 Gitee 创建 Release（标签 ${tag}）并上传以下 ${uploads.length} 个文件：`)
   for (const a of uploads) {
     console.log(`  · ${a.name}（${(a.size / 1e6).toFixed(1)}MB）`)
+  }
+  const githubOnly = assets.filter((a) => /-mac\.zip$/i.test(a.name))
+  if (githubOnly.length) {
+    console.log(
+      `\n注意：以下文件因体积超 Gitee 附件 100MB 上限，仅发布在 GitHub Release，\n` +
+        `latest-mac.yml 中的下载地址已指向 GitHub：\n` +
+        githubOnly.map((a) => `  · ${a.name}（${(a.size / 1e6).toFixed(1)}MB）`).join('\n'),
+    )
   }
   console.log(
     `\n随后提交元数据并同步双端：\n` +
