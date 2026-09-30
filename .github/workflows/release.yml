@@ -106,18 +106,46 @@ jobs:
       - name: Extract release notes
         run: node scripts/extract-release-notes.mjs --strict
 
-      # ---------- GitHub Release（草稿，人工核对后 Publish） ----------
+      # ---------- GitHub Release（直接发布；草稿对 electron-updater 不可见） ----------
       - name: Publish to GitHub Release
         run: |
           TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
           echo "Publishing to GitHub Release: $TAG"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --notes-file .release-notes.md
+          # 兜底转正：gh release view 只判断「存在」，不区分 draft；若已有同名
+          # draft（更新器完全不可见，会卡死 GitHub 源自动更新）则强制发布
+          gh release edit "$TAG" --draft=false
           for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap release/latest*.yml; do
             [ -f "$f" ] || continue
             gh release upload "$TAG" "$f" --clobber
           done
-          echo "GitHub Release assets updated"
+          # 上传后校验（与 Gitee 侧同口径）：必须以服务端状态为准逐项核对，
+          # 且 Release 必须已发布——宁可疑失败，也不静默发出残缺版本
+          gh release view "$TAG" --json isDraft,assets > /tmp/gh-release.json
+          MISSING=0
+          if node -e "process.exit(JSON.parse(require('fs').readFileSync('/tmp/gh-release.json','utf8')).isDraft ? 0 : 1)"; then
+            echo "::error::GitHub Release 仍为 draft 状态，electron-updater 不可见"
+            MISSING=1
+          fi
+          for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap release/latest*.yml; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            if node -e "
+              const r = JSON.parse(require('fs').readFileSync('/tmp/gh-release.json','utf8'))
+              process.exit((r.assets || []).some(a => a.name === process.argv[1]) ? 0 : 1)
+            " "$name"; then
+              echo "OK: $name"
+            else
+              echo "::error::GitHub 附件缺失: $name（上传后 API 校验未命中）"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            echo "::error::GitHub Release 校验未通过（见上方缺失项）"
+            exit 1
+          fi
+          echo "GitHub Release 已发布且附件齐全"
 
       # ---------- Gitee（跨国链路慢：实测 3.7 小时；受 runner 6 小时硬限制约束。
       # 步骤取 355 分钟：若超时由本步骤先行报错（错误信息可见），
