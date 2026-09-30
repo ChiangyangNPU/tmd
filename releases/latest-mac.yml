@@ -1,78 +1,17 @@
-version: 0.1.1
+version: 0.1.2
 files:
-  - url: https://github.com/ChiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64-mac.zip
-    sha512: ps1QUCR78fXxt63rxoJKXq2vUzM5kQ7ZwRHOKux+zWxg93H8yZlYYHzp0QJObT2mXCdcZ2kDY1GQ3pl0gZC7hA==
-    size: 110537068
-  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64.dmg
-    sha512: 6eP+6/nd6JQG+yMXLLxz4Iz9NM2TNViM/v40FPfWg9wJYBDlAkaYI1JgLKOdUekrL3s+WxEE7jMCsTol803oaA==
-    size: 84062017
-path: https://github.com/ChiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64-mac.zip
-sha512: ps1QUCR78fXxt63rxoJKXq2vUzM5kQ7ZwRHOKux+zWxg93H8yZlYYHzp0QJObT2mXCdcZ2kDY1GQ3pl0gZC7hA==
+  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.2/TMD-0.1.2-arm64.dmg
+    sha512: L/VbskGus6jAPTIy7mAS6sq78wE3RxGAGCuK12wBl85/vEvGOQxI1uYAPIV+LvVj80YP5IB1sL5JiUFdVkkTrg==
+    size: 84056681
+path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.2/TMD-0.1.2-arm64.dmg
+sha512: L/VbskGus6jAPTIy7mAS6sq78wE3RxGAGCuK12wBl85/vEvGOQxI1uYAPIV+LvVj80YP5IB1sL5JiUFdVkkTrg==
 releaseNotes: |
-  ## [0.1.1] - 2026-09-30
+  ## [0.1.2] - 2026-09-30
 
-  安全与数据安全攻坚：一处 P0 安全敞口、四处数据丢失缺口，以及导出 / 主进程 / 编辑器功能的批量健壮性与打磨（详见各条）。
+  macOS 更新机制重构：不再依赖 Squirrel.Mac 自动安装（未公证构建必然卡在签名校验），改为「下载 dmg + 手动安装」，并连带解决由此暴露的签名有效性与下载隔离标记问题。
 
-  ### 安全
+  ### 平台与分发
 
-  - **主窗口补 `setWindowOpenHandler`**：正文链接 Shift+点击 / 中键点击走 Chromium 默认 `window.open`，新窗口会继承主窗口 webPreferences——远程页面由此持有完整 preload（tmdAPI 的任意路径读写）。现一律拒绝 `window.open`，http(s)/mailto 链接转交系统浏览器（协议白名单提取为 `isSafeExternalUrl` 供渲染层 IPC 与窗口 handler 共用，与离屏导出窗口的 deny 口径一致）
-
-  ### 编辑内核
-
-  - **查找替换增强**：段内跨行内节点匹配（关键词横跨加粗 / 斜体 / 链接也能命中）、正则模式（含 `$1` / `$&` 捕获组替换、非法表达式就地红字提示、2000 条匹配上限）；匹配区间不再受小写化长度变化影响，替换后索引不再跳回开头；Esc 关闭后焦点归还编辑器，窗口任意处按 Esc 也能收起查找栏
-  - **Word 公式可编辑**：独占公式不再栅格化为位图，改走 LaTeX →（KaTeX MathML）→ OMML 写回 `word/document.xml`，在 Word 中可直接编辑；任一环节失败该段降级为居中源码文本。新增依赖 `mathml2omml`（LGPL-3.0）与显式声明的 `fflate`，设置面板「关于」第三方许可清单同步补两项
-  - 分屏时若源码侧为可编辑侧，格式化与查找不再作用于只读的所见即所得侧
-  - 标题与代码块快捷键改为 toggle 语义（再按一次取消）；表格与解析层修正：围栏与管道转义按反斜杠奇偶判断、网格表列数下限 1
-  - 快捷键健壮性：拒绝缺主键的写法、冲突比较忽略大小写；IME 组字期与输入框内不再抢全局快捷键；导出 HTML 改用 `Cmd/Ctrl+Shift+D`，消除与高亮的默认撞键
-  - 标签页与目录：标签激活串行化（连点不再覆盖目标标签内容）、撤销回原状时清掉脏圆点；TOC 替换值改用函数形式，标题含 `$&` 时不再污染序列化结果
-  - 图片与界面细节：粘贴多图不再顺序颠倒、插入位置越界兜底、图床扩展名由 MIME 推导且临时文件不再撞名；源码模式拖图给出提示、窗口任意处右键关闭旧菜单、拖拽先清理上轮监听；设置面板 PicGo 字段值转义与下载进度兜底、任务列表点击热区补下界
-  - **脏状态语义修复（数据安全）**：三处缺口共享同一根因——脏标记 / 基准 / 恢复副本的更新时机与写盘结果解耦。① 纯源码模式编辑不置脏、不写恢复副本（关标签无确认、崩溃恢复到进源码模式前的陈旧内容），现由源码变更回调补位置脏与调度，序列化以当前编辑侧为权威；② 保存基准 `tab.markdown` 曾在捕获时推进，写盘失败 / 另存取消后撤销回原内容会被清脏（磁盘还是旧内容，关闭保护与自动保存随之失效），现改为写盘成功后推进，落盘期间继续输入或切走暂存按「与磁盘内容一致才清脏」处理；③ 恢复副本复活：milkdown listener 自带 200ms 防抖，写盘完成清副本后迟到的序列化回调会把已保存文档以副本写回（下次启动多出与磁盘相同的 recovered 标签），现仅在确有未保存内容时写副本
-  - **查找状态随文档编辑映射**：匹配列表此前只在查询变化时重算，开着查找栏编辑正文后坐标全部过期——高亮错位、「下一个」对收缩后的文档抛 RangeError、替换把文本写进无关正文（静默数据破坏）。现由插件随事务映射匹配坐标（坐标恒合法）+ 防抖重算修正内容陈旧，替换前校验命中区间文本、失配即重算并放弃本次；换标签后按保留的关键词在新文档重算，查找栏计数随重算刷新
-  - 保存队列在写盘前校验标签仍打开：捕获到执行之间被「放弃修改」关闭的标签，其内容不再被挂起中的保存写回磁盘；关闭最后一个标签（桌面关窗）前先重绘标签栏并同步脏标记——此前提前返回跳过通知，主进程会二次弹「未保存」确认，取消后窗口停留在编辑器已销毁的坏状态；放弃脏标签时若恢复副本正是其最后编辑态则一并清除（不再下次启动"复活"被放弃的内容）；`replaceEditor` 失败不再吞成正常 resolve（错误透传给激活 / 打开 / 历史恢复各自的失败提示，队列本身保活），重建前先清引用、不再残留已销毁实例
-  - 粘贴与输入防御：粘贴 HTML 的 img 属性白名单补 `style`（粘贴带 `zoom` 的图片缩放不再丢失，提纯分支此前因白名单缺项成了死代码）；网格表速记 `|NxM|` 加 100 上限（`|9999x9999|` 此前会同步构造上亿单元格冻结主线程）；`toFileUrl` 改逐段编码（文件名含 `%` / `?` / `#` 时 file URL 此前被解码成别的路径或截断）；粘贴 / 拖放图片读取失败接住 rejection，不再是无反馈的未捕获异常
-  - Mermaid：动态 import 失败清空缓存的 rejected promise（此前本会话所有图表渲染到重启为止全灭且不可重试）；懒加载重试定时器纳入 destroy 清理；三处硬编码中文文案走 i18n（三个语言包补 mermaid 段）
-  - 大纲刷新并入低优拍点：去掉每击键的全文档遍历 + 全量 DOM 重建（与序列化防抖同一事务流上的未防抖 O(n) 消费者），面板不可见时跳过；源码模式编辑此前完全不更新大纲，现经低优拍点一并覆盖
-  - 细节修正：搜索结果高亮遇小写化变长字符（`İ` 等）退回大小写敏感匹配不再错位；TOC slugify 改 Unicode 字母类（假名 / 韩文 / 西里尔标题的锚点此前被剔成空串，且与 GitHub 不一致）；排版设置的自定义字体串过滤花括号（防闭合 `:root` 规则注入任意 CSS）；`file://host/path` 识别为 UNC（此前剥成相对路径拼错位置）；根目录下文件的 `dirOf` 返回分隔符本身（不再把文件本身当目录）
-
-  ### 导出
-
-  - LaTeX：相对路径图片展开为绝对路径，`escapeLatex` 改用单遍替换
-  - Mermaid 逐块渲染，单图语法错误不再阻断整篇导出；超出栅格化上限的公式与图表降级为源码文本
-  - 健壮性：空文档长图不再失败、透明底色回退白底、破图降级为 alt 占位；修正 front matter 误剥离、公式 `\$` 截断、fence 规则嵌套与空标题锚点；导出入口的导入失败与执行异常改为显式提示
-  - **LaTeX 图片路径逐字处理**：`\detokenize` 是逐字语境，路径此前先过 `escapeLatex`，文件名含 `_ # $ & ~ \` 的图片（`screenshot_1.png` 一类命名极常见）XeLaTeX 一律 File not found，Windows 路径是重灾区。现不做文本级转义：反斜杠归一为正斜杠（graphics 全平台接受）、仅转义破坏参数结构的 `% { }`，并还原 markdown-it 对 src 的 URL 规范化；`\href` 的 URL 改最小转义（`~` 按字面保留，含 `~` 的链接此前会失效）
-  - **导出异常路径状态复位**：任务超时销毁离屏窗口强制复位——此前只清 pending 不销毁，离屏页 busy 标志永久占用，一次挂死 = 之后所有导出连环失败直至重启；入口加载失败以明确错误拒绝（此前 resolve 已销毁的窗口，send 同步抛 "Object has been destroyed" 且遗留脏 pending 与存活定时器，可抹掉后续任务的结果）；send 包 try/catch 清理本轮状态、定时器回调校验 waiter 身份
-  - Word / 长图健壮性：失败 toast 不再显示字面量 `export.failed`（该键在三个语言包都不存在，实际改用 `menu.failed`）；远程图片解码加 15s 单图超时（网络悬挂此前只能等主进程 3 分钟任务超时）+ 本地图片本地化改小并发池；Word 导出中超视口高度的 Mermaid 图降级为源码文本而非静默丢弃（与超限块的降级口径一致）；长图画布加像素总量预算 160M（此前只查总高不查面积，宽视口会撞进 Chromium 约 268M 像素的 toBlob 静默失败区），toBlob 失败回退 toDataURL
-  - 打磨：`.md` / `.markdown` 后缀剥离统一为一处（`x.markdown` 导出后页面标题不再带后缀）；HTML 导出 `<title>` 转义（文件名含 `& < >` 时此前产生畸形 HTML）；OMML 公式占位符加每任务随机盐（正文恰好含 `@@TMDMATH0@@` 字面量时不再错替换段落）；离屏导出页注入滚动条隐藏样式（Windows/Linux 长图右侧不再带一条滚动条）；浏览器下载兜底的 revokeObjectURL 推迟一个宏任务（同步 revoke 会掐断部分浏览器刚开始的下载）
-
-  ### 可靠性
-
-  - 历史版本 index 原子写与损坏留档，预览乱序与恢复失败有反馈；保存串行化并提示写盘失败
-  - 主进程：IPC 入参校验、打印等待回调、壳层状态原子写、CSP 只注入一次；导出窗口加载失败不再挂到超时，原语通道校验来源
-  - macOS 经文件关联启动时 `open-file` 事件早于 ready：`queueOpenPath` 加守卫，不再每次双击 .md 启动都留一条 "Cannot create BrowserWindow before app is ready" 错误日志（功能可自愈但注释承诺的前台聚焦不生效）；`second-instance` 支持多文件（拖多个 .md 到任务栏图标此前只打开第一个）
-  - 主题目录随 `TMD_HOME_DIR` 重定位（此前三处硬编码真实主目录，E2E 隔离 / 便携版场景下主题读写仍落到宿主机，破坏隔离约定）；历史全局容量剪枝降频（每 20 次写入或触及单文件上限时执行，此前挂在每次保存上、成本随历史条目线性增长），单文件数量上限改为写入时内联收口；剪枝顺带清理 `index.json.corrupt-*` 损坏留档（保留 7 天，此前随损坏累积永不消失）
-  - 未保存关闭确认对话框：破坏性选项不再做默认按钮（此前回车 = 直接丢弃内容）、加防重入守卫（对话框弹出期间再点 ✕ 此前会叠出多个对话框且回调交错）、渲染层卡死时 executeJavaScript 3s 兜底后直接销毁（窗口此前可能永远关不掉）
-  - 主进程 IPC 与状态写入：`saveImage` 入参白名单校验（name 须为非隐藏裸文件名，拒绝路径穿越，非法走调用方降级路径）；`sendToRenderer` 与对话框父窗不再选中隐藏的离屏导出窗口（消息静默丢失 / 对话框挂在不可见窗口上），无可用父窗时以无父窗模式弹出；「当前已是最新版本」弹窗仅在菜单手动检查时出现（开启启动自动检查的用户此前每次启动都被弹窗）；`saveShellState` 读改写挂同一条 Promise 链（两次紧邻调用此前各自基于旧快照写盘、后完成者覆盖前者）
-  - 日志与打包：日志去重改固定窗口（持续重复的错误期满必然冲刷汇总行并可再次落盘——滑动窗口下「每 30 秒重复一次」的错误会无限期只记首条，误导排障）；trim-runtime 对 picgo 产物 require 字面量的 mock 失配时直接令构建失败（此前失配静默、包照删，运行时图床整体失效且日志无线索）
-
-  ### 工程与质量
-
-  - 样式与模板全仓 prettier 规范化（仅格式）；新增断言：菜单 accelerator 与快捷键默认值一致，防两处漂移
-  - `scripts/*.mjs` 统一去 shebang 并补 `.gitattributes`（`eol=lf`）：前者修掉 vite SSR transform 下 vitest import 报无堆栈 `SyntaxError` 的问题，使三个发布脚本的纯函数单测恢复可加载；后者固定行尾，使 `npm run format:check` 在 Windows 上也不再因 CRLF 工作区误报
-  - 单测 511 → 558：新增 tabs / files 脏状态与保存队列状态机、find 匹配映射与替换校验、image-resolver 增量装饰状态机（核心不变式：连续编辑后的增量结果与全量扫描完全一致，用全新 init 作 oracle 对照）、日志 / 历史 / 导出 / 路径工具的边界用例
-  - 桌面 E2E 主链路 25 → 27 断言：新增「源码模式编辑置脏且恢复副本覆盖源码内容」「查找高亮随编辑映射且跳转不失效（边搜边改）」
-  - E2E harness 抗残留实例：调试端口闸门发现占用时主动识别本仓库实例（lsof + 命令行特征核对，不误伤其他 Electron 应用）并 SIGKILL 回收——卡在 ready 前的僵尸对 SIGTERM 不响应，此前只等不杀，一次失败运行会污染后续所有运行；`cleanupElectron` 改 SIGKILL；页面等待阈值 30s → 90s；导出自检补端口空闲闸门（此前无闸，会连到残留实例的调试端口）
-
-  ### 性能与构建
-
-  - **image-resolver 装饰增量更新**：原每次事务全量遍历文档找图片节点（O(文档节点数)）改为 plugin state 缓存 DecorationSet + apply 增量 map + changedRange 局部扫描（O(图片数)）——1MB 文档输入同步中位 73→9ms（profile）/ 86→17ms（bench），CPU 88.7% idle
-  - **image-resolver 增量装饰丢失修复**：移除变更范围内旧装饰的 `DecorationSet.find(from, to)` 是「触碰」语义（恰好被推移到 `range.to` 的装饰也算命中），而重建端 `nodesBetween` 是末端开区间——图片被输入推到变更范围右边界时（紧贴图片后打字的常见操作）装饰被移除却不再扫回，显示退回相对路径黑图；统一为相交谓词，保持 O(图片数) 成本
-  - **mac 自动更新修复（v0.1.1 重发补丁）**：v0.1.1 首次发布时 mac 产物只配了 dmg，而 electron-updater 在 macOS 上硬性要求 zip 更新包（Squirrel.Mac 走 zip 流式解压），`latest-mac.yml` 没有 zip 条目时直接抛 "ZIP file not provided"、自动更新全量失败。已改为 dmg + zip 双产物（arch arm64），CI 的 artifact / GitHub Release / Gitee Release 上传与缺失校验 5 处 glob 同步补 `release/*.zip`。注：版本号未变，已装 v0.1.1 的用户因 0.1.1 == 0.1.1 收不到自动更新提示，本修复主要让新下载用户拿到带 zip 的版本；老用户的 mac 自动更新要等下一版（v0.1.2+）才能真正生效
-  - **mac zip 改由 GitHub 承载，修复 Gitee 元数据 404**：zip 为 111.7MB，超过 Gitee Release 附件 100MB 上限，CI 上传必失败且 Gitee 元数据里 zip 的 url 会指向不存在的附件（mac 自动更新 404）。实测确认无法压到限内：electron-builder 已用 deflate 最高级（zip 内标注 `Defl:X`，实测 zlib level 6/9 分别为 86.9/86.7MB，与现网 86.8MB 一致）；LZMA(method 14) / bzip2(method 12) / 7z 虽能压到 75~93MB，但 Squirrel 调用的解压命令 `/usr/bin/ditto` 对前两者均报 `Unknown compression type`、对 7z 更不识别。现 `prepare-gitee-release.mjs` 的 `toAbsolute` 分流——mac zip 用 GitHub Release 绝对 URL，其余（dmg/exe/blockmap）仍走 Gitee；`release.yml` 的 Gitee 上传与两处校验移除 `release/*.zip`（artifact 上传与 GitHub Release 两处保留）
-  - **`latest-mac.yml` 重复 dmg 条目修复**：electron-builder 在 `mac.target` 数组里 dmg 显式带 `arch` 时，会为同一个 dmg 写两条完全相同的记录（实测原始产物形态 `zip + dmg + dmg`，构建日志确认只构建了一次 DMG）；而 `patch-mac-dmg.mjs` 的正则未加 `g` 标志、只改写第一条，导致第二条残留 dmg 转换前的 sha512/size（指向的文件实际已是 ULMO 版本）。现改为全局替换同名条目并去重，元数据只保留一条 dmg。不影响 electron-updater（mac 侧 `findFile` 只挑 zip），属元数据正确性修复
-
-  ### 界面与主题
-
-  - **新增「液态玻璃」（Liquid Glass）主题预设**：作为第 5 个内置主题预设接入现有主题体系（id=`glass`，`data-theme-preset='glass'`），纯 CSS 实现——半透明表面 + `backdrop-filter` 强模糊与高饱和 + 1px 亮边缘 + 顶部内高光 + 柔和投影 + 底层彩色光晕壁纸（`--glass-wallpaper`），折射出的彩色即「液态感」来源。浅色/深色各自一套变量，组件规则两态共用。玻璃化覆盖窗口壁纸、工具栏/查找栏、侧边栏、标签栏、编辑纸张（悬浮玻璃卡片）、源码编辑器、全部浮层与菜单；边界处理：打印/导出 PDF 时自动撤掉玻璃效果（`@media print`）、系统开启「降低透明度」时去彩光、近实色、撤模糊（`@media (prefers-reduced-transparency: reduce)`）。i18n 三语补 `settings.presetGlass` 键
-  - **设置面板左侧导航跟随主题色调**：`.settings-nav` 用 `var(--bg-hover)`，但 sepia/green 预设漏覆盖该变量，导航条仍是 default 浅灰 `#eff2f5`，与米色/绿色主表面色调脱节；液态玻璃下 nav 用 `--bg-hover: rgba(255,255,255,0.52)` 叠在 modal 的 `--bg: rgba(255,255,255,0.64)` 上视觉一片白，没形成层次。修复：sepia 浅/深补 `--bg-hover: #e8dec5 / #353026`、green 浅/深补 `#aed3b6 / #243328`（与 `--code-bg` 同系略深一档，保住 nav 与 active 项的对比）；液态玻璃下 `.settings-nav` 改用 `--glass-bar`（更透明的玻璃条），与 `--glass-panel` 主面板形成层次
-  - **源码模式（CodeMirror）跟随主题**：源码模式此前未做主题适配——CodeMirror 的 `baseTheme` 只提供 `&light` / `&dark` 两套固定色，而项目未注册 dark theme，实例恒走 `&light`。表现：行号 gutter 恒为 `#f5f5f5` 浅灰（与 sepia / green / 液态玻璃等主题的纸张色脱节）、当前行恒为浅蓝 `#cceeff44`、光标恒为黑线、选区恒为 `#d9d9d9`、源码模式搜索面板恒白底黑字；语法高亮走 `defaultHighlightStyle` 的固定亮色配色（标题固定深灰 `#404740`）。修复分两层：① `styles/10-layout.css` 把 gutter / 当前行 / gutter 高亮 / 光标绘制层 / 选区 / 搜索面板 / 匹配高亮 / 补全浮层改绑 `--code-bg`、`--muted`、`--border`、`--accent`、`--fg` 等主题变量（正文 `.cm-content` 本就无背景色，天然透出容器纸张色）；② `sourcemode.ts` 新增自定义 `HighlightStyle` 引用同一批变量（`basicSetup` 的 `defaultHighlightStyle` 以 `{ fallback: true }` 注册，天然被覆盖），并顺带去掉聚焦态的默认虚线 outline。全部走 CSS 变量，深浅切换与任意主题预设自动跟随、**无需重建实例**。注意 `caret-color` 不可覆盖——`drawSelection` 以 `transparent !important` 隐藏原生光标并改由 `.cm-cursor` 元素绘制，改的是该元素的 `border-left-color`。新增直接依赖 `@codemirror/language`、`@lezer/highlight`（原为 `codemirror` 的传递依赖，现被直接 import）
-releaseDate: '2026-09-30T10:05:49.346Z'
+  - **macOS 自动更新改为「下载 dmg + 手动安装」**：v0.1.1 首次发布时 mac 产物只配了 dmg，electron-updater 取更新包时直接抛 "ZIP file not provided"（Squirrel.Mac 只认 zip 流式解压）。补上 zip 后又卡在更根本的一步：本项目未公证构建，Squirrel.Mac 的签名校验（`SecStaticCodeCheckValidity`）必然失败——表现为「更新失败：Code signature … did not pass validation」，既不重启也不进入安装界面；改用 ad-hoc 签名能让该校验通过，却仍过不了 Gatekeeper 的公证检查（首次打开照样被拦），收益有限。最终方案：mac 侧不再走 electron-updater 的下载/安装，只做**版本检查**——用户确认后由主进程把 dmg 下载到系统「下载」目录（带进度、自动处理重定向），并按元数据**校验 sha512**（不匹配即删除并报错，避免装到截断或被篡改的包），随后**清除下载隔离标记**（`xattr -d com.apple.quarantine`——Chromium 下载会打上该标记，拖进「应用程序」的 app 会继承它，而 `identity: null` 的构建会被 Gatekeeper 判「已损坏」；dmg 由我们自己下载且已校验，来源可信），完成后弹窗提供「打开安装包 / 打开所在文件夹 / 稍后」三项——「打开安装包」经 `shell.openPath` 直接弹出安装窗口，用户把 TMD 拖入「应用程序」即可；Windows 的 NSIS 不要求签名，保持全自动更新。连带简化：`mac.target` 移除 zip、`build.mac.identity` 保持 `"-"`（ad-hoc）——**实测确认不能改用 `null`**：跳过签名会让 Electron 预编译包自带的 linker-signed 签名残留下来，而改名、换 Info.plist、裁剪语言包之后它与实际内容不符，`codesign --verify` 报 `code has no resources but signature indicates they must be present`，Gatekeeper 据此判**「已损坏，无法打开」**，且**该状态下系统设置里没有放行入口**（「仍要打开」按钮只在提示「未验证的开发者」时出现，macOS 26 上尤其明显）；ad-hoc 则把结论降级为「Apple 无法验证开发者」，用户可右键「打开」或到系统设置点「仍要打开」——两者都未公证，差别在于 ad-hoc 给用户留了一条 GUI 放行路径。用户从网页手动下载 dmg 时仍需这一步（应用内更新路径已由 `clearQuarantine` 消除）——zip 原为 112MB（超 Gitee 附件 100MB 上限，一度被迫改由 GitHub 承载；实测 7z/LZMA 能压到 79MB 但 Squirrel 的解压命令 `/usr/bin/ditto` 不认，bzip2 同理，而 deflate 已到 `Defl:X` 最高级），移除后 dmg（85MB）与 exe（96MB）都能挂 Gitee，元数据 URL 全部指回 Gitee，`release.yml` 与 `prepare-gitee-release.mjs` 里的 GitHub 分流逻辑随之删除
+  - **`latest-mac.yml` 重复 dmg 条目修复**：electron-builder 在 `mac.target` 数组里 dmg 显式带 `arch` 时，会为同一个 dmg 写两条完全相同的记录（实测原始产物形态 `zip + dmg + dmg`，构建日志确认只构建了一次 DMG）；而 `patch-mac-dmg.mjs` 的正则未加 `g` 标志、只改写第一条，导致第二条残留 dmg 转换前的 sha512/size（指向的文件实际已是 ULMO 版本）。现改为全局替换同名条目并去重，元数据只保留一条 dmg
+releaseDate: '2026-09-30T17:13:27.269Z'
