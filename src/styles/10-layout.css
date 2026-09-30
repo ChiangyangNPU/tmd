@@ -311,6 +311,93 @@ body.view-split #src-editor {
   height: 100%;
   /* 字号跟随排版设置（与正文同步；字体/行距不跟随，源码保持等宽紧凑） */
   font-size: var(--editor-font-size, 14px);
+  /* 底色透出容器（容器已是主题纸张色），不在编辑器层另铺一层 */
+  background: transparent;
+}
+
+/* 源码模式容器层颜色绑定主题变量。
+   CodeMirror 的 baseTheme 只定义 &light / &dark 两套固定色，而本项目未注册
+   dark theme，实例恒走 &light——gutter / 当前行 / 光标 / 选区 / 搜索面板在
+   深色与各主题预设下都会突兀。这里统一改绑 CSS 变量（带 #src-editor 前缀的
+   选择器优先级高于 baseTheme 的单类/双类选择器，足以覆盖）。 */
+/* baseTheme 给聚焦态加了 1px dotted #212121 的 outline，深色下不可见且多余 */
+#src-editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+#src-editor .cm-gutters {
+  background-color: var(--code-bg);
+  color: var(--muted);
+  border-right: 1px solid var(--border);
+}
+
+#src-editor .cm-activeLine {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+#src-editor .cm-activeLineGutter {
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--fg);
+}
+
+/* 光标：drawSelection 把原生 caret 置为 transparent !important 并改由 .cm-cursor
+   元素绘制，因此这里只能改绘制层（设 caret-color 无效且会造成双光标） */
+#src-editor .cm-cursor,
+#src-editor .cm-dropCursor {
+  border-left-color: var(--fg);
+}
+
+#src-editor .cm-selectionBackground {
+  background-color: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+#src-editor .cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
+  background-color: color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+/* 源码模式搜索面板（CodeMirror 自带，Ctrl/Cmd+F） */
+#src-editor .cm-panels {
+  background-color: var(--pre-bg);
+  color: var(--fg);
+}
+
+#src-editor .cm-panels.cm-panels-top {
+  border-bottom: 1px solid var(--border);
+}
+
+#src-editor .cm-panels.cm-panels-bottom {
+  border-top: 1px solid var(--border);
+}
+
+#src-editor .cm-panel.cm-search input,
+#src-editor .cm-panel.cm-search button {
+  background-color: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+#src-editor .cm-searchMatch {
+  background-color: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+#src-editor .cm-searchMatch.cm-searchMatch-selected {
+  background-color: color-mix(in srgb, var(--accent) 46%, transparent);
+}
+
+#src-editor .cm-selectionMatch {
+  background-color: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+/* 自动补全提示浮层 */
+#src-editor .cm-tooltip {
+  background-color: var(--pre-bg);
+  color: var(--fg);
+  border-color: var(--border);
+}
+
+#src-editor .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background-color: var(--code-bg);
+  color: var(--fg);
 }
 
 /* 设置「显示行号」关闭时挂 body.src-no-linenos：隐藏源码模式整列 gutter（行号 + 折叠标记） */
