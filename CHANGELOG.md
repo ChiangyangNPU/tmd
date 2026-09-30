@@ -68,6 +68,7 @@
 ### 界面与主题
 
 - **新增「液态玻璃」（Liquid Glass）主题预设**：作为第 5 个内置主题预设接入现有主题体系（id=`glass`，`data-theme-preset='glass'`），纯 CSS 实现——半透明表面 + `backdrop-filter` 强模糊与高饱和 + 1px 亮边缘 + 顶部内高光 + 柔和投影 + 底层彩色光晕壁纸（`--glass-wallpaper`），折射出的彩色即「液态感」来源。浅色/深色各自一套变量，组件规则两态共用。玻璃化覆盖窗口壁纸、工具栏/查找栏、侧边栏、标签栏、编辑纸张（悬浮玻璃卡片）、源码编辑器、全部浮层与菜单；边界处理：打印/导出 PDF 时自动撤掉玻璃效果（`@media print`）、系统开启「降低透明度」时去彩光、近实色、撤模糊（`@media (prefers-reduced-transparency: reduce)`）。i18n 三语补 `settings.presetGlass` 键
+- **设置面板左侧导航跟随主题色调**：`.settings-nav` 用 `var(--bg-hover)`，但 sepia/green 预设漏覆盖该变量，导航条仍是 default 浅灰 `#eff2f5`，与米色/绿色主表面色调脱节；液态玻璃下 nav 用 `--bg-hover: rgba(255,255,255,0.52)` 叠在 modal 的 `--bg: rgba(255,255,255,0.64)` 上视觉一片白，没形成层次。修复：sepia 浅/深补 `--bg-hover: #e8dec5 / #353026`、green 浅/深补 `#aed3b6 / #243328`（与 `--code-bg` 同系略深一档，保住 nav 与 active 项的对比）；液态玻璃下 `.settings-nav` 改用 `--glass-bar`（更透明的玻璃条），与 `--glass-panel` 主面板形成层次
 
 ## [0.1.0] - 2026-09-21
 

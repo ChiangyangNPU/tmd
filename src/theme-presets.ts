@@ -205,6 +205,13 @@ html[data-theme-preset='glass'] .table-toolbar {
   border-radius: 12px;
 }
 
+/* ---- 设置面板左侧导航：与 modal 形成层次（用更透明的玻璃条，
+      而非 --bg-hover 叠加在 modal 上视觉一片白） ---- */
+html[data-theme-preset='glass'] .settings-nav {
+  background-color: var(--glass-bar);
+  border-right-color: var(--glass-edge);
+}
+
 /* ---- 打印 / 导出 PDF：撤掉壁纸与玻璃，PDF 不带彩色底，纸张跟随深浅回归实色 ---- */
 @media print {
   html[data-theme-preset='glass'] body {
@@ -272,6 +279,7 @@ export const THEME_PRESETS: ThemePreset[] = [
         '--toolbar-bg': 'rgba(247, 241, 227, 0.85)',
         '--error-fg': '#c0392b',
         '--error-bg': '#fbeee8',
+        '--bg-hover': '#e8dec5',
       },
       {
         '--bg': '#2b2620',
@@ -285,6 +293,7 @@ export const THEME_PRESETS: ThemePreset[] = [
         '--toolbar-bg': 'rgba(43, 38, 32, 0.85)',
         '--error-fg': '#f97583',
         '--error-bg': '#3a2a26',
+        '--bg-hover': '#353026',
       },
       'sepia',
     ),
@@ -305,6 +314,7 @@ export const THEME_PRESETS: ThemePreset[] = [
         '--toolbar-bg': 'rgba(204, 232, 207, 0.85)',
         '--error-fg': '#c0392b',
         '--error-bg': '#f3e3e0',
+        '--bg-hover': '#aed3b6',
       },
       {
         '--bg': '#1d2a20',
@@ -318,6 +328,7 @@ export const THEME_PRESETS: ThemePreset[] = [
         '--toolbar-bg': 'rgba(29, 42, 32, 0.85)',
         '--error-fg': '#f97583',
         '--error-bg': '#33272a',
+        '--bg-hover': '#243328',
       },
       'green',
     ),
