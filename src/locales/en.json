@@ -49,6 +49,12 @@
     "empty": "No headings yet. The TOC updates automatically as you add them.",
     "untitledHeading": "(empty heading)"
   },
+  "mermaid": {
+    "clickToEdit": "Click to edit source",
+    "placeholder": "Mermaid diagram (click to edit source)",
+    "syntaxError": "Invalid Mermaid syntax: {message}",
+    "loadFailed": "Failed to load Mermaid, please retry"
+  },
   "frontmatter": {
     "edit": "Edit",
     "save": "Done",

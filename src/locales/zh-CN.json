@@ -49,6 +49,12 @@
     "empty": "暂无标题，目录将在添加标题后自动生成",
     "untitledHeading": "（空标题）"
   },
+  "mermaid": {
+    "clickToEdit": "点击编辑源码",
+    "placeholder": "Mermaid 图表（点击编辑源码）",
+    "syntaxError": "Mermaid 语法有误：{message}",
+    "loadFailed": "Mermaid 加载失败，请重试"
+  },
   "frontmatter": {
     "edit": "编辑",
     "save": "完成",

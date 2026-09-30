@@ -57,3 +57,17 @@ describe('resolveLink', () => {
     expect(resolveLink('  ', base)).toBeNull()
   })
 })
+
+describe('resolveLink file:// UNC', () => {
+  it('file://host/share 保留 UNC 形态，不当作相对路径拼进 baseDir', () => {
+    const t = resolveLink('file://server/share/a.md', '/home/user/docs')
+    expect(t).toEqual({ kind: 'file', path: '//server/share/a.md' })
+  })
+
+  it('file:///path（三斜杠本机路径）行为不变', () => {
+    expect(resolveLink('file:///Users/a/b.md', '/tmp')).toEqual({
+      kind: 'file',
+      path: '/Users/a/b.md',
+    })
+  })
+})

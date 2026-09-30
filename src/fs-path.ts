@@ -54,12 +54,15 @@ export function normalizeFsPath(p: string): string {
 /**
  * 取路径的目录部分（兼容 `/` 与 `\`；无分隔符时返回空串）。
  * 仅截断到最后一个分隔符，不做补全，故不依赖 path 模块。
+ * 根目录下的文件（/a.md）目录部分是分隔符本身 `/`——返回空串会让
+ * `dirOf(p) || p` 之类的调用方把文件本身当目录。
  * @param p - 路径
  * @returns 目录部分
  */
 export function dirOf(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
-  return i > 0 ? p.slice(0, i) : ''
+  if (i < 0) return ''
+  return i === 0 ? p[0] : p.slice(0, i)
 }
 
 /**

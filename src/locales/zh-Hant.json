@@ -49,6 +49,12 @@
     "empty": "尚無標題，目錄將在新增標題後自動產生",
     "untitledHeading": "（空白標題）"
   },
+  "mermaid": {
+    "clickToEdit": "點擊編輯原始碼",
+    "placeholder": "Mermaid 圖表（點擊編輯原始碼）",
+    "syntaxError": "Mermaid 語法有誤：{message}",
+    "loadFailed": "Mermaid 載入失敗，請重試"
+  },
   "frontmatter": {
     "edit": "編輯",
     "save": "完成",

@@ -50,14 +50,19 @@ export function splitHighlights(text: string, query: string): HighlightSegment[]
   const q = query.trim().toLowerCase()
   if (!q) return text ? [{ text, hit: false }] : []
   const lower = text.toLowerCase()
+  // toLowerCase 对个别字符会改变长度（如 'İ' → 'i̇'）：小写串下标无法映射回
+  // 原文，退回大小写敏感匹配（与 find.ts 的 matchLiteral 同一策略）
+  const sameLength = lower.length === text.length
+  const source = sameLength ? lower : text
+  const pattern = sameLength ? q : query.trim()
   const out: HighlightSegment[] = []
   let cursor = 0
-  let idx = lower.indexOf(q)
+  let idx = source.indexOf(pattern)
   while (idx !== -1) {
     if (idx > cursor) out.push({ text: text.slice(cursor, idx), hit: false })
-    out.push({ text: text.slice(idx, idx + q.length), hit: true })
-    cursor = idx + q.length
-    idx = lower.indexOf(q, cursor)
+    out.push({ text: text.slice(idx, idx + pattern.length), hit: true })
+    cursor = idx + pattern.length
+    idx = source.indexOf(pattern, cursor)
   }
   if (cursor < text.length) out.push({ text: text.slice(cursor), hit: false })
   return out

@@ -151,3 +151,11 @@ describe('fillTocBlocks', () => {
     expect(out).toContain('- [价格 $& 与 $` 说明](')
   })
 })
+
+describe('slugify Unicode 保留', () => {
+  it('假名/韩文/西里尔字母保留（与 GitHub 锚点一致，不再被剔除）', () => {
+    expect(slugify('こんにちは')).toBe('こんにちは')
+    expect(slugify('안녕하세요')).toBe('안녕하세요')
+    expect(slugify('Привет мир')).toBe('привет-мир')
+  })
+})

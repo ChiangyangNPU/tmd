@@ -60,7 +60,13 @@ export function resolveLink(href: string, baseDir: string | null): LinkTarget | 
   if (trimmed.startsWith('#')) return null
 
   let p = trimmed
-  if (p.startsWith('file://')) p = p.slice('file://'.length)
+  if (p.startsWith('file://')) {
+    // file:///path（三斜杠）= 本机路径，剥成 /path；file://host/path（两斜杠）
+    // 是 UNC（Windows 网络共享）——直接剥会剩下 host/path 被当相对路径
+    // 拼进 baseDir 打开错误位置，还原为 //host/path 形态参与后续判定
+    const rest = p.slice('file://'.length)
+    p = rest.startsWith('/') ? rest : `//${rest}`
+  }
   try {
     p = decodeURIComponent(p)
   } catch {
@@ -68,6 +74,8 @@ export function resolveLink(href: string, baseDir: string | null): LinkTarget | 
   }
   p = p.split('#')[0].split('?')[0]
   if (!p) return null
+  // UNC 路径原样返回：normalizePath 会把双前导斜杠折叠成单斜杠丢失 UNC 语义
+  if (p.startsWith('//')) return { kind: 'file', path: p }
   if (isAbsolutePath(p)) return { kind: 'file', path: normalizePath(p) }
   if (!baseDir) return null
   return { kind: 'file', path: normalizePath(`${baseDir}/${p}`) }

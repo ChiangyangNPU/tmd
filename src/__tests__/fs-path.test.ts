@@ -96,3 +96,11 @@ describe('toFileUrl（逐段百分号编码）', () => {
     expect(toFileUrl('E:\\docs', 'assets\\a.png')).toBe('file:///E:/docs/assets/a.png')
   })
 })
+
+describe('dirOf 根目录边界', () => {
+  it('根目录下的文件目录部分是分隔符本身', () => {
+    expect(dirOf('/a.md')).toBe('/')
+    expect(dirOf('/b/c.md')).toBe('/b')
+    expect(dirOf('c.md')).toBe('')
+  })
+})

@@ -138,12 +138,15 @@ export interface TocHeading {
   slug: string
 }
 
-/** GitHub 风格锚点：小写、空白转连字符、去标点、保留中文等 Unicode 字母 */
+/** GitHub 风格锚点：小写、空白转连字符、去标点、保留全部 Unicode 字母与数字 */
 export function slugify(text: string): string {
   return text
     .toLowerCase()
     .trim()
-    .replace(/[^\w\s\-\u4e00-\u9fff]/g, '')
+    // \p{L}\p{N} 覆盖全部 Unicode 字母/数字（假名、韩文、西里尔等）：旧实现
+    // 只保留 CJK 基本区，日文/韩文标题的 slug 会变成空串、目录链接失效，
+    // 且与 GitHub 锚点（保留假名/韩文）不一致。`_` 需显式保留（\w 的成分）
+    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
     .replace(/\s+/g, '-')
 }
 

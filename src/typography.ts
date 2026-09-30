@@ -33,6 +33,13 @@ export const FONT_PRESETS: FontPreset[] = [
 ]
 
 /** 应用排版设置：非默认项注入 CSS 变量（空值不注入，回落 style.css 默认） */
+/**
+ * 清洗用户自定义的 CSS 值：设置面板自由输入的字符串若含花括号可闭合
+ * `:root {` 规则并注入任意 CSS（textContent 不解析标签，无 XSS，但可破坏
+ * 界面样式）。数值型输入（字号/行高/页宽）同样过一遍，行为统一。
+ */
+const safeCssValue = (value: string | number): string => String(value).replace(/[{}]/g, '')
+
 export function applyTypography(): void {
   const t = getTypography()
   let style = document.getElementById('typography-style') as HTMLStyleElement | null
@@ -42,11 +49,11 @@ export function applyTypography(): void {
     document.head.appendChild(style)
   }
   const lines: string[] = []
-  if (t.font) lines.push(`  --editor-font: ${t.font};`)
-  if (t.fontSize) lines.push(`  --editor-font-size: ${t.fontSize}px;`)
-  if (t.lineHeight) lines.push(`  --editor-line-height: ${t.lineHeight};`)
+  if (t.font) lines.push(`  --editor-font: ${safeCssValue(t.font)};`)
+  if (t.fontSize) lines.push(`  --editor-font-size: ${safeCssValue(t.fontSize)}px;`)
+  if (t.lineHeight) lines.push(`  --editor-line-height: ${safeCssValue(t.lineHeight)};`)
   if (t.pageWidth === 'full') lines.push('  --editor-page-width: 100%;')
-  else if (t.pageWidth) lines.push(`  --editor-page-width: ${t.pageWidth}px;`)
+  else if (t.pageWidth) lines.push(`  --editor-page-width: ${safeCssValue(t.pageWidth)}px;`)
   if (t.wrap === 'off') {
     lines.push('  --editor-white-space: pre;')
     lines.push('  --editor-overflow-x: auto;')

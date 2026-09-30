@@ -22,6 +22,7 @@ import {
 import { Plugin, TextSelection } from '@milkdown/kit/prose/state'
 import { InputRule } from '@milkdown/kit/prose/inputrules'
 import { $inputRule, $nodeSchema, $prose, $remark, $view } from '@milkdown/kit/utils'
+import { t } from './i18n'
 
 /** mermaid 模块类型（仅类型引用；运行时经 loadMermaid 动态加载） */
 type MermaidApi = (typeof import('mermaid'))['default']
@@ -40,10 +41,17 @@ let mermaidPromise: Promise<MermaidApi> | null = null
  * 首次渲染等待一次模块加载（之后与静态导入无差别）。
  */
 function loadMermaid(): Promise<MermaidApi> {
-  mermaidPromise ??= import('mermaid').then((m) => {
-    m.default.initialize({ startOnLoad: false, securityLevel: 'strict', theme: pendingTheme })
-    return m.default
-  })
+  // import 失败（分包损坏 / 加载异常）时清空缓存：rejected promise 若被永久
+  // 缓存，本会话所有图表渲染到重启为止全灭且无重试机会
+  mermaidPromise ??= import('mermaid')
+    .then((m) => {
+      m.default.initialize({ startOnLoad: false, securityLevel: 'strict', theme: pendingTheme })
+      return m.default
+    })
+    .catch((err) => {
+      mermaidPromise = null
+      throw err
+    })
   return mermaidPromise
 }
 
@@ -55,9 +63,9 @@ function loadMermaid(): Promise<MermaidApi> {
 export function setMermaidTheme(theme: 'default' | 'dark') {
   pendingTheme = theme
   if (mermaidPromise) {
-    void mermaidPromise.then((m) =>
-      m.initialize({ startOnLoad: false, securityLevel: 'strict', theme }),
-    )
+    void mermaidPromise
+      .then((m) => m.initialize({ startOnLoad: false, securityLevel: 'strict', theme }))
+      .catch((err) => console.error('[tmd] mermaid 主题应用失败', err))
   }
 }
 
@@ -158,6 +166,8 @@ class MermaidView implements NodeView {
   private lastCode: string | null = null
   private renderSeq = 0
   private timer: number | undefined
+  /** 懒加载重试定时器（renderNow 的延时重试），destroy 时一并清理 */
+  private retryTimer: number | undefined
   /** 是否已入过视口并渲染过（懒渲染的开启标志，主题重渲也据此跳过视口外的图） */
   private rendered = false
   /** 视口观察器：进入视口即断开，不再观察 */
@@ -184,7 +194,7 @@ class MermaidView implements NodeView {
 
     this.renderArea = document.createElement('div')
     this.renderArea.className = 'mermaid-render'
-    this.renderArea.title = '点击编辑源码'
+    this.renderArea.title = t('mermaid.clickToEdit')
 
     this.errorTip = document.createElement('div')
     this.errorTip.className = 'mermaid-error'
@@ -192,7 +202,7 @@ class MermaidView implements NodeView {
 
     this.placeholder = document.createElement('div')
     this.placeholder.className = 'mermaid-placeholder'
-    this.placeholder.textContent = 'Mermaid 图表（点击编辑源码）'
+    this.placeholder.textContent = t('mermaid.placeholder')
     this.placeholder.hidden = true
 
     this.srcWrapper = document.createElement('pre')
@@ -312,8 +322,11 @@ class MermaidView implements NodeView {
       // mermaid 图表类型按需懒加载：冷启动立刻渲染会因模块未就绪而报
       // "No diagram type detected"，短暂等待后重试即可恢复
       if (retry < 3 && message.includes('No diagram type detected')) {
-        window.setTimeout(
+        // 重试句柄入成员：destroy 时一并清理，避免视图销毁后回调仍触发渲染
+        this.clearRetryTimer()
+        this.retryTimer = window.setTimeout(
           () => {
+            this.retryTimer = undefined
             if (seq === this.renderSeq && this.lastCode === code)
               void this.renderNow(code, retry + 1)
           },
@@ -324,7 +337,7 @@ class MermaidView implements NodeView {
       // 语法错误时清空旧图并显示错误信息（与 Typora/Obsidian 行为一致，
       // 避免用户误以为旧图是当前语法的渲染结果）
       this.renderArea.innerHTML = ''
-      this.errorTip.textContent = `Mermaid 语法有误：${message}`
+      this.errorTip.textContent = t('mermaid.syntaxError', { message })
       this.errorTip.hidden = false
     }
   }
@@ -379,8 +392,15 @@ class MermaidView implements NodeView {
   /** 视图销毁：清理未触发的渲染定时器与视口观察器，并从全局视图集合移除自身 */
   destroy() {
     window.clearTimeout(this.timer)
+    this.clearRetryTimer()
     this.disconnectObserver()
     mermaidViews.delete(this)
+  }
+
+  /** 清理懒加载重试定时器（新重试入队前与视图销毁时调用） */
+  private clearRetryTimer() {
+    window.clearTimeout(this.retryTimer)
+    this.retryTimer = undefined
   }
 }
 

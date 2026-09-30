@@ -72,3 +72,13 @@ describe('groupMatches', () => {
     expect(groupMatches([])).toEqual([])
   })
 })
+
+describe('splitHighlights 小写化改变长度', () => {
+  it("含 'İ' 等长度变化字符时退回大小写敏感匹配，高亮不错位", () => {
+    const text = 'İstanbul'
+    const segs = splitHighlights(text, 'istanbul')
+    // 大小写敏感：无命中，但片段拼接必须还原原文
+    expect(segs.map((s) => s.text).join('')).toBe(text)
+    expect(segs.some((s) => s.hit)).toBe(false)
+  })
+})
