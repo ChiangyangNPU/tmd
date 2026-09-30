@@ -226,7 +226,9 @@ export type UpdateStatus =
   | { status: 'available'; version: string; releaseNotes?: string }
   | { status: 'not-available' }
   | { status: 'downloading'; percent: number }
-  | { status: 'downloaded' }
+  /** 下载完成。path 为「手动安装模式」的安装包落盘路径（macOS 下载 dmg 后
+   *  提示用户自行安装）；缺省表示自动安装模式（Windows，走 electron-updater） */
+  | { status: 'downloaded'; path?: string }
   | { status: 'error'; message: string }
 
 declare global {

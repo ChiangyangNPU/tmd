@@ -712,9 +712,13 @@ export function wireSettings() {
         updateInstallBtn.hidden = true
         break
       case 'downloaded':
-        updateStatus.textContent = t('settings.updateDownloaded')
+        // 手动安装模式（macOS 下载 dmg）：提示落盘路径，隐藏「立即重启」——
+        // 未公证构建走 Squirrel 装不上，改由用户自行拖入「应用程序」
+        updateStatus.textContent = status.path
+          ? t('settings.updateDownloadedManual', { path: status.path })
+          : t('settings.updateDownloaded')
         updateCheckBtn.disabled = true
-        updateInstallBtn.hidden = false
+        updateInstallBtn.hidden = !!status.path
         break
       case 'error':
         updateStatus.textContent = t('settings.updateError', { message: status.message })
