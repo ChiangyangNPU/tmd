@@ -63,6 +63,7 @@
 
 - **image-resolver 装饰增量更新**：原每次事务全量遍历文档找图片节点（O(文档节点数)）改为 plugin state 缓存 DecorationSet + apply 增量 map + changedRange 局部扫描（O(图片数)）——1MB 文档输入同步中位 73→9ms（profile）/ 86→17ms（bench），CPU 88.7% idle
 - **image-resolver 增量装饰丢失修复**：移除变更范围内旧装饰的 `DecorationSet.find(from, to)` 是「触碰」语义（恰好被推移到 `range.to` 的装饰也算命中），而重建端 `nodesBetween` 是末端开区间——图片被输入推到变更范围右边界时（紧贴图片后打字的常见操作）装饰被移除却不再扫回，显示退回相对路径黑图；统一为相交谓词，保持 O(图片数) 成本
+- **mac 自动更新修复（v0.1.1 重发补丁）**：v0.1.1 首次发布时 mac 产物只配了 dmg，而 electron-updater 在 macOS 上硬性要求 zip 更新包（Squirrel.Mac 走 zip 流式解压），`latest-mac.yml` 没有 zip 条目时直接抛 "ZIP file not provided"、自动更新全量失败。已改为 dmg + zip 双产物（arch arm64），CI 的 artifact / GitHub Release / Gitee Release 上传与缺失校验 5 处 glob 同步补 `release/*.zip`。注：版本号未变，已装 v0.1.1 的用户因 0.1.1 == 0.1.1 收不到自动更新提示，本修复主要让新下载用户拿到带 zip 的版本；老用户的 mac 自动更新要等下一版（v0.1.2+）才能真正生效
 
 ## [0.1.0] - 2026-09-21
 
