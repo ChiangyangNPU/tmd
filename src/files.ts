@@ -15,6 +15,7 @@ import {
   findByPath,
   blankTab,
   hasDirty,
+  isTabOpen,
   syncDirtyWith,
   type DocTab,
 } from './tabs'
@@ -164,6 +165,8 @@ export function saveDocument(saveAs = false): Promise<void> {
 
 /** 实际写盘（由 saveDocument 串行调用）：成功后推进基准并按需清脏，失败保留脏标记 */
 async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
+  // 捕获到执行之间标签可能已被用户"放弃修改"关闭：明确放弃的内容不得再写盘
+  if (!isTabOpen(tab)) return
   if (native) {
     try {
       if (tab.path && !saveAs) {

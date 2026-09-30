@@ -11,6 +11,7 @@ import { native } from './native'
 import { t } from './i18n'
 import { dirOf } from './fs-path'
 import { normalizeEmptyTableCells } from './table-markdown'
+import { loadDoc, clearDoc } from './store'
 
 /** 打开的文档标签页：一个标签对应一份在编辑的文档 */
 export interface DocTab {
@@ -53,6 +54,11 @@ export function listTabs(): DocTab[] {
 /** 获取当前激活标签页 id */
 export function getActiveTabId(): string | null {
   return activeTabId
+}
+
+/** 标签是否仍打开（保存队列执行时校验，防止已放弃/已关闭的标签被挂起中的保存写盘） */
+export function isTabOpen(tab: DocTab): boolean {
+  return tabs.includes(tab)
 }
 
 /** 设置当前激活标签页 id（不重绘 UI，调用方负责） */
@@ -243,9 +249,18 @@ export function createNewTab() {
 export async function closeTab(id: string) {
   const tab = tabs.find((t) => t.id === id)
   if (!tab) return
+  // 脏标签先确认：放弃才继续（干净标签直接关）。
   // 脏标记由编辑事件维护（仅真实编辑会置位），不要用序列化内容反比——
   // markdown 序列化会规范化文本（尾随空格、列表标记等），未修改的文档也会被判为已修改
   if (tab.dirty && !window.confirm(t('dialog.closeConfirm', { name: tab.name }))) return
+
+  // 用户明确放弃：若恢复副本正是该标签的最后编辑态（单槽副本跟随最后编辑的
+  // 标签），一并清除——避免下次启动"复活"被放弃的内容，与主进程整窗关闭
+  // 路径的既有处理对齐。仅处理关闭激活标签的高频场景：切走后的标签无法
+  // 区分副本归属，属单槽副本设计的已知局限
+  if (tab.dirty && activeTab()?.id === tab.id && loadDoc() === currentMarkdown()) {
+    clearDoc()
+  }
 
   const index = tabs.indexOf(tab)
   tabs.splice(index, 1)
@@ -255,8 +270,13 @@ export async function closeTab(id: string) {
     if (next) {
       await activateTab(next.id)
     } else if (native) {
-      // 最后一个标签页已关闭：直接关窗口（Mac 惯例，应用留在后台）
+      // 最后一个标签页已关闭：直接关窗口（Mac 惯例，应用留在后台）。
+      // 先重绘标签栏并同步脏标记：renderTabs 里的 notifyDirty 会把
+      // hasDirty()=false 发给主进程，否则主进程的 rendererDirty 仍为 true，
+      // 会再弹一次"未保存"确认；取消后窗口停留在编辑器已销毁的坏状态
       await destroyEditor()
+      renderTabs()
+      updateTitle()
       window.close()
       return
     } else {

@@ -30,6 +30,7 @@ vi.mock('../tabs', () => ({
   findByPath: vi.fn(() => undefined),
   blankTab: vi.fn(() => undefined),
   hasDirty: vi.fn(() => false),
+  isTabOpen: vi.fn(() => true),
   syncDirtyWith: vi.fn(),
 }))
 vi.mock('../store', async (importOriginal) => {
@@ -55,7 +56,7 @@ vi.mock('../filetree', () => ({
 import { saveDocument } from '../files'
 import { native } from '../native'
 import { currentMarkdown } from '../editor-core'
-import { activeTab, hasDirty, syncDirtyWith } from '../tabs'
+import { activeTab, hasDirty, isTabOpen, syncDirtyWith } from '../tabs'
 import { clearDoc } from '../store'
 
 const mocked = {
@@ -64,6 +65,7 @@ const mocked = {
   md: vi.mocked(currentMarkdown),
   activeTab: vi.mocked(activeTab),
   hasDirty: vi.mocked(hasDirty),
+  isTabOpen: vi.mocked(isTabOpen),
   syncDirtyWith: vi.mocked(syncDirtyWith),
   clearDoc: vi.mocked(clearDoc),
 }
@@ -177,5 +179,18 @@ describe('saveDocument 捕获与队列语义', () => {
 
     expect(writeOrder).toEqual(['V1', 'V2'])
     expect(tab.markdown).toBe('V2')
+  })
+
+  it('标签已被放弃关闭时跳过写盘（明确放弃的内容不得再落盘）', async () => {
+    const tab = makeTab()
+    mocked.activeTab.mockReturnValue(tab)
+    mocked.md.mockReturnValue('NEW')
+    mocked.isTabOpen.mockReturnValue(false)
+
+    await saveDocument()
+
+    expect(mocked.save).not.toHaveBeenCalled()
+    expect(tab.markdown).toBe('OLD')
+    expect(mocked.syncDirtyWith).not.toHaveBeenCalled()
   })
 })

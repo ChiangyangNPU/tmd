@@ -315,16 +315,19 @@ let replaceQueue: Promise<void> = Promise.resolve()
 
 /**
  * 重建编辑器：销毁旧实例并用新文档挂载。
- * 入队串行执行，避免并发重建踩踏；失败仅记录日志，不中断队列。
+ * 入队串行执行，避免并发重建踩踏；失败不阻断队列，但错误透传给本次调用方
+ * （激活/打开/恢复各自有用户可见的失败处理）。
  * @param markdown - 新文档内容
  * @param options - 滚动位置保持/恢复选项
- * @returns 本次重建完成的 Promise
+ * @returns 本次重建完成的 Promise（失败时 reject）
  */
 export function replaceEditor(markdown: string, options: ReplaceOptions = {}): Promise<void> {
-  replaceQueue = replaceQueue
-    .then(() => doReplaceEditor(markdown, options))
-    .catch((err) => console.error('[tmd] 编辑器重建失败', err))
-  return replaceQueue
+  const run = replaceQueue.then(() => doReplaceEditor(markdown, options))
+  // 队列保活：本轮失败只记日志，后续重建照常排队。返回值必须是不带 catch
+  // 的 run——此前返回的是带 catch 的链，调用方永远 resolve，标签已激活而
+  // 编辑器处于销毁态时后续 pmMarkdown() 等全部静默落空
+  replaceQueue = run.catch((err) => console.error('[tmd] 编辑器重建失败', err))
+  return run
 }
 
 /**
@@ -350,16 +353,19 @@ async function doReplaceEditor(markdown: string, options: ReplaceOptions) {
   const prevFind = findState()
   findClear(pmView)
   await editor?.destroy()
+  // 先清引用再重建：createEditor 抛出时 editor 不能仍指向已销毁的旧实例
+  //（后续 pmMarkdown()/currentMarkdown() 会对销毁实例调 action 直接抛错）
+  editor = null
+  pmView = null
   editor = await createEditor(markdown)
-  editor.action((ctx) => {
-    pmView = ctx.get(editorViewCtx)
-  })
+  const nextView = editor.action((ctx) => ctx.get(editorViewCtx))
+  pmView = nextView
   updateWordCount(markdown)
   const list = document.getElementById('outline-list')
   if (list && pmView) renderOutline(list, collectOutline(pmView.state.doc), pmView)
   // 重建后重新应用视图模式：分屏/源码下切换标签应保持该模式，源码栏内容换成新文档
   reapplyViewMode()
-  if (pmView) findRefreshAfterReplace(pmView, prevFind.query, prevFind.options)
+  if (nextView) findRefreshAfterReplace(nextView, prevFind.query, prevFind.options)
 
   if (preserveScroll && editorEl) {
     const inner = editorEl.firstElementChild as HTMLElement | null
