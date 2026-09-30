@@ -16,7 +16,7 @@
  */
 import { convertHtmlToDocxUint8Array } from 'dom-docx/browser'
 import type { ImageResolver, ResolvedImage } from 'dom-docx/browser'
-import type { ExporterBridge } from './export-bridge'
+import { nextFrames as bridgeNextFrames, type ExporterBridge } from './export-bridge'
 import { injectOmmlFormulas, mathPlaceholder } from './export-omml'
 
 /**
@@ -83,12 +83,8 @@ const remoteImageResolver: ImageResolver = async (src) => {
   }
 }
 
-/** 等待两帧，确保布局/重绘落地（滚动后测量与截帧前调用） */
-function nextFrames(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  })
-}
+/** 等待两帧，确保布局/重绘落地（共用实现在 export-bridge） */
+const nextFrames = bridgeNextFrames
 
 /** 元素是否完整落在当前视口内（区域截帧只能取到可见部分） */
 function isFullyVisible(rect: DOMRect): boolean {
@@ -118,12 +114,12 @@ function degradeUnrasterizedBlocks(blocks: HTMLElement[]): void {
  * 后续会降级为纯文本。
  * @returns 公式的 LaTeX 源码列表（下标即占位序号）
  */
-function extractDisplayFormulas(root: HTMLElement): string[] {
+function extractDisplayFormulas(root: HTMLElement, salt: string): string[] {
   const formulas: string[] = []
   for (const el of Array.from(root.querySelectorAll<HTMLElement>('.katex-display'))) {
     const tex = el.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim()
     const placeholder = document.createElement('p')
-    placeholder.textContent = mathPlaceholder(formulas.length)
+    placeholder.textContent = mathPlaceholder(formulas.length, salt)
     el.replaceWith(placeholder)
     formulas.push(tex ?? '')
   }
@@ -202,8 +198,10 @@ export async function buildDocxBytes(
   lang: string,
   zoom: number,
 ): Promise<Uint8Array> {
-  // 独占公式先换成占位段（导出后注入 OMML），再截帧 Mermaid 图表
-  const formulas = extractDisplayFormulas(root)
+  // 独占公式先换成占位段（导出后注入 OMML），再截帧 Mermaid 图表。
+  // 占位符带每任务随机盐：正文恰好含 @@TMDMATH0@@ 字面量时不会错替换
+  const ommlSalt = Math.random().toString(36).slice(2, 8)
+  const formulas = extractDisplayFormulas(root, ommlSalt)
   // 先固定视口：区域截帧只能取到可见部分，故需足够高的视口容纳图表
   await bridge.capture({ ...WORD_VIEWPORT, zoom })
   await rasterizeVisualBlocks(bridge, root, zoom)
@@ -226,5 +224,5 @@ export async function buildDocxBytes(
   })
   if (warnings.length) console.warn('[tmd] Word 导出降级告警', warnings)
   // 后处理：公式占位段落 → OMML（转换失败的段落降级为 LaTeX 源码文本）
-  return injectOmmlFormulas(bytes, formulas)
+  return injectOmmlFormulas(bytes, formulas, ommlSalt)
 }

@@ -32,6 +32,16 @@ export {
   stripFrontMatter,
 } from './export-doc'
 
+/** 剥掉源文件名后缀（.md / .markdown）作为导出主名（正则统一一处，勿分散手写） */
+const stripMdExt = (name: string) => name.replace(/\.(md|markdown)$/i, '')
+
+/** HTML 文本转义（<title> 等插值处用；文件名可能含 & < > 等字符） */
+const escapeHtml = (s: string) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c,
+  )
+
 /**
  * 组装导出页 HTML（纯函数，便于单测）：
  * - vars：collectThemeVars 的主题变量快照，经 buildThemeVarsBlock 注入 :root
@@ -48,7 +58,7 @@ export function buildExportHtml(
 <html lang="${getLocale()}">
 <head>
 <meta charset="UTF-8">
-<title>${currentName.replace(/\.md$/i, '')}</title>
+<title>${escapeHtml(stripMdExt(currentName))}</title>
 <style>${buildThemeVarsBlock(vars)}</style>
 <style>${EXPORT_CSS}</style>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
@@ -74,7 +84,7 @@ export async function exportHtml(markdown: string, currentName: string) {
   )
   await saveOrDownload(
     html,
-    currentName.replace(/\.(md|markdown)$/i, '') + '.html',
+    stripMdExt(currentName) + '.html',
     { name: 'HTML', extensions: ['html'] },
     'text/html;charset=utf-8',
   )
@@ -88,7 +98,8 @@ function triggerBrowserDownload(content: string, defaultName: string, mime: stri
   a.href = url
   a.download = defaultName
   a.click()
-  URL.revokeObjectURL(url)
+  // 同步 revoke 会掐断部分浏览器刚开始的下载：推迟到下一次宏任务
+  setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
 /** 存盘统一入口：Electron 弹原生保存框写盘；浏览器模式退化为下载 */
@@ -116,7 +127,7 @@ export async function exportLatex(markdown: string, currentName: string, baseDir
   const tex = renderLatexDocument(markdown, currentName, baseDir)
   await saveOrDownload(
     tex,
-    currentName.replace(/\.(md|markdown)$/i, '') + '.tex',
+    stripMdExt(currentName) + '.tex',
     { name: 'LaTeX', extensions: ['tex'] },
     'application/x-tex;charset=utf-8',
   )
@@ -155,7 +166,7 @@ async function runOffscreenExport(
   try {
     const result = await native.exportRun({
       task,
-      defaultName: currentName.replace(/\.(md|markdown)$/i, '') + '.' + extension,
+      defaultName: stripMdExt(currentName) + '.' + extension,
       filters: [{ name: filterLabel, extensions: [extension] }],
     })
     if (!result) return // 用户在保存框点了取消

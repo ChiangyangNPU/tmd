@@ -432,7 +432,11 @@ export type ExportImageRef =
   | { kind: 'local'; fileUrl: string }
   | { kind: 'blocked' }
 
-/** 危险协议前缀（javascript:/vbscript:/data: 非图片场景等，图片只放行白名单形态） */
+/**
+ * 危险协议前缀（图片只放行白名单形态，其余一律阻断）。
+ * `file` 在此并非死代码：下方的小写 startsWith('file:') 提前分流之后，
+ * 大写形态（FILE:）仍由这里的 /i 大小写不敏感匹配兜住。
+ */
 const UNSAFE_PROTOCOL_RE = /^(javascript|vbscript|file):/i
 
 export function resolveExportImageRef(src: unknown, baseDir: string | null): ExportImageRef {

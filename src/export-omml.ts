@@ -22,12 +22,14 @@ const DOCUMENT_PART = 'word/document.xml'
 const PARA_CLOSE = '</w:p>'
 
 /**
- * 公式占位文本：形如 `@@TMDMATH0@@`。
+ * 公式占位文本：形如 `@@TMDMATH0@@`（带 salt 时为 `@@TMDMATH<salt>-0@@`）。
  * 它作为普通段落文本进入 docx，导出后据此定位并整段替换为公式。
- * 用 `@@` 包裹是为了避免与正文里的自然文本撞车。
+ * 用 `@@` 包裹是为了避免与正文里的自然文本撞车；salt（每次导出随机生成）
+ * 让「正文恰好含同款字面量」的占位符定位撞车概率归零——同一次导出内
+ * 写入与查找须用同一 salt。
  */
-export function mathPlaceholder(index: number): string {
-  return `@@TMDMATH${index}@@`
+export function mathPlaceholder(index: number, salt = ''): string {
+  return salt ? `@@TMDMATH${salt}-${index}@@` : `@@TMDMATH${index}@@`
 }
 
 /** XML 文本转义（仅用于降级段落的源码文本） */
@@ -118,9 +120,10 @@ export function replacePlaceholderParagraph(
  * 后处理导出的 docx：把公式占位段落替换为 OMML，失败时降级为 LaTeX 源码文本。
  * @param docx - 导出的 .docx 字节
  * @param formulas - 独占公式的 LaTeX 源码列表（下标即占位序号）
+ * @param salt - 生成占位符时使用的随机盐（与写入侧一致；缺省兼容无盐格式）
  * @returns 处理后的字节；无公式、解压失败或未命中占位时原样返回
  */
-export function injectOmmlFormulas(docx: Uint8Array, formulas: string[]): Uint8Array {
+export function injectOmmlFormulas(docx: Uint8Array, formulas: string[], salt = ''): Uint8Array {
   if (!formulas.length) return docx
   let files: Record<string, Uint8Array>
   try {
@@ -135,7 +138,7 @@ export function injectOmmlFormulas(docx: Uint8Array, formulas: string[]): Uint8A
   let replaced = 0
   let ommlInjected = 0
   for (let i = 0; i < formulas.length; i++) {
-    const placeholder = mathPlaceholder(i)
+    const placeholder = mathPlaceholder(i, salt)
     if (!xml.includes(placeholder)) continue
     const omml = latexToOmml(formulas[i])
     const next = replacePlaceholderParagraph(

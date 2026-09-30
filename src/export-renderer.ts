@@ -14,7 +14,7 @@
 import 'katex/dist/katex.min.css'
 import renderMathInElement from 'katex/dist/contrib/auto-render.mjs'
 import { resolveExportImageRef } from './export-doc'
-import type { ExportTask } from './export-bridge'
+import { nextFrames, type ExportTask } from './export-bridge'
 import type { ExporterBridge } from './export-bridge'
 import { buildDocxBytes } from './export-word'
 import { composeLongPng, planSegments, zoomForDpr } from './export-image'
@@ -27,11 +27,19 @@ const MATH_DELIMITERS = [
   { left: '$', right: '$', display: false },
 ]
 
-/** 等待两帧，确保布局与重绘落地 */
-function nextFrames(): Promise<void> {
-  return new Promise((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-  })
+/**
+ * 隐藏滚动条（任务注入前调用一次）：分段截图的 capturePage 捕获整个视口帧，
+ * Windows/Linux 的传统滚动条占据约 17px 宽且会被画进成图（macOS 覆盖式
+ * 滚动条不受影响）。只在离屏页生效，不影响独立 HTML 导出的滚动条。
+ */
+function hideScrollbars(): void {
+  if (document.getElementById('export-hide-scrollbar')) return
+  const style = document.createElement('style')
+  style.id = 'export-hide-scrollbar'
+  style.textContent =
+    'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}' +
+    'html{scrollbar-width:none}'
+  document.head.appendChild(style)
 }
 
 /**
@@ -210,6 +218,7 @@ async function exportLongImage(bridge: ExporterBridge): Promise<Uint8Array> {
 /** 处理一个导出任务并回传结果 */
 async function handleTask(bridge: ExporterBridge, task: ExportTask): Promise<void> {
   try {
+    hideScrollbars()
     injectDocument(task)
     await localizeImages(bridge, task.baseDir)
     // 图片须先完成解码，后续公式/图表渲染与高度测量才有正确的占位

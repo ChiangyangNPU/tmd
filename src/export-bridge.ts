@@ -60,6 +60,13 @@ export interface CaptureResult {
 /** 任务结果：成功携带文件字节，失败携带错误信息 */
 export type ExportTaskResult = { ok: true; bytes: Uint8Array } | { ok: false; error: string }
 
+/** 等待两帧，确保布局与重绘落地（滚动后测量与截帧前调用；离屏页各流程共用） */
+export function nextFrames(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
+}
+
 /** 离屏页经 exporter-preload 拿到的受控 API（无 Node 权限，contextIsolation） */
 export interface ExporterBridge {
   /** 订阅主进程下发的任务（串行：同一时刻只有一个任务） */
