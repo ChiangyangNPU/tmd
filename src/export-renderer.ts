@@ -59,37 +59,68 @@ function injectDocument(task: ExportTask): void {
   document.body.innerHTML = task.bodyHtml
 }
 
-/**
- * 图片本地化：文档里的相对路径图片在离屏页不可见（无 file: 读取权限），
+/** 图片本地化的并发上限：几十张大图无节制并发读盘 + IPC 会造成内存瞬时尖峰 */
+const IMAGE_LOCALIZE_CONCURRENCY = 4
+/** 单张图片解码等待上限：远程图片网络悬挂时不再拖到主进程 3 分钟任务超时 */
+const IMAGE_DECODE_TIMEOUT_MS = 15000
+
+/** 图片本地化：文档里的相对路径图片在离屏页不可见（无 file: 读取权限），
  * 经主进程白名单原语读成 data URI 内联；data: 与远程图片保持原样。
  * 读取失败的图片保留原 src（渲染时呈现 alt 文本），不阻断整篇导出。
  */
 async function localizeImages(bridge: ExporterBridge, baseDir: string | null): Promise<void> {
   const images = Array.from(document.body.querySelectorAll('img'))
-  await Promise.all(
-    images.map(async (img) => {
-      const ref = resolveExportImageRef(img.getAttribute('src'), baseDir)
-      if (ref.kind !== 'local') return
-      const dataUri = await bridge.readImage(ref.fileUrl)
-      if (dataUri) {
-        img.src = dataUri
-        return
+  const localize = async (img: HTMLImageElement): Promise<void> => {
+    const ref = resolveExportImageRef(img.getAttribute('src'), baseDir)
+    if (ref.kind !== 'local') return
+    const dataUri = await bridge.readImage(ref.fileUrl)
+    if (dataUri) {
+      img.src = dataUri
+      return
+    }
+    // 读取失败（文件缺失 / 超限 / 无权限）：去掉 src 让浏览器渲染 alt 文本占位，
+    // 避免破图图标；不阻断整篇导出
+    img.removeAttribute('src')
+    img.style.display = 'inline-block'
+    img.style.minHeight = '1.5em'
+  }
+  // 小并发池消费：避免 Promise.all 一次性发起全部读盘
+  let cursor = 0
+  const workers = Array.from(
+    { length: Math.min(IMAGE_LOCALIZE_CONCURRENCY, images.length) },
+    async () => {
+      while (cursor < images.length) {
+        const img = images[cursor]
+        cursor += 1
+        await localize(img)
       }
-      // 读取失败（文件缺失 / 超限 / 无权限）：去掉 src 让浏览器渲染 alt 文本占位，
-      // 避免破图图标；不阻断整篇导出
-      img.removeAttribute('src')
-      img.style.display = 'inline-block'
-      img.style.minHeight = '1.5em'
-    }),
+    },
   )
+  await Promise.all(workers)
 }
 
-/** 等待所有图片解码完成（避免测量高度时图片尚未占位） */
+/** 单张图片限时解码：decode() 在网络悬挂时无兜底超时 */
+function decodeWithTimeout(img: HTMLImageElement): Promise<void> {
+  if (!img.decode) return Promise.resolve()
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(), IMAGE_DECODE_TIMEOUT_MS)
+    img.decode().then(
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+      () => {
+        clearTimeout(timer)
+        resolve()
+      },
+    )
+  })
+}
+
+/** 等待所有图片解码完成（避免测量高度时图片尚未占位），单张超时不阻塞整篇 */
 async function waitImages(): Promise<void> {
   const images = Array.from(document.body.querySelectorAll('img'))
-  await Promise.all(
-    images.map((img) => (img.decode ? img.decode().catch(() => undefined) : undefined)),
-  )
+  await Promise.all(images.map((img) => decodeWithTimeout(img)))
 }
 
 /** 公式渲染：扫描 $...$ / $$...$$（本地 KaTeX，离线可用） */
@@ -152,7 +183,11 @@ async function exportLongImage(bridge: ExporterBridge): Promise<Uint8Array> {
   const heightCss = document.body.scrollHeight
   const planned = planSegments(widthCss, heightCss, zoom * dpr)
   if (!planned.ok) {
-    throw new Error(`文档过长，无法导出为单张长图（${planned.physicalHeight}px）`)
+    const detail =
+      planned.reason === 'too-tall'
+        ? `总高 ${planned.physicalHeight}px`
+        : `像素总量 ${(planned.pixels / 1e6).toFixed(0)}MP（画布分配上限）`
+    throw new Error(`文档过长，无法导出为单张长图（${detail}）`)
   }
 
   // 滚动：html 未缩放，文档滚动坐标 = DIP，故偏移需乘 zoom 换算

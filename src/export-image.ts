@@ -17,6 +17,13 @@ import type { CaptureRequest, CaptureResult } from './export-bridge'
 export const MAX_SEGMENT_PHYSICAL = 8000
 /** 整图物理像素总高上限（约 60000 原始 CSS px，超过拒绝并提示） */
 export const MAX_TOTAL_PHYSICAL = 120000
+/**
+ * 整图画布像素总量上限（宽×高）：拼接是一次性分配整幅画布，RGBA 下每像素
+ * 4 字节——160M 像素即约 640MB 峰值，且已远离 Chromium 画布约 268M 像素
+ * （16384²）的静默失败区。只查总高不查面积时，宽视口 × 高上限的组合会
+ * 撞进该区域（toBlob 返回 null，用户只看到「canvas 导出 PNG 失败」）。
+ */
+export const MAX_TOTAL_PIXELS = 160_000_000
 /** 目标输出清晰度（相对原始 CSS 像素的物理像素倍数） */
 export const TARGET_SCALE = 2
 
@@ -39,8 +46,10 @@ export interface SegmentPlan {
   requestHeightCss: number
 }
 
-/** 分段失败原因 */
-export type SegmentError = { ok: false; reason: 'too-tall'; physicalHeight: number }
+/** 分段失败原因：too-tall 总高超限；too-large 像素总量（面积）超限 */
+export type SegmentError =
+  | { ok: false; reason: 'too-tall'; physicalHeight: number }
+  | { ok: false; reason: 'too-large'; pixels: number }
 /** 分段结果 */
 export type SegmentPlanResult = { ok: true; plan: SegmentPlan } | SegmentError
 
@@ -71,6 +80,10 @@ export function planSegments(
   const physicalWidth = Math.round(widthCss * ratio)
   if (physicalHeight > MAX_TOTAL_PHYSICAL) {
     return { ok: false, reason: 'too-tall', physicalHeight }
+  }
+  const pixels = physicalWidth * physicalHeight
+  if (pixels > MAX_TOTAL_PIXELS) {
+    return { ok: false, reason: 'too-large', pixels }
   }
   // 单段 CSS 高上限：物理上限 / pixelRatio（向下取整，保证段段不越界）
   const requestHeightCss = Math.max(1, Math.floor(MAX_SEGMENT_PHYSICAL / ratio))
@@ -161,8 +174,15 @@ export async function composeLongPng(
   if (!canvas || drawnPhysical <= 0) throw new Error('分段截图未产生内容')
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
-  if (!blob) throw new Error('canvas 导出 PNG 失败')
-  return new Uint8Array(await blob.arrayBuffer())
+  if (blob) return new Uint8Array(await blob.arrayBuffer())
+  // toBlob 在画布超限 / GPU 受限的机器上可能静默返回 null：回退 toDataURL
+  //（同步、多占一份 base64 内存，但不受 canvas.toBlob 的实现问题影响）
+  const dataUrl = canvas.toDataURL('image/png')
+  if (dataUrl.length <= 'data:image/png;base64,'.length) {
+    throw new Error('canvas 导出 PNG 失败')
+  }
+  const res = await fetch(dataUrl)
+  return new Uint8Array(await res.arrayBuffer())
 }
 
 /** 加载 data URL 为 HTMLImageElement（解码完成后 resolve） */

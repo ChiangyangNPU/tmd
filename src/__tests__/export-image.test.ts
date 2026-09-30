@@ -91,8 +91,18 @@ describe('planSegments 长图分段', () => {
     expect(r).toEqual({ ok: false, reason: 'too-tall', physicalHeight: 120002 })
   })
 
-  it('边界：总物理高恰为上限时允许', () => {
-    const r = planSegments(924, MAX_TOTAL_PHYSICAL / 2, 2)
+  it('边界：总物理高恰为上限时允许（窄视口下面积预算未超）', () => {
+    // 宽 400 × ratio 2 = 800 物理宽 → 800 × 120000 = 96M 像素 < 面积上限
+    const r = planSegments(400, MAX_TOTAL_PHYSICAL / 2, 2)
     expect(r.ok).toBe(true)
+  })
+
+  it('像素总量（宽×高）超面积上限时拒绝（回归：曾只查总高，宽视口撞画布静默失败区）', () => {
+    // 1400 × 2 = 2800 物理宽 × 120000 = 336M 像素 > 160M 上限
+    const r = planSegments(1400, 60000, 2)
+    expect(r).toEqual({ ok: false, reason: 'too-large', pixels: 336_000_000 })
+    // 总高未超但面积超限的形态：宽视口 + 中等高度（70000 × 2500 = 175M 像素）
+    const r2 = planSegments(70000, 2500, 1)
+    expect(r2).toEqual({ ok: false, reason: 'too-large', pixels: 175_000_000 })
   })
 })

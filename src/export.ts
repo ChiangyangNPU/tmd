@@ -159,8 +159,10 @@ async function runOffscreenExport(
       filters: [{ name: filterLabel, extensions: [extension] }],
     })
     if (!result) return // 用户在保存框点了取消
-  } catch {
-    showToast(t('export.failed'))
+  } catch (err) {
+    console.error('[tmd] 导出失败', err)
+    // menu.failed（三个语言包都有）：export.failed 键不存在，t() 会原样显示键名
+    showToast(t('menu.failed'))
   }
 }
 

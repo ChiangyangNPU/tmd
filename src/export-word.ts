@@ -154,7 +154,13 @@ export async function rasterizeVisualBlocks(
       el.scrollIntoView({ block: 'center', inline: 'nearest' })
       await nextFrames()
       const rect = el.getBoundingClientRect()
-      if (!isFullyVisible(rect)) continue
+      if (!isFullyVisible(rect)) {
+        // 超过视口高度放不进去的图表：降级为源码文本而非静默丢弃——
+        // 栅格化关闭时 SVG（含 foreignObject）在转换器里本就不可靠，
+        // 丢掉等于内容无声消失；与超限块的降级口径保持一致
+        degradeUnrasterizedBlocks([el])
+        continue
+      }
       const region = {
         x: Math.max(0, rect.left - BLOCK_PADDING),
         y: Math.max(0, rect.top - BLOCK_PADDING),
