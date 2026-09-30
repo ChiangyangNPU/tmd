@@ -1,13 +1,13 @@
 version: 0.1.1
 files:
   - url: https://github.com/ChiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64-mac.zip
-    sha512: NvyELxRH3Qvq0MZD/peDF3YGdyr/IP0GTTmgbtdzweBnBRKnrDZ/jqFwvazafdc/1Lj2h21Iwb6CX4yPumi7GQ==
-    size: 111684210
+    sha512: ps1QUCR78fXxt63rxoJKXq2vUzM5kQ7ZwRHOKux+zWxg93H8yZlYYHzp0QJObT2mXCdcZ2kDY1GQ3pl0gZC7hA==
+    size: 110537068
   - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64.dmg
-    sha512: 0hUPxOyHw5DHYUqze5fgQyZOu5pgLAQrI/GhDgsYn5BNRjrplktfg1eHI6PHuSDdy1VC953gjdWygpifPtfLyQ==
-    size: 85200313
+    sha512: 6eP+6/nd6JQG+yMXLLxz4Iz9NM2TNViM/v40FPfWg9wJYBDlAkaYI1JgLKOdUekrL3s+WxEE7jMCsTol803oaA==
+    size: 84062017
 path: https://github.com/ChiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64-mac.zip
-sha512: NvyELxRH3Qvq0MZD/peDF3YGdyr/IP0GTTmgbtdzweBnBRKnrDZ/jqFwvazafdc/1Lj2h21Iwb6CX4yPumi7GQ==
+sha512: ps1QUCR78fXxt63rxoJKXq2vUzM5kQ7ZwRHOKux+zWxg93H8yZlYYHzp0QJObT2mXCdcZ2kDY1GQ3pl0gZC7hA==
 releaseNotes: |
   ## [0.1.1] - 2026-09-30
 
@@ -75,4 +75,4 @@ releaseNotes: |
   - **新增「液态玻璃」（Liquid Glass）主题预设**：作为第 5 个内置主题预设接入现有主题体系（id=`glass`，`data-theme-preset='glass'`），纯 CSS 实现——半透明表面 + `backdrop-filter` 强模糊与高饱和 + 1px 亮边缘 + 顶部内高光 + 柔和投影 + 底层彩色光晕壁纸（`--glass-wallpaper`），折射出的彩色即「液态感」来源。浅色/深色各自一套变量，组件规则两态共用。玻璃化覆盖窗口壁纸、工具栏/查找栏、侧边栏、标签栏、编辑纸张（悬浮玻璃卡片）、源码编辑器、全部浮层与菜单；边界处理：打印/导出 PDF 时自动撤掉玻璃效果（`@media print`）、系统开启「降低透明度」时去彩光、近实色、撤模糊（`@media (prefers-reduced-transparency: reduce)`）。i18n 三语补 `settings.presetGlass` 键
   - **设置面板左侧导航跟随主题色调**：`.settings-nav` 用 `var(--bg-hover)`，但 sepia/green 预设漏覆盖该变量，导航条仍是 default 浅灰 `#eff2f5`，与米色/绿色主表面色调脱节；液态玻璃下 nav 用 `--bg-hover: rgba(255,255,255,0.52)` 叠在 modal 的 `--bg: rgba(255,255,255,0.64)` 上视觉一片白，没形成层次。修复：sepia 浅/深补 `--bg-hover: #e8dec5 / #353026`、green 浅/深补 `#aed3b6 / #243328`（与 `--code-bg` 同系略深一档，保住 nav 与 active 项的对比）；液态玻璃下 `.settings-nav` 改用 `--glass-bar`（更透明的玻璃条），与 `--glass-panel` 主面板形成层次
   - **源码模式（CodeMirror）跟随主题**：源码模式此前未做主题适配——CodeMirror 的 `baseTheme` 只提供 `&light` / `&dark` 两套固定色，而项目未注册 dark theme，实例恒走 `&light`。表现：行号 gutter 恒为 `#f5f5f5` 浅灰（与 sepia / green / 液态玻璃等主题的纸张色脱节）、当前行恒为浅蓝 `#cceeff44`、光标恒为黑线、选区恒为 `#d9d9d9`、源码模式搜索面板恒白底黑字；语法高亮走 `defaultHighlightStyle` 的固定亮色配色（标题固定深灰 `#404740`）。修复分两层：① `styles/10-layout.css` 把 gutter / 当前行 / gutter 高亮 / 光标绘制层 / 选区 / 搜索面板 / 匹配高亮 / 补全浮层改绑 `--code-bg`、`--muted`、`--border`、`--accent`、`--fg` 等主题变量（正文 `.cm-content` 本就无背景色，天然透出容器纸张色）；② `sourcemode.ts` 新增自定义 `HighlightStyle` 引用同一批变量（`basicSetup` 的 `defaultHighlightStyle` 以 `{ fallback: true }` 注册，天然被覆盖），并顺带去掉聚焦态的默认虚线 outline。全部走 CSS 变量，深浅切换与任意主题预设自动跟随、**无需重建实例**。注意 `caret-color` 不可覆盖——`drawSelection` 以 `transparent !important` 隐藏原生光标并改由 `.cm-cursor` 元素绘制，改的是该元素的 `border-left-color`。新增直接依赖 `@codemirror/language`、`@lezer/highlight`（原为 `codemirror` 的传递依赖，现被直接 import）
-releaseDate: '2026-09-30T07:48:48.618Z'
+releaseDate: '2026-09-30T10:05:49.346Z'
