@@ -256,12 +256,16 @@ jobs:
           wait
           for f in release/*.blockmap; do
             [ -f "$f" ] || continue
+            # 排除 mac zip 的差量索引：zip 本身超 100MB 上限不在 Gitee，
+            # 孤儿 blockmap 无意义（差量更新会自然回退全量下载）
+            case "$f" in *-mac.zip.blockmap) continue ;; esac
             upload_asset "$f"
           done
 
           ATTACH_FAILED=0
           for f in release/*.dmg release/*.exe release/*.blockmap; do
             [ -f "$f" ] || continue
+            case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
             code_file="/tmp/attach-${name}.code"
             # code 文件缺失 = 上传子进程异常结束且未落状态：按失败处理，不静默
@@ -292,6 +296,7 @@ jobs:
           MISSING=0
           for f in release/*.dmg release/*.exe release/*.blockmap; do
             [ -f "$f" ] || continue
+            case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
             if ! printf '%s\\n' "$REMOTE_ASSETS" | grep -qx "$name"; then
               echo "::error::Gitee 附件缺失: $name（上传后 API 校验未命中）"

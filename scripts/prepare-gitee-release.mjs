@@ -174,10 +174,10 @@ async function main() {
 
   if (localMode) return // CI 模式：无需打印手动上传指引
 
-  // 待上传清单：安装包与差量索引（元数据走 git 提交，不作为 Release 附件）。
-  // 不含 mac zip——体积超 Gitee 附件 100MB 上限，上传必然失败并让 CI 红掉；
-  // 它改由 GitHub Release 承载（见 toAbsolute）
-  const uploads = assets.filter((a) => /\.(dmg|exe|blockmap)$/.test(a.name))
+  // 待上传清单：dmg / exe 及其差量索引。
+  // 不含 mac zip（超 Gitee 附件 100MB 上限，改由 GitHub 承载，见 toAbsolute）
+  // 及其差量索引——zip 不在 Gitee，孤儿 blockmap 无意义（差量更新会自然回退全量）
+  const uploads = assets.filter((a) => /\.(dmg|exe|exe\.blockmap)$/.test(a.name))
   console.log(`\n请到 Gitee 创建 Release（标签 ${tag}）并上传以下 ${uploads.length} 个文件：`)
   for (const a of uploads) {
     console.log(`  · ${a.name}（${(a.size / 1e6).toFixed(1)}MB）`)
