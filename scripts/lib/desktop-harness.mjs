@@ -142,15 +142,56 @@ async function isPortBusy(port) {
   }
 }
 
+/** 本仓库 Electron 二进制的命令行特征（用于识别"我们启动的"实例，避免误伤其他 Electron 应用） */
+const ELECTRON_CMD_MARKER = 'tmd/node_modules/electron'
+
+/**
+ * 回收监听在调试端口上的残留实例（SIGKILL）。
+ *
+ * 只处理命令行含 ELECTRON_CMD_MARKER 的进程：卡在 ready 前的僵尸对 SIGTERM
+ * 不响应（优雅退出路径尚未就绪），SIGKILL 是唯一可靠手段。Windows 无 lsof，
+ * 由 cleanupElectron 的 PowerShell 分支按 CommandLine 过滤处理。
+ */
+function reapPortHolders() {
+  if (process.platform === 'win32') return
+  for (const port of [RENDERER_PORT, MAIN_PORT]) {
+    const res = spawnSync('lsof', ['-ti', `tcp:${port}`])
+    const pids = String(res.stdout ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    for (const pidStr of pids) {
+      const pid = Number(pidStr)
+      if (!Number.isInteger(pid) || pid <= 0) continue
+      const ps = spawnSync('ps', ['-p', String(pid), '-o', 'command='])
+      const cmd = String(ps.stdout ?? '').trim()
+      if (!cmd.includes(ELECTRON_CMD_MARKER)) continue
+      try {
+        process.kill(pid, 'SIGKILL')
+      } catch {
+        /* 进程已自行退出：忽略 */
+      }
+    }
+  }
+}
+
 /**
  * 等待渲染层 / 主进程调试端口全部空闲（拒绝连接），作为启动前的确定性闸门。
+ * 端口被占时先尝试回收本仓库的残留实例（SIGKILL）再继续等——卡死的僵尸
+ * 永远不会自行退出，只等不杀会让闸门在 15s 后必然失败并污染后续运行。
  * @param {number} [timeoutMs]
  */
 export async function waitForPortsFree(timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs
+  let lastReapAt = 0
   for (;;) {
     const busy = await Promise.all([isPortBusy(RENDERER_PORT), isPortBusy(MAIN_PORT)])
     if (!busy.some(Boolean)) return
+    // 至多每 2s 回收一轮：给 SIGKILL 生效留出时间，也不重复空转
+    if (Date.now() - lastReapAt > 2000) {
+      reapPortHolders()
+      lastReapAt = Date.now()
+    }
     if (Date.now() > deadline) throw new Error('调试端口仍被占用，可能有残留实例')
     await sleep(250)
   }
@@ -240,10 +281,10 @@ export function killTree(child) {
   }
 }
 
-/** 清理可能残留的孤儿 Electron 进程（每轮启动前调用） */
 /** 清理可能残留的孤儿 Electron 进程（每轮启动前调用）。
  * 仅杀命令行含本仓库 electron 路径的进程（pkill 在 Windows 不存在，
- * 改用 PowerShell 按 CommandLine 过滤后按 PID 精确终止）。 */
+ * 改用 PowerShell 按 CommandLine 过滤后按 PID 精确终止）。
+ * 用 SIGKILL：卡在 ready 前的残留实例不响应 SIGTERM 的优雅退出。 */
 export function cleanupElectron() {
   if (process.platform === 'win32') {
     const marker = 'tmd\\node_modules\\electron'
@@ -251,5 +292,5 @@ export function cleanupElectron() {
     spawnSync('powershell', ['-NoProfile', '-Command', ps])
     return
   }
-  spawnSync('pkill', ['-f', 'tmd/node_modules/electron'])
+  spawnSync('pkill', ['-9', '-f', ELECTRON_CMD_MARKER])
 }
