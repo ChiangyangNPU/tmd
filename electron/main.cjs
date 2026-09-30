@@ -194,6 +194,8 @@ function normalizeRecent(raw) {
 let currentUpdateSource = 'gitee'
 /** 启动时是否自动检查更新（由渲染层经 updateAutoCheck IPC 同步，默认 false） */
 let autoCheckUpdateEnabled = false
+/** 最近一次更新检查是否来自用户手动触发（菜单）；自动检查置 false */
+let updateCheckManual = false
 /** 是否已因出错切换过源（避免 error 事件中无限切换重试） */
 let updateSourceSwitched = false
 
@@ -226,8 +228,9 @@ const pendingOpenPaths = []
 
 /** @param {string} channel @param {unknown} payload */
 function sendToRenderer(channel, payload) {
-  const win = mainWindow ?? BrowserWindow.getAllWindows()[0]
-  win?.webContents.send(channel, payload)
+  // 只发主窗口：兜底取 getAllWindows()[0] 可能选中隐藏的离屏导出窗口——
+  // 它没有对应的渲染层 handler，消息只会静默丢失；主窗口不在时干脆不发
+  mainWindow?.webContents.send(channel, payload)
 }
 
 /** @param {string} filePath */
@@ -261,13 +264,36 @@ function flushPendingOpenPaths() {
 }
 
 /**
- * 对话框父窗口：对话框仅由渲染层 IPC 触发，彼时必有窗口存活。
- * @returns {import('electron').BrowserWindow}
+ * 对话框父窗口：优先主窗口；主窗口已关而离屏导出窗口尚存时，不得把隐藏的
+ * 导出窗口当父窗（原生对话框会挂在不可见窗口上，用户完全看不到）——
+ * 选可见窗口兜底；可见窗口也没有时（理论不可达：触发对话框的 IPC 均来自
+ * 主窗口渲染层）返回 undefined 交给 dialog 以无父窗模式弹出。
+ * @returns {import('electron').BrowserWindow | undefined}
  */
 function dialogParent() {
-  return /** @type {import('electron').BrowserWindow} */ (
-    mainWindow ?? BrowserWindow.getAllWindows()[0]
-  )
+  if (mainWindow && !mainWindow.isDestroyed()) return mainWindow
+  const windows = BrowserWindow.getAllWindows()
+  return windows.find((w) => w.isVisible()) ?? undefined
+}
+
+// 对话框包装：dialogParent() 可能无可用父窗（主窗口已关、仅剩不可见的离屏
+// 导出窗口），此时以无父窗模式弹出——dialog 的类型要求父窗非空，经这里分流
+/** @param {import('electron').MessageBoxOptions} options */
+function showMessageBoxSafe(options) {
+  const parent = dialogParent()
+  return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options)
+}
+
+/** @param {import('electron').OpenDialogOptions} options */
+function showOpenDialogSafe(options) {
+  const parent = dialogParent()
+  return parent ? dialog.showOpenDialog(parent, options) : dialog.showOpenDialog(options)
+}
+
+/** @param {import('electron').SaveDialogOptions} options */
+function showSaveDialogSafe(options) {
+  const parent = dialogParent()
+  return parent ? dialog.showSaveDialog(parent, options) : dialog.showSaveDialog(options)
 }
 
 // 离屏导出服务（Word / 长图）：隐藏窗口单例 + 串行队列，编排逻辑在离屏页
@@ -430,10 +456,12 @@ function createWindow() {
   let closingDialogOpen = false
   mainWindow.on('close', (event) => {
     if (!rendererDirty || closingDialogOpen) return
+    if (!mainWindow) return
     closingDialogOpen = true
     event.preventDefault()
+    // 本处理器挂在 mainWindow 的 close 事件上，彼时窗口必然存活
     dialog
-      .showMessageBox(dialogParent(), {
+      .showMessageBox(mainWindow, {
         type: 'warning',
         message: '有未保存的修改',
         detail: '关闭前会丢失未保存的内容。',
@@ -509,16 +537,18 @@ function setupAutoUpdater() {
       status: 'available',
       version: info.version,
     })
-    dialog
-      .showMessageBox(dialogParent(), {
-        type: 'info',
-        title: 'TMD',
-        message: `发现新版本 ${info.version}`,
-        detail: '是否立即下载更新？',
-        buttons: ['下载更新', '稍后'],
-        defaultId: 0,
-        cancelId: 1,
-      })
+    /** @type {import('electron').MessageBoxOptions} */
+    const boxOptions = {
+      type: 'info',
+      title: 'TMD',
+      message: `发现新版本 ${info.version}`,
+      detail: '是否立即下载更新？',
+      buttons: ['下载更新', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    }
+    // 主窗口可能已关闭（自动更新是应用级事件）：无窗口时以无父窗模式弹出
+    showMessageBoxSafe(boxOptions)
       .then(({ response }) => {
         if (response === 0) {
           autoUpdater.downloadUpdate().catch((err) => {
@@ -535,12 +565,16 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-not-available', () => {
     sendToRenderer(IPC.updateStatus, { status: 'not-available' })
-    dialog.showMessageBox(dialogParent(), {
-      type: 'info',
-      title: 'TMD',
-      message: '当前已是最新版本',
-      buttons: ['确定'],
-    })
+    // 仅手动检查（菜单）时弹窗告知「已最新」；启动时的自动检查静默——
+    // 否则开启「启动时检查更新」的用户每次启动都被弹窗打扰
+    if (updateCheckManual) {
+      showMessageBoxSafe({
+        type: 'info',
+        title: 'TMD',
+        message: '当前已是最新版本',
+        buttons: ['确定'],
+      })
+    }
   })
 
   autoUpdater.on('download-progress', (progress) => {
@@ -552,19 +586,17 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', () => {
     sendToRenderer(IPC.updateStatus, { status: 'downloaded' })
-    dialog
-      .showMessageBox(dialogParent(), {
-        type: 'info',
-        title: 'TMD',
-        message: '下载完成，重启以安装',
-        detail: '应用将关闭并安装更新后重新启动。',
-        buttons: ['立即重启', '稍后'],
-        defaultId: 0,
-        cancelId: 1,
-      })
-      .then(({ response }) => {
-        if (response === 0) autoUpdater.quitAndInstall()
-      })
+    showMessageBoxSafe({
+      type: 'info',
+      title: 'TMD',
+      message: '下载完成，重启以安装',
+      detail: '应用将关闭并安装更新后重新启动。',
+      buttons: ['立即重启', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    }).then(({ response }) => {
+      if (response === 0) autoUpdater.quitAndInstall()
+    })
   })
 
   autoUpdater.on('error', (err) => {
@@ -592,7 +624,7 @@ function setupAutoUpdater() {
 const MD_FILTERS = [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
 
 ipcMain.handle(IPC.openFile, async () => {
-  const result = await dialog.showOpenDialog(dialogParent(), {
+  const result = await showOpenDialogSafe({
     filters: MD_FILTERS,
     properties: ['openFile'],
   })
@@ -745,7 +777,7 @@ ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
 /** @param {unknown} _event @param {string} content */
 ipcMain.handle(IPC.saveFileAs, async (_event, content) => {
   if (typeof content !== 'string') return null
-  const result = await dialog.showSaveDialog(dialogParent(), {
+  const result = await showSaveDialogSafe({
     defaultPath: '未命名.md',
     filters: MD_FILTERS,
   })
@@ -777,7 +809,7 @@ ipcMain.handle(IPC.exportAs, async (_event, options) => {
   // IPC 入参不可信：缺 content 直接取消，其余字段做类型收敛后再交给对话框
   if (!options || typeof options.content !== 'string') return null
   const { content, defaultName, filters } = options
-  const result = await dialog.showSaveDialog(dialogParent(), {
+  const result = await showSaveDialogSafe({
     defaultPath: typeof defaultName === 'string' ? defaultName : undefined,
     filters: Array.isArray(filters) ? filters : undefined,
   })
@@ -798,7 +830,7 @@ ipcMain.handle(IPC.print, async () => {
 
 // 选择文件夹（文件树）
 ipcMain.handle(IPC.openFolder, async () => {
-  const result = await dialog.showOpenDialog(dialogParent(), { properties: ['openDirectory'] })
+  const result = await showOpenDialogSafe({ properties: ['openDirectory'] })
   if (result.canceled || !result.filePaths[0]) return null
   return result.filePaths[0]
 })
@@ -838,10 +870,19 @@ ipcMain.on(IPC.winMaximizeToggle, () => {
 })
 ipcMain.on(IPC.winClose, () => mainWindow?.close())
 
-// 粘贴图片落盘：写入文档同目录 assets/ 文件夹（base64 解码后写入）
-/** @param {unknown} _event @param {{ dir: string, name: string, base64: string }} options */
+// 粘贴图片落盘：写入文档同目录 assets/ 文件夹（base64 解码后写入）。
+// 入参做白名单校验（与 themes.cjs 的「IPC 入参不可信」口径对齐）：name 必须
+// 是非隐藏裸文件名（path.basename 校验拒绝路径分隔与 .. 穿越），非法时抛错
+// ——调用方（paste-image）catch 后降级为内联图片
+/** @param {unknown} _event @param {unknown} options */
 ipcMain.handle(IPC.saveImage, async (_event, options) => {
-  const { dir, name, base64 } = options
+  const opts = /** @type {{ dir?: unknown, name?: unknown, base64?: unknown }} */ (options)
+  const dir = typeof opts?.dir === 'string' ? opts.dir : ''
+  const name = typeof opts?.name === 'string' ? opts.name : ''
+  const base64 = typeof opts?.base64 === 'string' ? opts.base64 : ''
+  if (!dir || !base64 || !name || path.basename(name) !== name || name.startsWith('.')) {
+    throw new Error('saveImage: 非法入参')
+  }
   const assetsDir = path.join(dir, 'assets')
   await fs.mkdir(assetsDir, { recursive: true })
   const filePath = path.join(assetsDir, name)
@@ -1034,8 +1075,10 @@ ipcMain.on(IPC.recentRemove, (_event, filePath) => {
 
 // ---------- IPC：更新 ----------
 
-// 手动检查更新：重置源为 Gitee
+// 手动检查更新：重置源为 Gitee，并标记来源——「已是最新版本」的弹窗只对
+// 手动检查生效（自动检查静默，见 update-not-available 处理器）
 ipcMain.handle(IPC.updateCheck, async () => {
+  updateCheckManual = true
   setUpdateSource('gitee')
   try {
     await autoUpdater.checkForUpdates()
@@ -1121,6 +1164,10 @@ function readShellState() {
   }
 }
 
+/** 写入串行链：读改写挂同一条 Promise 链，两次紧邻调用不会各自基于旧快照
+ * 互相覆盖（与 logger 的单链写盘同构） */
+let shellStateQueue = Promise.resolve()
+
 /**
  * 增量写入壳层持久化状态（fire-and-forget，调用方无需等待落盘）
  *
@@ -1128,15 +1175,18 @@ function readShellState() {
  * @returns {void}
  */
 function saveShellState(patch) {
-  const state = { ...readShellState(), ...patch }
-  const tmp = `${shellStateFile}.tmp`
-  // 走临时文件 + 原子替换：直接覆盖时进程中断会留下截断的 JSON，
-  // 下次启动 readShellState 解析失败即丢失全部壳层状态
-  fs.writeFile(tmp, JSON.stringify(state, null, 2), 'utf-8')
-    .then(() => fs.rename(tmp, shellStateFile))
-    .catch(() => {
-      fs.unlink(tmp).catch(() => {})
-    })
+  shellStateQueue = shellStateQueue.then(() => {
+    const state = { ...readShellState(), ...patch }
+    const tmp = `${shellStateFile}.tmp`
+    // 走临时文件 + 原子替换：直接覆盖时进程中断会留下截断的 JSON，
+    // 下次启动 readShellState 解析失败即丢失全部壳层状态
+    return fs
+      .writeFile(tmp, JSON.stringify(state, null, 2), 'utf-8')
+      .then(() => fs.rename(tmp, shellStateFile))
+  }).catch(() => {
+    // 写失败静默：壳层状态只影响下次启动的主题外观，清理残留临时文件
+    fs.unlink(`${shellStateFile}.tmp`).catch(() => {})
+  })
 }
 
 app.whenReady().then(() => {
@@ -1168,6 +1218,7 @@ app.whenReady().then(() => {
   // 该 IPC 通常在数毫秒内到达，远早于 5 秒延时。
   setTimeout(() => {
     if (autoCheckUpdateEnabled) {
+      updateCheckManual = false
       setUpdateSource('gitee')
       autoUpdater.checkForUpdates().catch((err) => {
         sendToRenderer(IPC.updateStatus, {
