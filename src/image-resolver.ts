@@ -33,7 +33,7 @@ let baseDir: string | null = null
 let activeView: EditorView | null = null
 
 /** baseDir 变更通道：setImageBaseDir 借它派发纯 meta 事务触发装饰重算 */
-const imageBaseDirKey = new PluginKey<DecorationSet>('tmd-image-base-dir')
+export const imageBaseDirKey = new PluginKey<DecorationSet>('tmd-image-base-dir')
 
 /** main.ts 在激活标签页变化时同步文档所在目录 */
 export function setImageBaseDir(dir: string | null) {
@@ -87,57 +87,67 @@ function scanRangeForImages(doc: Node, from: number, to: number, dir: string): D
   return decos
 }
 
-/** 图片路径解析插件：显示时把相对路径 src 解析为 file:// 绝对地址（节点装饰，文档数据不变） */
-export const imageSrcResolver = $prose(
-  () =>
-    new Plugin({
-      key: imageBaseDirKey,
-      view(view) {
-        activeView = view
-        return {
-          destroy() {
-            // 仅当自己仍是登记视图时才清空，避免重建间隙新视图注册后被旧视图销毁误清
-            if (activeView === view) activeView = null
-          },
+/**
+ * 图片路径解析插件工厂（$prose 包装的展开形式，导出供单测直接装配纯 PM 插件）：
+ * 显示时把相对路径 src 解析为 file:// 绝对地址（节点装饰，文档数据不变）。
+ */
+export function createImageResolverPlugin(): Plugin {
+  return new Plugin({
+    key: imageBaseDirKey,
+    view(view) {
+      activeView = view
+      return {
+        destroy() {
+          // 仅当自己仍是登记视图时才清空，避免重建间隙新视图注册后被旧视图销毁误清
+          if (activeView === view) activeView = null
+        },
+      }
+    },
+    state: {
+      // 初始化：全量扫描文档构建装饰集（编辑器构建时调用一次）
+      init(_, state) {
+        return buildDecos(state.doc, baseDir)
+      },
+      // 增量更新：baseDir 变更→全量重建；文档变更→map + 变更范围局部扫描
+      apply(
+        tr,
+        oldDecos: DecorationSet,
+        _oldState: EditorState,
+        newState: EditorState,
+      ): DecorationSet {
+        // baseDir 变更：全量重建（setImageBaseDir 派发的纯 meta 事务走此分支）
+        if (tr.getMeta(imageBaseDirKey) !== undefined) {
+          return buildDecos(newState.doc, baseDir)
         }
+        if (!baseDir) return DecorationSet.empty
+        if (!tr.docChanged) return oldDecos
+        // 映射已有装饰到新文档位置（O(图片数)，纯文本输入时图片节点不变，
+        // 仅位置偏移由 DecorationSet.map 自动处理）
+        let mapped = oldDecos.map(tr.mapping, newState.doc)
+        // 变更范围内可能有新增/删除的图片节点（粘贴图片、编辑 markdown 图片语法等），
+        // 局部扫描该范围重建装饰——changedRange() 返回覆盖所有 ReplaceStep 的单一区间
+        const range = tr.changedRange()
+        if (range) {
+          // 移除与变更范围相交的装饰后局部扫描重建。不能用 find(from, to)：
+          // 它是「触碰」语义（恰好被推移到 range.to 的装饰也算命中），而扫描端
+          // nodesBetween 是末端开区间——图片被输入推到 range.to 处会被移除却
+          // 不再扫回（丢装饰，实际编辑「紧贴图片后打字」即可触发）。
+          // 统一用相交谓词：d.to > range.from && d.from < range.to
+          const stale = mapped.find().filter((d) => d.to > range.from && d.from < range.to)
+          if (stale.length) mapped = mapped.remove(stale)
+          const newDecos = scanRangeForImages(newState.doc, range.from, range.to, baseDir)
+          if (newDecos.length) mapped = mapped.add(newState.doc, newDecos)
+        }
+        // changedRange() 返回 null（mark/attr-only 变更）时：
+        // 图片 src 不会因 mark/attr 变更而改变，mapped 仍有效
+        return mapped
       },
-      state: {
-        // 初始化：全量扫描文档构建装饰集（编辑器构建时调用一次）
-        init(_, state) {
-          return buildDecos(state.doc, baseDir)
-        },
-        // 增量更新：baseDir 变更→全量重建；文档变更→map + 变更范围局部扫描
-        apply(
-          tr,
-          oldDecos: DecorationSet,
-          _oldState: EditorState,
-          newState: EditorState,
-        ): DecorationSet {
-          // baseDir 变更：全量重建（setImageBaseDir 派发的纯 meta 事务走此分支）
-          if (tr.getMeta(imageBaseDirKey) !== undefined) {
-            return buildDecos(newState.doc, baseDir)
-          }
-          if (!baseDir) return DecorationSet.empty
-          if (!tr.docChanged) return oldDecos
-          // 映射已有装饰到新文档位置（O(图片数)，纯文本输入时图片节点不变，
-          // 仅位置偏移由 DecorationSet.map 自动处理）
-          let mapped = oldDecos.map(tr.mapping, newState.doc)
-          // 变更范围内可能有新增/删除的图片节点（粘贴图片、编辑 markdown 图片语法等），
-          // 局部扫描该范围重建装饰——changedRange() 返回覆盖所有 ReplaceStep 的单一区间
-          const range = tr.changedRange()
-          if (range) {
-            const existing = mapped.find(range.from, range.to)
-            if (existing.length) mapped = mapped.remove(existing)
-            const newDecos = scanRangeForImages(newState.doc, range.from, range.to, baseDir)
-            if (newDecos.length) mapped = mapped.add(newState.doc, newDecos)
-          }
-          // changedRange() 返回 null（mark/attr-only 变更）时：
-          // 图片 src 不会因 mark/attr 变更而改变，mapped 仍有效
-          return mapped
-        },
-      } satisfies StateField<DecorationSet>,
-      props: {
-        decorations: (state) => imageBaseDirKey.getState(state) ?? DecorationSet.empty,
-      },
-    }),
-)
+    } satisfies StateField<DecorationSet>,
+    props: {
+      decorations: (state) => imageBaseDirKey.getState(state) ?? DecorationSet.empty,
+    },
+  })
+}
+
+/** 图片路径解析插件：显示时把相对路径 src 解析为 file:// 绝对地址（节点装饰，文档数据不变） */
+export const imageSrcResolver = $prose(createImageResolverPlugin)
