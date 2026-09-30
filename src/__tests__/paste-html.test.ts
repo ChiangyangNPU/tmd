@@ -37,3 +37,4 @@ describe('isSafeImageSrc（图片地址白名单）', () => {
     expect(isSafeImageSrc('')).toBe(false)
   })
 })
+
