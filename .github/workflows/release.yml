@@ -190,18 +190,29 @@ jobs:
           #    低速保护：15 分钟内平均速度低于 512B/s 才放弃（只拦死连接，
           #    实测约 13KB/s 的正常慢速传输不受影响）
           upload_asset() {
-            local f="$1" name size_mb
+            local f="$1" name size_mb attempt code
             name=$(basename "$f")
             size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
-            echo "Uploading $name (${size_mb}MB) to Gitee Release"
-            local code
-            code=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
-              --speed-limit 512 --speed-time 900 \
-              -o "/tmp/attach-${name}.json" -w "%{http_code}" -X POST \
-              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
-              -F "access_token=$GITEE_TOKEN" \
-              -F "file=@$f")
-            echo "${code:-000}" > "/tmp/attach-${name}.code"
+            # 失败重试一次：跨国链路偶发中断（v0.1.1 实测 dmg 整包未落库，
+            # 故另有上传后 API 校验兜底，见步骤 5）
+            for attempt in 1 2; do
+              echo "Uploading $name (${size_mb}MB) to Gitee Release (attempt $attempt)"
+              code=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+                --speed-limit 512 --speed-time 900 \
+                -o "/tmp/attach-${name}.json" -w "%{http_code}" -X POST \
+                "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
+                -F "access_token=$GITEE_TOKEN" \
+                -F "file=@$f")
+              code="${code:-000}"
+              if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
+                echo "$code" > "/tmp/attach-${name}.code"
+                return 0
+              fi
+              echo "::warning::$name 上传失败（HTTP $code），5s 后重试"
+              sleep 5
+            done
+            # 两次都失败：仍落下最终状态码供步骤 4 判定
+            echo "$code" > "/tmp/attach-${name}.code"
           }
 
           BIG_FILES=""
@@ -222,8 +233,9 @@ jobs:
             [ -f "$f" ] || continue
             name=$(basename "$f")
             code_file="/tmp/attach-${name}.code"
-            [ -f "$code_file" ] || continue
-            HTTP_CODE=$(cat "$code_file")
+            # code 文件缺失 = 上传子进程异常结束且未落状态：按失败处理，不静默
+            # 跳过（v0.1.1 的 dmg 即因此漏传：step 报成功而附件缺失）
+            HTTP_CODE=$(cat "$code_file" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
               size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
               echo "::error::Gitee 附件上传失败 $name (HTTP $HTTP_CODE): $(cat "/tmp/attach-${name}.json" 2>/dev/null)"
@@ -239,4 +251,24 @@ jobs:
             echo "::error::有附件未能上传到 Gitee Release（可在本地跑 npm run release:gitee 后手动补传，见文档 §9）"
             exit 1
           fi
-          echo "Gitee 发布完成（安装包 + 元数据）"
+          # 5. 上传后校验：以 Gitee 侧附件列表为准逐项核对。HTTP 2xx 不等于
+          #    附件已落库——v0.1.1 实测 dmg 上传「成功」但附件不存在，而元数据
+          #    已指向它（macOS 下载与更新全 404）。缺失即失败退出：宁可 step
+          #    红灯，不可静默发出残缺版本
+          REMOTE_ASSETS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+            "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID" \
+            | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const r=JSON.parse(d);console.log((r.assets||[]).map(a=>a.name).join('\\n'))}catch{console.log('')}})")
+          MISSING=0
+          for f in release/*.dmg release/*.exe release/*.blockmap; do
+            [ -f "$f" ] || continue
+            name=$(basename "$f")
+            if ! printf '%s\\n' "$REMOTE_ASSETS" | grep -qx "$name"; then
+              echo "::error::Gitee 附件缺失: $name（上传后 API 校验未命中）"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            echo "::error::Gitee 附件校验失败——本地跑 npm run release:gitee 后手动补传缺失项，见 docs/打包发布.md §9"
+            exit 1
+          fi
+          echo "Gitee 发布完成（安装包 + 元数据，附件经 API 校验齐全）"
