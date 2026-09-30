@@ -1,16 +1,13 @@
 version: 0.1.1
 files:
   - url: https://github.com/ChiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64-mac.zip
-    sha512: 5YemQddlLggUbc44OYtr8E538M3PDudETP0Bq8jElTKrDBhT9iGVHNZPpikDbcmubt6WJJgAY2xbrRtzcQHoLA==
+    sha512: NvyELxRH3Qvq0MZD/peDF3YGdyr/IP0GTTmgbtdzweBnBRKnrDZ/jqFwvazafdc/1Lj2h21Iwb6CX4yPumi7GQ==
     size: 111684210
   - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64.dmg
-    sha512: 1Rs6xnj+JcrzZzsLktB1GYnavJjOwvrB1Uu6HOBlsMLYRXcmMJroK67s6PsGrCjYPaKASf/L8JmZiIXGY7tTSg==
-    size: 85200297
-  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64.dmg
-    sha512: fbIYc81CuHAlvI0iJrQQBar7Edu7YjxC+CRWvP2uB2HZMFzDcAI6mzGxs65PT0DnffDi/0f+UrwdtlPkyfRcWw==
-    size: 102649441
+    sha512: 0hUPxOyHw5DHYUqze5fgQyZOu5pgLAQrI/GhDgsYn5BNRjrplktfg1eHI6PHuSDdy1VC953gjdWygpifPtfLyQ==
+    size: 85200313
 path: https://github.com/ChiangyangNPU/tmd/releases/download/v0.1.1/TMD-0.1.1-arm64-mac.zip
-sha512: 5YemQddlLggUbc44OYtr8E538M3PDudETP0Bq8jElTKrDBhT9iGVHNZPpikDbcmubt6WJJgAY2xbrRtzcQHoLA==
+sha512: NvyELxRH3Qvq0MZD/peDF3YGdyr/IP0GTTmgbtdzweBnBRKnrDZ/jqFwvazafdc/1Lj2h21Iwb6CX4yPumi7GQ==
 releaseNotes: |
   ## [0.1.1] - 2026-09-30
 
@@ -70,10 +67,12 @@ releaseNotes: |
   - **image-resolver 装饰增量更新**：原每次事务全量遍历文档找图片节点（O(文档节点数)）改为 plugin state 缓存 DecorationSet + apply 增量 map + changedRange 局部扫描（O(图片数)）——1MB 文档输入同步中位 73→9ms（profile）/ 86→17ms（bench），CPU 88.7% idle
   - **image-resolver 增量装饰丢失修复**：移除变更范围内旧装饰的 `DecorationSet.find(from, to)` 是「触碰」语义（恰好被推移到 `range.to` 的装饰也算命中），而重建端 `nodesBetween` 是末端开区间——图片被输入推到变更范围右边界时（紧贴图片后打字的常见操作）装饰被移除却不再扫回，显示退回相对路径黑图；统一为相交谓词，保持 O(图片数) 成本
   - **mac 自动更新修复（v0.1.1 重发补丁）**：v0.1.1 首次发布时 mac 产物只配了 dmg，而 electron-updater 在 macOS 上硬性要求 zip 更新包（Squirrel.Mac 走 zip 流式解压），`latest-mac.yml` 没有 zip 条目时直接抛 "ZIP file not provided"、自动更新全量失败。已改为 dmg + zip 双产物（arch arm64），CI 的 artifact / GitHub Release / Gitee Release 上传与缺失校验 5 处 glob 同步补 `release/*.zip`。注：版本号未变，已装 v0.1.1 的用户因 0.1.1 == 0.1.1 收不到自动更新提示，本修复主要让新下载用户拿到带 zip 的版本；老用户的 mac 自动更新要等下一版（v0.1.2+）才能真正生效
+  - **mac zip 改由 GitHub 承载，修复 Gitee 元数据 404**：zip 为 111.7MB，超过 Gitee Release 附件 100MB 上限，CI 上传必失败且 Gitee 元数据里 zip 的 url 会指向不存在的附件（mac 自动更新 404）。实测确认无法压到限内：electron-builder 已用 deflate 最高级（zip 内标注 `Defl:X`，实测 zlib level 6/9 分别为 86.9/86.7MB，与现网 86.8MB 一致）；LZMA(method 14) / bzip2(method 12) / 7z 虽能压到 75~93MB，但 Squirrel 调用的解压命令 `/usr/bin/ditto` 对前两者均报 `Unknown compression type`、对 7z 更不识别。现 `prepare-gitee-release.mjs` 的 `toAbsolute` 分流——mac zip 用 GitHub Release 绝对 URL，其余（dmg/exe/blockmap）仍走 Gitee；`release.yml` 的 Gitee 上传与两处校验移除 `release/*.zip`（artifact 上传与 GitHub Release 两处保留）
+  - **`latest-mac.yml` 重复 dmg 条目修复**：electron-builder 在 `mac.target` 数组里 dmg 显式带 `arch` 时，会为同一个 dmg 写两条完全相同的记录（实测原始产物形态 `zip + dmg + dmg`，构建日志确认只构建了一次 DMG）；而 `patch-mac-dmg.mjs` 的正则未加 `g` 标志、只改写第一条，导致第二条残留 dmg 转换前的 sha512/size（指向的文件实际已是 ULMO 版本）。现改为全局替换同名条目并去重，元数据只保留一条 dmg。不影响 electron-updater（mac 侧 `findFile` 只挑 zip），属元数据正确性修复
 
   ### 界面与主题
 
   - **新增「液态玻璃」（Liquid Glass）主题预设**：作为第 5 个内置主题预设接入现有主题体系（id=`glass`，`data-theme-preset='glass'`），纯 CSS 实现——半透明表面 + `backdrop-filter` 强模糊与高饱和 + 1px 亮边缘 + 顶部内高光 + 柔和投影 + 底层彩色光晕壁纸（`--glass-wallpaper`），折射出的彩色即「液态感」来源。浅色/深色各自一套变量，组件规则两态共用。玻璃化覆盖窗口壁纸、工具栏/查找栏、侧边栏、标签栏、编辑纸张（悬浮玻璃卡片）、源码编辑器、全部浮层与菜单；边界处理：打印/导出 PDF 时自动撤掉玻璃效果（`@media print`）、系统开启「降低透明度」时去彩光、近实色、撤模糊（`@media (prefers-reduced-transparency: reduce)`）。i18n 三语补 `settings.presetGlass` 键
   - **设置面板左侧导航跟随主题色调**：`.settings-nav` 用 `var(--bg-hover)`，但 sepia/green 预设漏覆盖该变量，导航条仍是 default 浅灰 `#eff2f5`，与米色/绿色主表面色调脱节；液态玻璃下 nav 用 `--bg-hover: rgba(255,255,255,0.52)` 叠在 modal 的 `--bg: rgba(255,255,255,0.64)` 上视觉一片白，没形成层次。修复：sepia 浅/深补 `--bg-hover: #e8dec5 / #353026`、green 浅/深补 `#aed3b6 / #243328`（与 `--code-bg` 同系略深一档，保住 nav 与 active 项的对比）；液态玻璃下 `.settings-nav` 改用 `--glass-bar`（更透明的玻璃条），与 `--glass-panel` 主面板形成层次
   - **源码模式（CodeMirror）跟随主题**：源码模式此前未做主题适配——CodeMirror 的 `baseTheme` 只提供 `&light` / `&dark` 两套固定色，而项目未注册 dark theme，实例恒走 `&light`。表现：行号 gutter 恒为 `#f5f5f5` 浅灰（与 sepia / green / 液态玻璃等主题的纸张色脱节）、当前行恒为浅蓝 `#cceeff44`、光标恒为黑线、选区恒为 `#d9d9d9`、源码模式搜索面板恒白底黑字；语法高亮走 `defaultHighlightStyle` 的固定亮色配色（标题固定深灰 `#404740`）。修复分两层：① `styles/10-layout.css` 把 gutter / 当前行 / gutter 高亮 / 光标绘制层 / 选区 / 搜索面板 / 匹配高亮 / 补全浮层改绑 `--code-bg`、`--muted`、`--border`、`--accent`、`--fg` 等主题变量（正文 `.cm-content` 本就无背景色，天然透出容器纸张色）；② `sourcemode.ts` 新增自定义 `HighlightStyle` 引用同一批变量（`basicSetup` 的 `defaultHighlightStyle` 以 `{ fallback: true }` 注册，天然被覆盖），并顺带去掉聚焦态的默认虚线 outline。全部走 CSS 变量，深浅切换与任意主题预设自动跟随、**无需重建实例**。注意 `caret-color` 不可覆盖——`drawSelection` 以 `transparent !important` 隐藏原生光标并改由 `.cm-cursor` 元素绘制，改的是该元素的 `border-left-color`。新增直接依赖 `@codemirror/language`、`@lezer/highlight`（原为 `codemirror` 的传递依赖，现被直接 import）
-releaseDate: '2026-09-30T04:21:16.097Z'
+releaseDate: '2026-09-30T07:48:48.618Z'
