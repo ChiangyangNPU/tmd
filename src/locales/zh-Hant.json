@@ -215,6 +215,7 @@
     "presetDefault": "簡約白（預設）",
     "presetSepia": "護眼米黃",
     "presetGreen": "護眼綠",
+    "presetGlass": "液態玻璃",
     "customCss": "自訂 CSS",
     "customCssHint": "即時生效，儲存後全域持久",
     "customCssPlaceholder": "/* 自訂樣式，例如：body { font-size: 18px; } */",

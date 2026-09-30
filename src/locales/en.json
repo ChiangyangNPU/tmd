@@ -215,6 +215,7 @@
     "presetDefault": "Minimal white (default)",
     "presetSepia": "Sepia",
     "presetGreen": "Eye-care green",
+    "presetGlass": "Liquid Glass",
     "customCss": "Custom CSS",
     "customCssHint": "Applies immediately, persists globally",
     "customCssPlaceholder": "/* Custom styles, e.g.: body { font-size: 18px; } */",

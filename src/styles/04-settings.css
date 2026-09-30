@@ -257,6 +257,20 @@
   background: #5f7a43;
 }
 
+/* 液态玻璃：淡彩光晕壁纸 + 白色玻璃横条（带顶部高光） */
+.tp-glass {
+  background: linear-gradient(135deg, #8fb4ff 0%, #c9a6ff 42%, #ffb6d9 72%, #8fe3e6 100%);
+}
+
+.tp-glass i {
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.tp-glass i:first-child {
+  background: rgba(255, 255, 255, 0.88);
+}
+
 .theme-card-name {
   font-size: 12.5px;
   color: var(--fg);
