@@ -65,6 +65,10 @@
 - **image-resolver 增量装饰丢失修复**：移除变更范围内旧装饰的 `DecorationSet.find(from, to)` 是「触碰」语义（恰好被推移到 `range.to` 的装饰也算命中），而重建端 `nodesBetween` 是末端开区间——图片被输入推到变更范围右边界时（紧贴图片后打字的常见操作）装饰被移除却不再扫回，显示退回相对路径黑图；统一为相交谓词，保持 O(图片数) 成本
 - **mac 自动更新修复（v0.1.1 重发补丁）**：v0.1.1 首次发布时 mac 产物只配了 dmg，而 electron-updater 在 macOS 上硬性要求 zip 更新包（Squirrel.Mac 走 zip 流式解压），`latest-mac.yml` 没有 zip 条目时直接抛 "ZIP file not provided"、自动更新全量失败。已改为 dmg + zip 双产物（arch arm64），CI 的 artifact / GitHub Release / Gitee Release 上传与缺失校验 5 处 glob 同步补 `release/*.zip`。注：版本号未变，已装 v0.1.1 的用户因 0.1.1 == 0.1.1 收不到自动更新提示，本修复主要让新下载用户拿到带 zip 的版本；老用户的 mac 自动更新要等下一版（v0.1.2+）才能真正生效
 
+### 界面与主题
+
+- **新增「液态玻璃」（Liquid Glass）主题预设**：作为第 5 个内置主题预设接入现有主题体系（id=`glass`，`data-theme-preset='glass'`），纯 CSS 实现——半透明表面 + `backdrop-filter` 强模糊与高饱和 + 1px 亮边缘 + 顶部内高光 + 柔和投影 + 底层彩色光晕壁纸（`--glass-wallpaper`），折射出的彩色即「液态感」来源。浅色/深色各自一套变量，组件规则两态共用。玻璃化覆盖窗口壁纸、工具栏/查找栏、侧边栏、标签栏、编辑纸张（悬浮玻璃卡片）、源码编辑器、全部浮层与菜单；边界处理：打印/导出 PDF 时自动撤掉玻璃效果（`@media print`）、系统开启「降低透明度」时去彩光、近实色、撤模糊（`@media (prefers-reduced-transparency: reduce)`）。i18n 三语补 `settings.presetGlass` 键
+
 ## [0.1.0] - 2026-09-21
 
 首个正式发布版本：跨平台（macOS / Windows）Markdown 所见即所得编辑器，交互对标 Typora，核心特性为 Mermaid 图表的实时渲染。

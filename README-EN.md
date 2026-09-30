@@ -56,7 +56,7 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 - Autosave (writes back every 5 seconds; one shared switch for the settings panel and the menu)
 - Spellcheck toggle (settings panel, Editor category, off by default: Chromium enables it on editable content with an English-only dictionary, so turning it off removes the red squiggly underlines; Chinese text is never checked)
 - Dark/light theme switching (diagrams re-rendered in place — the editor is never rebuilt, preserving undo history / focus / scroll position)
-- Theme presets (Default / Dark / Sepia / Green), file-based themes (`~/.tmd/themes/*.css` — the file name is the theme name; open the folder / reload from the settings panel) and custom CSS injection (takes effect immediately)
+- Theme presets (Default / Dark / Sepia / Green / Liquid Glass), file-based themes (`~/.tmd/themes/*.css` — the file name is the theme name; open the folder / reload from the settings panel) and custom CSS injection (takes effect immediately)
 - Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
 - Settings panel with category navigation: widened to a two-pane layout (Appearance / Typography / Editor / Files & Images / Shortcuts / System / About on the left, content on the right); click to jump with scroll-synced highlighting, color-swatch theme previews; open via File → "Settings…" or `Cmd/Ctrl+,`
 - Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 13 third-party components (collapsed by default, expand to view)
