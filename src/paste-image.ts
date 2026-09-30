@@ -60,8 +60,12 @@ export const pasteImage = $prose(
           event.preventDefault()
 
           // 异步插入期间用户可能继续输入，捕获 paste 时刻的选区，
-          // 避免图片落到完成时的选区位置（竞态错位）
-          void insertImageFiles(view, files, view.state.selection)
+          // 避免图片落到完成时的选区位置（竞态错位）。
+          // 文件读取失败（reader.onerror）会拒绝——不接住就是无反馈的
+          // 未捕获 rejection（不能反向 import files.ts 的 toast，会成环）
+          void insertImageFiles(view, files, view.state.selection).catch((err) => {
+            console.error('[tmd] 粘贴图片处理失败', err)
+          })
           return true
         },
       },

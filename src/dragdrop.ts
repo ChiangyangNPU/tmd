@@ -76,7 +76,8 @@ export function wireDragDrop(): void {
       if (!files.length) return // 无文件的拖放（如编辑器内部文本拖拽）交回默认处理
       e.preventDefault()
       e.stopPropagation()
-      void handleDrop(files)
+      // 文件读取/打开失败（浏览器降级路径的 file.text() 等）不能成为未捕获 rejection
+      void handleDrop(files).catch((err) => console.error('[tmd] 拖放处理失败', err))
     },
     true,
   )

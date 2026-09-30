@@ -373,3 +373,13 @@ describe('addRowOnModEnter', () => {
     expect(before.doc.firstChild!.childCount).toBe(2)
   })
 })
+
+describe('parseGridSpec 行列上限', () => {
+  it('超上限的速记不触发表格（防 |9999x9999| 冻结主线程）', () => {
+    expect(parseGridSpec(`|${101}x2|`)).toBeNull()
+    expect(parseGridSpec(`|3x${101}|`)).toBeNull()
+    expect(parseGridSpec('|9999x9999|')).toBeNull()
+    // 上限内仍正常
+    expect(parseGridSpec(`|${100}x${100}|`)).toEqual({ cols: 100, rows: 100 })
+  })
+})

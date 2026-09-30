@@ -84,11 +84,12 @@ const UNWRAP_TAGS = new Set([
   'picture',
 ])
 
-/** 属性白名单：其余属性（style/class/id/onclick…）一律剥除 */
+/** 属性白名单：其余属性（class/id/onclick…）一律剥除 */
 const KEEP_ATTRS: Record<string, Set<string>> = {
   a: new Set(['href']),
-  // img 保留缩放/对齐属性（width/align/style zoom），粘贴带尺寸的图片可保留
-  img: new Set(['src', 'alt', 'title', 'width', 'align']),
+  // img 保留缩放/对齐属性（width/align/style zoom），粘贴带尺寸的图片可保留。
+  // style 在下方提纯：只留 zoom 声明、其余样式丢弃，白名单放行不引入样式注入
+  img: new Set(['src', 'alt', 'title', 'width', 'align', 'style']),
 }
 
 /** 链接地址白名单：http/https/mailto 或无协议的相对路径 */

@@ -94,6 +94,9 @@ export function parseDelimiterRow(line: string): CellAlign[] | null {
 /** 网格表速记形态：整段恰为 `|列x行|`（大小写 x 均可），允许首尾空白 */
 const GRID_SPEC_RE = /^\|(\d+)[xX](\d+)\|$/
 
+/** 网格速记行列上限：|9999x9999| 这类输入会同步构造上亿单元格，直接冻结主线程 */
+export const GRID_SPEC_MAX = 100
+
 /**
  * 解析 `|3x5|` 网格表速记（导出供单测）。
  *
@@ -103,15 +106,18 @@ const GRID_SPEC_RE = /^\|(\d+)[xX](\d+)\|$/
  * 按 Enter 时会先被 tableFromPipeRow 拦截，故在此补齐 Enter 路径。
  *
  * @param text - 段落纯文本
- * @returns 列数与行数；非网格速记形态返回 null
+ * @returns 列数与行数；非网格速记形态或超上限返回 null
  */
 export function parseGridSpec(text: string): { cols: number; rows: number } | null {
   const m = text.trim().match(GRID_SPEC_RE)
   if (!m) return null
-  // 列数下限 1：`|0x2|` 会生成 0 列的退化表格（schema 层无合法表格节点）
+  // 列数下限 1：`|0x2|` 会生成 0 列的退化表格（schema 层无合法表格节点）。
+  // 上限（含行数）防御：超限速记不触发即时成表，回落普通管道行处理
   const cols = Number(m[1])
-  if (cols < 1) return null
-  return { cols, rows: Math.max(Number(m[2]), 2) }
+  if (cols < 1 || cols > GRID_SPEC_MAX) return null
+  const rows = Math.max(Number(m[2]), 2)
+  if (rows > GRID_SPEC_MAX) return null
+  return { cols, rows }
 }
 
 // ---------------------------------------------------------------------------

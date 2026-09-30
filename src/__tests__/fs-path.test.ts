@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isWindowsPath, normalizeFsPath, dirOf, isSameFsPath } from '../fs-path'
+import { isWindowsPath, normalizeFsPath, dirOf, isSameFsPath, toFileUrl } from '../fs-path'
 
 describe('normalizeFsPath', () => {
   it('统一反斜杠为正斜杠', () => {
@@ -75,5 +75,24 @@ describe('isSameFsPath', () => {
 
   it('不同路径判为不同', () => {
     expect(isSameFsPath('/a/b.md', '/a/c.md')).toBe(false)
+  })
+})
+
+describe('toFileUrl（逐段百分号编码）', () => {
+  it('空格与中文正常编码', () => {
+    expect(toFileUrl('/docs', 'assets/my file.png')).toBe(
+      'file:///docs/assets/my%20file.png',
+    )
+    expect(toFileUrl('/docs', '图片.png')).toBe('file:///docs/%E5%9B%BE%E7%89%87.png')
+  })
+
+  it('文件名含 % 与 ? 时不被解码/截断（回归：encodeURI 版会指向不存在的文件）', () => {
+    expect(toFileUrl('/docs', '50%2Foff.png')).toBe('file:///docs/50%252Foff.png')
+    expect(toFileUrl('/docs', 'a?b.png')).toBe('file:///docs/a%3Fb.png')
+    expect(toFileUrl('/docs', 'a#b.png')).toBe('file:///docs/a%23b.png')
+  })
+
+  it('Windows 盘符与反斜杠归一', () => {
+    expect(toFileUrl('E:\\docs', 'assets\\a.png')).toBe('file:///E:/docs/assets/a.png')
   })
 })

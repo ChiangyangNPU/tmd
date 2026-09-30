@@ -64,8 +64,7 @@ export function dirOf(p: string): string {
 
 /**
  * 把文档目录与相对路径拼成可直接用于 img.src 的 file:// URL。
- * 反斜杠统一为正斜杠（Windows 路径）；POSIX 与盘符路径补对应前导斜杠；
- * '#' 需转义为 %23，否则会被浏览器当作 URL 片段截断文件名。
+ * 反斜杠统一为正斜杠（Windows 路径）；POSIX 与盘符路径补对应前导斜杠。
  *
  * 编辑器显示解析（image-resolver）与导出图片本地化（export-doc）共用，
  * 保证两处对同一路径的 file:// 结果完全一致。
@@ -77,7 +76,19 @@ export function dirOf(p: string): string {
 export function toFileUrl(dir: string, src: string): string {
   const normalized = `${dir.replaceAll('\\', '/')}/${src.replaceAll('\\', '/')}`
   const prefix = normalized.startsWith('/') ? 'file://' : 'file:///'
-  return `${prefix}${encodeURI(normalized).replaceAll('#', '%23')}`
+  // 逐段 encodeURIComponent：整串 encodeURI 不转义 % ? #——文件名含
+  // `50%2Foff.png`（%2F 被解码成路径分隔）、`a?b.png`（被截断成 query）时，
+  // 生成的 file URL 会指向不存在的文件。结构性段（空/./..）与 Windows
+  // 盘符段（E:）不参与编码
+  const path = normalized
+    .split('/')
+    .map((seg) =>
+      seg === '' || seg === '.' || seg === '..' || /^[a-zA-Z]:$/.test(seg)
+        ? seg
+        : encodeURIComponent(seg),
+    )
+    .join('/')
+  return `${prefix}${path}`
 }
 
 /**
