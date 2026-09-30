@@ -271,6 +271,32 @@ async function readSnapshot(root, filePath, id, options = {}) {
   }
 }
 
+/** 损坏留档保留时长：index.json.corrupt-<ts> 保留 7 天供排查，过期即删 */
+const CORRUPT_KEEP_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * 清理目录内的历史损坏留档（readIndex 对坏 index.json 的 rename 留档）。
+ * 每次损坏都新增一个文件且原本无任何清理路径，会随损坏累积永不消失。
+ * @param {string} dir
+ * @param {typeof fs} fsImpl
+ */
+async function cleanupCorruptFiles(dir, fsImpl) {
+  let entries
+  try {
+    entries = await fsImpl.readdir(dir)
+  } catch {
+    return
+  }
+  const cutoff = Date.now() - CORRUPT_KEEP_MS
+  for (const name of entries) {
+    const m = /^index\.json\.corrupt-(\d+)$/.exec(name)
+    if (!m) continue
+    const ts = Number(m[1])
+    if (!Number.isFinite(ts) || ts > cutoff) continue
+    await fsImpl.rm(path.join(dir, name), { force: true }).catch(() => {})
+  }
+}
+
 /**
  * 剪枝：一次遍历同时完成两层上限。
  * 1. 单文件数量上限：每个源文件仅保留最新 HISTORY_MAX_PER_FILE 条
@@ -297,6 +323,7 @@ async function pruneHistory(root, options = {}) {
     const dir = path.join(root, key)
     const st = await fsImpl.stat(dir).catch(() => null)
     if (!st || !st.isDirectory()) continue
+    await cleanupCorruptFiles(dir, fsImpl)
     const index = await readIndex(dir, fsImpl)
     if (!index) continue
 

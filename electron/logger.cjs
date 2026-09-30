@@ -298,9 +298,11 @@ function createLogger({ home, now = () => new Date(), fsImpl = fs }) {
     const key = `${source}\u0000${typeof message === 'string' ? message : String(message ?? '')}`
     const hit = recent.get(key)
     if (hit) {
-      // 窗口内重复：仅计数不写盘（flushExpired 已保证 hit 未过窗口）
+      // 窗口内重复：仅计数不写盘（flushExpired 已保证 hit 未过窗口）。
+      // 固定窗口——窗口起点保持首次出现时间，不随重复刷新：持续重复的
+      // 错误在窗口期满后必然冲刷出汇总行并可再次落盘；若刷新起点
+      //（滑动窗口），每 30 秒重复一次的错误会无限期只记首条
       hit.count += 1
-      hit.at = atMs
       return
     }
     recent.set(key, { count: 1, at: atMs, source, message: String(entry.message) })

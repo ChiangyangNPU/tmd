@@ -368,14 +368,27 @@ async function trimAppAsar(appOutDir, platform) {
     if (fs.existsSync(picgoEntry)) {
       let code = fs.readFileSync(picgoEntry, 'utf8')
       let replaced = 0
+      /** @type {string[]} 未在 picgo 产物中命中的 mock 项 */
+      const missing = []
       for (const { find, replace } of PICGO_MOCK_REPLACEMENTS) {
         if (code.includes(find)) {
           code = code.split(find).join(replace)
           replaced++
+        } else {
+          missing.push(find)
         }
       }
       fs.writeFileSync(picgoEntry, code)
       console.log(`[trim-runtime] picgo: mocked ${replaced} CLI deps`)
+      // picgo dist 里的 require 字面量（双引号形态）一旦因上游换打包器而失配，
+      // 包照删、运行时 picgo 加载即抛错且被 handler 吞掉——表现为图床整体
+      // 失效且日志无线索。这里直接令构建失败，强制人工核对 mock 清单
+      if (missing.length > 0) {
+        throw new Error(
+          `[trim-runtime] picgo 依赖 mock 失配，未命中: ${missing.join(', ')}\n` +
+            'picgo dist 可能已更换打包形态，请核对 PICGO_MOCK_REPLACEMENTS 清单后同步更新',
+        )
+      }
     }
 
     // 3. 删除不再需要的 node_modules 包
