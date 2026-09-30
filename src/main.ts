@@ -157,6 +157,19 @@ function toggleSidebar(which: 'outline' | 'files') {
   otherPanel.hidden = true
   targetPanel.hidden = !targetPanel.hidden
   sidebar.hidden = targetPanel.hidden && otherPanel.hidden
+  // 展开大纲时立即刷新一次：大纲改为低优拍点刷新后，展开瞬间可能带着
+  // 上一次收起以来的陈旧内容
+  if (showOutline && !outlinePanel.hidden) refreshOutline()
+}
+
+/** 按当前文档重建大纲（面板不可见时跳过；编辑期间由低优拍点驱动） */
+function refreshOutline() {
+  const sidebar = document.getElementById('sidebar')
+  const outlinePanel = document.getElementById('outline-panel')
+  const list = document.getElementById('outline-list')
+  const view = getPmView()
+  if (!list || !view || sidebar?.hidden || outlinePanel?.hidden) return
+  renderOutline(list, collectOutline(view.state.doc), view)
 }
 
 // ---------------------------------------------------------------------------
@@ -259,11 +272,12 @@ async function boot() {
     applyWritingModes()
     wireTypewriter()
 
-    // 文档变更钩子：置脏同步每键必做；恢复副本 / 字数走低优合并回调；结构变化刷新大纲
+    // 文档变更钩子：置脏同步每键必做；恢复副本 / 字数 / 大纲走低优合并回调；
+    // onDocUpdate 仅保留结构变化的通知位（当前无同步消费者）
     setEditorHooks({
       // 置脏同步（O(1)，每键必做）：驱动标签圆点、窗口标题与关闭保护
       onDocDirty: () => markDirty(),
-      // 低优合并回调（O(n)，至多约 4 次/秒）：恢复副本 + 字数统计。
+      // 低优合并回调（O(n)，至多约 4 次/秒）：恢复副本 + 字数统计 + 大纲刷新。
       // 恢复副本走原始序列化串：与 currentMarkdown 同做空单元格规范化，
       // 避免 <br /> 占位（及其连带的转义伪影）经恢复副本污染文档
       onMarkdownChange: (md) => {
@@ -275,12 +289,12 @@ async function boot() {
         // 以恢复副本"复活"（下次启动多出与磁盘相同的 recovered 标签）
         syncDirtyWith(clean)
         if (activeTab()?.dirty) saveDoc(clean)
+        refreshOutline()
       },
-      onDocUpdate: (doc) => {
-        const list = document.getElementById('outline-list')
-        const view = getPmView()
-        if (list && view) renderOutline(list, collectOutline(doc), view)
-      },
+      // 此前大纲在这里每事务同步刷新：全文档遍历 + slugify + 全量 DOM 重建，
+      // 是序列化防抖优化漏掉的同级 O(n) 消费者（且源码模式完全不更新）。
+      // 改挂 onMarkdownChange 低优拍点后，本回调暂无消费者
+      onDocUpdate: () => {},
     })
 
     const restored = loadDoc()
