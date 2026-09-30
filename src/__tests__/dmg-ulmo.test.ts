@@ -80,6 +80,39 @@ releaseDate: '2026-09-19T10:57:35.726Z'
     expect(() => patchUpdateYml(tricky, 'TMD-0.1.0-arm64.dmg', patch)).toThrow()
   })
 
+  it('electron-builder 为同一 dmg 写重复条目时：全部改写并去重为一条', () => {
+    // 实测 v0.1.1 的原始形态：mac.target 数组里 dmg 显式带 arch 时，
+    // electron-builder 会写两条完全相同的 dmg 记录
+    const dup = `version: 0.1.1
+files:
+  - url: TMD-0.1.1-arm64-mac.zip
+    sha512: OLDZIP/SHA==
+    size: 111684210
+  - url: TMD-0.1.1-arm64.dmg
+    sha512: AAAAOLD/SHA==
+    size: 102650238
+  - url: TMD-0.1.1-arm64.dmg
+    sha512: AAAAOLD/SHA==
+    size: 102650238
+path: TMD-0.1.1-arm64-mac.zip
+sha512: OLDZIP/SHA==
+releaseNotes: |
+  ## [0.1.1]
+`
+    const out = patchUpdateYml(dup, 'TMD-0.1.1-arm64.dmg', patch)
+    // 去重后只剩一条 dmg，且值为新的
+    expect(out.match(/- url: TMD-0\.1\.1-arm64\.dmg/g)).toHaveLength(1)
+    expect(out).toContain(
+      '- url: TMD-0.1.1-arm64.dmg\n    sha512: BBBBNEW/SHA==\n    size: 85241120',
+    )
+    expect(out).not.toContain('AAAAOLD')
+    // zip 条目与顶层 path（指向 zip）不受 dmg 的修补影响
+    expect(out).toContain(
+      '- url: TMD-0.1.1-arm64-mac.zip\n    sha512: OLDZIP/SHA==\n    size: 111684210',
+    )
+    expect(out).toContain('path: TMD-0.1.1-arm64-mac.zip\nsha512: OLDZIP/SHA==')
+  })
+
   it('条目缺失时抛错（拒绝产出不一致的元数据）', () => {
     expect(() => patchUpdateYml(SAMPLE, 'TMD-9.9.9-arm64.dmg', patch)).toThrow('找不到')
   })

@@ -64,6 +64,8 @@
 - **image-resolver 装饰增量更新**：原每次事务全量遍历文档找图片节点（O(文档节点数)）改为 plugin state 缓存 DecorationSet + apply 增量 map + changedRange 局部扫描（O(图片数)）——1MB 文档输入同步中位 73→9ms（profile）/ 86→17ms（bench），CPU 88.7% idle
 - **image-resolver 增量装饰丢失修复**：移除变更范围内旧装饰的 `DecorationSet.find(from, to)` 是「触碰」语义（恰好被推移到 `range.to` 的装饰也算命中），而重建端 `nodesBetween` 是末端开区间——图片被输入推到变更范围右边界时（紧贴图片后打字的常见操作）装饰被移除却不再扫回，显示退回相对路径黑图；统一为相交谓词，保持 O(图片数) 成本
 - **mac 自动更新修复（v0.1.1 重发补丁）**：v0.1.1 首次发布时 mac 产物只配了 dmg，而 electron-updater 在 macOS 上硬性要求 zip 更新包（Squirrel.Mac 走 zip 流式解压），`latest-mac.yml` 没有 zip 条目时直接抛 "ZIP file not provided"、自动更新全量失败。已改为 dmg + zip 双产物（arch arm64），CI 的 artifact / GitHub Release / Gitee Release 上传与缺失校验 5 处 glob 同步补 `release/*.zip`。注：版本号未变，已装 v0.1.1 的用户因 0.1.1 == 0.1.1 收不到自动更新提示，本修复主要让新下载用户拿到带 zip 的版本；老用户的 mac 自动更新要等下一版（v0.1.2+）才能真正生效
+- **mac zip 改由 GitHub 承载，修复 Gitee 元数据 404**：zip 为 111.7MB，超过 Gitee Release 附件 100MB 上限，CI 上传必失败且 Gitee 元数据里 zip 的 url 会指向不存在的附件（mac 自动更新 404）。实测确认无法压到限内：electron-builder 已用 deflate 最高级（zip 内标注 `Defl:X`，实测 zlib level 6/9 分别为 86.9/86.7MB，与现网 86.8MB 一致）；LZMA(method 14) / bzip2(method 12) / 7z 虽能压到 75~93MB，但 Squirrel 调用的解压命令 `/usr/bin/ditto` 对前两者均报 `Unknown compression type`、对 7z 更不识别。现 `prepare-gitee-release.mjs` 的 `toAbsolute` 分流——mac zip 用 GitHub Release 绝对 URL，其余（dmg/exe/blockmap）仍走 Gitee；`release.yml` 的 Gitee 上传与两处校验移除 `release/*.zip`（artifact 上传与 GitHub Release 两处保留）
+- **`latest-mac.yml` 重复 dmg 条目修复**：electron-builder 在 `mac.target` 数组里 dmg 显式带 `arch` 时，会为同一个 dmg 写两条完全相同的记录（实测原始产物形态 `zip + dmg + dmg`，构建日志确认只构建了一次 DMG）；而 `patch-mac-dmg.mjs` 的正则未加 `g` 标志、只改写第一条，导致第二条残留 dmg 转换前的 sha512/size（指向的文件实际已是 ULMO 版本）。现改为全局替换同名条目并去重，元数据只保留一条 dmg。不影响 electron-updater（mac 侧 `findFile` 只挑 zip），属元数据正确性修复
 
 ### 界面与主题
 

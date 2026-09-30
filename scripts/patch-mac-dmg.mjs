@@ -35,6 +35,40 @@ function sha512File(filePath) {
 }
 
 /**
+ * 去掉 files 里 url 重复的条目（同名只保留第一条，连带其 sha512/size 子行）。
+ *
+ * electron-builder 在 mac.target 数组里 dmg 显式带 arch 时，会为同一个 dmg
+ * 写两条完全相同的记录（实测 v0.1.1 原始产物：zip + dmg + dmg）。重复条目
+ * 不影响 electron-updater（mac 侧 findFile 只挑 zip），但会让元数据出现指向
+ * 同一文件的多份声明，且只改写第一条时第二条会残留过期 sha512/size。
+ * 只处理有缩进的 files 数组项；顶层 `path:`（无缩进）不受影响。
+ *
+ * @param {string} yamlText
+ * @returns {string}
+ */
+function dedupeFileEntries(yamlText) {
+  const lines = yamlText.split('\n')
+  /** @type {string[]} */
+  const out = []
+  /** @type {Set<string>} */
+  const seen = new Set()
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s+- url: (.+)$/.exec(lines[i])
+    if (m) {
+      const url = m[1].trim()
+      if (seen.has(url)) {
+        // 跳过本条与紧随其后的 sha512/size 子行
+        while (i + 1 < lines.length && /^\s+(sha512|size): /.test(lines[i + 1])) i++
+        continue
+      }
+      seen.add(url)
+    }
+    out.push(lines[i])
+  }
+  return out.join('\n')
+}
+
+/**
  * 修补 update 元数据 YAML：把 url 匹配条目及顶层同名引用的 sha512/size 替换
  * 为新值。纯函数（供单测）；条目不存在时抛错——元数据与产物不一致会直接
  * 破坏自动更新校验，宁可失败也不静默跳过。
@@ -47,12 +81,13 @@ function sha512File(filePath) {
 export function patchUpdateYml(yamlText, filename, patch) {
   const esc = filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   // files[] 条目：- url: <名> / sha512: <旧> / size: <旧>
-  const entryRe = new RegExp(`- url: ${esc}\\n(\\s+sha512: )[^\\n]+\\n(\\s+size: )\\d+`)
-  if (!entryRe.test(yamlText)) {
+  const entrySource = `- url: ${esc}\n(\\s+sha512: )[^\\n]+\\n(\\s+size: )\\d+`
+  if (!new RegExp(entrySource).test(yamlText)) {
     throw new Error(`update yml 中找不到 ${filename} 的更新条目，拒绝产出不一致的元数据`)
   }
+  // 全局替换：electron-builder 可能为同一 dmg 写多条，全部改写后才好去重
   let out = yamlText.replace(
-    entryRe,
+    new RegExp(entrySource, 'g'),
     (_m, shaKey, sizeKey) =>
       `- url: ${filename}\n${shaKey}${patch.sha512}\n${sizeKey}${patch.size}`,
   )
@@ -64,7 +99,7 @@ export function patchUpdateYml(yamlText, filename, patch) {
       ? `${head}${patch.sha512}${sizeKey}${patch.size}`
       : `${head}${patch.sha512}`,
   )
-  return out
+  return dedupeFileEntries(out)
 }
 
 /** 查找输出目录里 latest-mac.yml 登记的 dmg 产物（跳过 hdiutil 残留的隐藏临时文件） */
