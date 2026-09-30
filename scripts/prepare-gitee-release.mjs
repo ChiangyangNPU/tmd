@@ -165,7 +165,9 @@ async function main() {
   if (localMode) return // CI 模式：无需打印手动上传指引
 
   // 待上传清单：安装包与差量索引（元数据走 git 提交，不作为 Release 附件）
-  const uploads = assets.filter((a) => /\.(dmg|exe|blockmap)$/.test(a.name))
+  // mac zip 必须上传：electron-updater 在 macOS 上只识别 zip 更新包，
+  // 缺失会让 autoUpdater 报 "ZIP file not provided"
+  const uploads = assets.filter((a) => /\.(dmg|zip|exe|blockmap)$/.test(a.name))
   console.log(`\n请到 Gitee 创建 Release（标签 ${tag}）并上传以下 ${uploads.length} 个文件：`)
   for (const a of uploads) {
     console.log(`  · ${a.name}（${(a.size / 1e6).toFixed(1)}MB）`)

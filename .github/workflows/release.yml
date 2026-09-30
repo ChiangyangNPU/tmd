@@ -75,6 +75,7 @@ jobs:
           path: |
             release/*.yml
             release/*.dmg
+            release/*.zip
             release/*.exe
             release/*.blockmap
           retention-days: 7
@@ -112,7 +113,7 @@ jobs:
           echo "Publishing to GitHub Release: $TAG"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --notes-file .release-notes.md
-          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
+          for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap release/latest*.yml; do
             [ -f "$f" ] || continue
             gh release upload "$TAG" "$f" --clobber
           done
@@ -216,7 +217,7 @@ jobs:
           }
 
           BIG_FILES=""
-          for f in release/*.dmg release/*.exe; do
+          for f in release/*.dmg release/*.zip release/*.exe; do
             [ -f "$f" ] && BIG_FILES="$BIG_FILES $f"
           done
           for f in $BIG_FILES; do
@@ -229,7 +230,7 @@ jobs:
           done
 
           ATTACH_FAILED=0
-          for f in release/*.dmg release/*.exe release/*.blockmap; do
+          for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
             code_file="/tmp/attach-${name}.code"
@@ -259,7 +260,7 @@ jobs:
             "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID" \
             | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const r=JSON.parse(d);console.log((r.assets||[]).map(a=>a.name).join('\\n'))}catch{console.log('')}})")
           MISSING=0
-          for f in release/*.dmg release/*.exe release/*.blockmap; do
+          for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
             if ! printf '%s\\n' "$REMOTE_ASSETS" | grep -qx "$name"; then
