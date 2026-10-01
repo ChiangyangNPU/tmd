@@ -1,10 +1,10 @@
 version: 0.1.2
 files:
   - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.2/TMD-0.1.2-arm64.dmg
-    sha512: br9l74f+jb9e/bfOytg8SwNFaEfnqmpPJ/asN8uzEzGYWy6FAkUL0J4h3f09wj7Vyg6mnPtXyJn0j9MAjz+lsw==
-    size: 84058709
+    sha512: DcfugZfixuiOfKrKnIEdfmPCTo4a2fLLz1Sceg6GeMFX73y6ezk0xZXJlKqxdExFKyeMUTZ+gObTffBGpB9I9w==
+    size: 84058665
 path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.2/TMD-0.1.2-arm64.dmg
-sha512: br9l74f+jb9e/bfOytg8SwNFaEfnqmpPJ/asN8uzEzGYWy6FAkUL0J4h3f09wj7Vyg6mnPtXyJn0j9MAjz+lsw==
+sha512: DcfugZfixuiOfKrKnIEdfmPCTo4a2fLLz1Sceg6GeMFX73y6ezk0xZXJlKqxdExFKyeMUTZ+gObTffBGpB9I9w==
 releaseNotes: |
   ## [0.1.2] - 2026-10-01
 
@@ -15,4 +15,4 @@ releaseNotes: |
   - **macOS 更新改为「下载 dmg + 手动安装」（弃用 Squirrel 自动安装）**：electron-updater 只做版本检查；发现新版本后由应用自行把 dmg 下载到「下载」目录（`session.downloadURL`，带进度回推与 10s 未启动兜底），依次做元数据 **sha512 校验**（不匹配即删包报错，避免装到截断或被篡改的包）与**清除下载隔离标记**（`xattr -d com.apple.quarantine`——Chromium 下载会给落盘文件打标记，拖进「应用程序」的 app 会继承它，被 Gatekeeper 拦下），完成后弹窗「**关闭应用并打开安装包 / 稍后**」：打开前若有未保存修改先三选处置（保存并继续安装 / 放弃修改并继续安装 / 取消，复用「保存并重启」的握手通道），随后先挂载 dmg（安装窗口由 Finder 接管，应用退出后依然显示）再退出应用，用户把 TMD 拖入「应用程序」即完成安装；设置面板下载完成态显示落盘路径并提供「打开安装包」按钮，三语言补 `updateDownloadedManual` / `updateOpenInstaller`。连带：`mac.target` 移除 zip——112MB 超 Gitee 附件 100MB 上限的 GitHub 分流逻辑随之删除，dmg 约 85MB 直接挂 Gitee，更新源不再依赖 GitHub 连通性；签名保持 ad-hoc（`identity: "-"`），**不能改用 `null`**：跳过签名会残留 Electron 预编译包的 linker-signed 签名，改名、换 Info.plist、裁剪语言包后与实际内容不符，Gatekeeper 据此判「已损坏，无法打开」且该状态下系统设置里没有放行入口（详见 docs/打包发布.md §4）
   - **更新前的未保存修改处置（「保存并重启」）**：更新下载完成后（Windows 的「立即重启」与 macOS 的「打开安装包」两个入口共用同一流程），若存在未保存的修改，不再落入窗口 close 拦截的通用「放弃修改并关闭/取消」确认（语义不对，且叠在更新流程上），改为三选——Windows 为**保存并重启**（主进程经新增的 `tmd:doc-save-request` 通道请求渲染层，走与菜单保存同一条 `saveDocument` 串行队列；另存为对话框开多久都等、不设超时——超时后重启会把未写完的文档留在半路；渲染层以「是否仍有未保存标签」回报结果，任何标签未保存成功都不重启，已暂存的更新由 `autoInstallOnAppQuit` 在下次退出时自动安装）/ **放弃修改并重启**（复用关闭确认的语义：清恢复副本后销毁窗口绕过 beforeunload 的挂起序列化回写，防止被放弃的内容以恢复副本"复活"）/ **稍后**（不退出，下次退出时自动安装）；macOS 同构，按钮语义为「继续安装」。文档干净时维持原确认不变。顺带把关闭确认与更新流程重复的恢复副本清除逻辑提为共用 `clearRendererRecoveryCopy`
   - **`latest-mac.yml` 重复 dmg 条目修复**：electron-builder 在 `mac.target` 数组里 dmg 显式带 `arch` 时，会为同一个 dmg 写两条完全相同的记录（实测原始产物形态 `zip + dmg + dmg`，构建日志确认只构建了一次 DMG）；而 `patch-mac-dmg.mjs` 的正则未加 `g` 标志、只改写第一条，导致第二条残留 dmg 转换前的 sha512/size（指向的文件实际已是 ULMO 版本）。现改为全局替换同名条目并去重，元数据只保留一条 dmg
-releaseDate: '2026-10-01T15:02:46.642Z'
+releaseDate: '2026-10-01T16:28:35.297Z'
