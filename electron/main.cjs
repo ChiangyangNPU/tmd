@@ -677,16 +677,25 @@ function downloadToFile(url, destDir) {
     const timer = setTimeout(() => {
       if (started) return
       ses.removeListener('will-download', onWillDownload)
-      reject(new Error('下载未启动'))
+      reject(new Error('下载未启动（10 秒内未收到下载响应）'))
     }, 10000)
+
+    // 目标文件名：Gitee 附件地址会 302，最终地址不带原路径，按文件名兜底匹配
+    const expectName = new URL(url).pathname.split('/').pop()
 
     /**
      * @param {import('electron').Event} _event
      * @param {import('electron').DownloadItem} item
      */
     function onWillDownload(_event, item) {
-      // 只认本次发起的下载（同一会话同一时刻可能还有其他下载在进行）
-      if (item.getURL() !== url) return
+      // 只认本次发起的下载（同一会话同一时刻可能还有其他下载在进行）。
+      // Gitee 附件地址会 302 到带令牌的最终地址（foruda.gitee.com/...?token=...），
+      // will-download 时 item.getURL() 已是最终地址、与发起 URL 不再相等
+      // （发起地址保留在 getURLChain 里）——实测 v0.1.3 发布当日即因严格相等
+      // 匹配失败而误报「下载未启动」。匹配口径放宽：URL 或重定向链上任一
+      // 与发起一致，或文件名与目标一致
+      const chain = item.getURLChain ? item.getURLChain() : []
+      if (item.getURL() !== url && !chain.includes(url) && item.getFilename() !== expectName) return
       started = true
       clearTimeout(timer)
       ses.removeListener('will-download', onWillDownload)
