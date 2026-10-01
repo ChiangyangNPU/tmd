@@ -53,7 +53,6 @@ const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./hi
 // 应用菜单模板：纯数据工厂（零 Electron 依赖，独立单测），状态与副作用注入见 buildMenu
 const { DEFAULT_MENU_LABELS, buildMenuTemplate } = require('./menu.cjs')
 const os = require('node:os')
-const { execFile } = require('node:child_process')
 const { randomUUID, createHash } = require('node:crypto')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
@@ -652,26 +651,6 @@ async function verifySha512(filePath, expectedBase64) {
 }
 
 /**
- * 清除文件的下载隔离标记（com.apple.quarantine）。
- *
- * Chromium 的下载栈会给落盘文件打上该标记，用户拖进「应用程序」的 app 会
- * 继承它——Gatekeeper 随即介入，而本项目 build.mac.identity 为 null（跳过
- * 签名；Electron 预编译包自带的 linker-signed 签名在改名、换 Info.plist、
- * 裁剪语言包后与实际内容不符），会被判「已损坏，无法打开」。dmg 由我们自己
- * 下载、且已通过 sha512 校验（来源可信），故主动清除标记，让用户装完直接
- * 双击即可使用。
- *
- * 文件本就没有该标记时 xattr 会返回非零，属正常情况，静默忽略。
- * @param {string} filePath
- * @returns {Promise<void>}
- */
-function clearQuarantine(filePath) {
-  return new Promise((resolve) => {
-    execFile('xattr', ['-d', 'com.apple.quarantine', filePath], () => resolve())
-  })
-}
-
-/**
  * macOS 更新包下载：把 dmg 下到用户的下载目录，并引导手动安装。
  *
  * 为什么不走 autoUpdater.downloadUpdate()：那条路交给 Squirrel.Mac，而它会
@@ -690,8 +669,6 @@ async function downloadMacInstaller(info) {
     // 完整性校验：electron-updater 的 downloadUpdate 本会校验元数据里的 sha512，
     // 自行下载必须补上——否则传输截断或被篡改时无从察觉
     await verifySha512(dest, file.sha512)
-    // 去掉下载隔离标记：否则用户拖进「应用程序」的 app 会被 Gatekeeper 判「已损坏」
-    await clearQuarantine(dest)
     sendToRenderer(IPC.updateStatus, { status: 'downloaded', path: dest })
     const { response } = await showMessageBoxSafe({
       type: 'info',
