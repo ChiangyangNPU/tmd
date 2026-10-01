@@ -1,12 +1,14 @@
-version: 0.1.3
+version: 0.1.4
 files:
-  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.3/TMD-0.1.3-arm64.dmg
-    sha512: wD3Xyyh+EwSm1dIFeH4JZf2sz4ZaBICvR+hvzjlZ+dTQKRRUPXLGKBCsHZdhTfp9CAtoAPPJCQb5vgRsd7QkFw==
-    size: 84058905
-path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.3/TMD-0.1.3-arm64.dmg
-sha512: wD3Xyyh+EwSm1dIFeH4JZf2sz4ZaBICvR+hvzjlZ+dTQKRRUPXLGKBCsHZdhTfp9CAtoAPPJCQb5vgRsd7QkFw==
+  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.4/TMD-0.1.4-arm64.dmg
+    sha512: n8aL30rcHby4m0Z9EGIS7cYmB/QHHAn5cyuNf9GYFF7SP6q7LdOrcXywFQK4WY/zbnLHiDTMghbCpgdeQH1rQw==
+    size: 84067753
+path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.4/TMD-0.1.4-arm64.dmg
+sha512: n8aL30rcHby4m0Z9EGIS7cYmB/QHHAn5cyuNf9GYFF7SP6q7LdOrcXywFQK4WY/zbnLHiDTMghbCpgdeQH1rQw==
 releaseNotes: |
-  ## [0.1.3] - 2026-10-01
+  ## [0.1.4] - 2026-10-01
 
-  端到端升级验证版本：与 0.1.2 代码一致，专用于验证 macOS 新更新链路「检查更新 → 应用内下载 dmg（sha512 校验 + 清隔离标记）→ 关闭应用并打开安装包 → 拖入「应用程序」」的完整升级体验——这是 macOS 更新改为手动安装方案后的首次真实升级。
-releaseDate: '2026-10-01T22:42:02.518Z'
+  ### 修复
+
+  - **macOS 更新包下载误报「下载未启动」且进度不显示**：Gitee 附件地址会 302 跳转到带令牌的最终地址（`foruda.gitee.com/...?token=...`），`will-download` 事件触发时 `item.getURL()` 已是最终地址、与发起 URL 不再相等（发起地址保留在 `getURLChain()` 里）——下载监听按「URL 严格相等」匹配随即失败，10 秒兜底误报「下载未启动」，设置面板不显示进度，而 Chromium 按默认行为继续下载到「下载」目录（表现为「后台在下载但界面报失败」）。实测 Gitee 跳转响应仅 839ms，非慢响应问题。现放宽匹配口径：URL 或重定向链上任一与发起一致，或文件名与目标一致，三者中其一即接管下载（进度回推、落盘路径控制随之恢复）
+releaseDate: '2026-10-01T22:56:18.250Z'
