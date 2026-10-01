@@ -503,6 +503,14 @@ async function boot() {
       }
     })
 
+    // 更新重启前的保存握手（「保存并重启」）：走与菜单保存同一条
+    // saveDocument 串行队列（写盘成功清脏 / 失败保留脏标记 / 另存为取消不动），
+    // 结束后回报结果——以「是否仍有未保存标签」为准，任何标签未保存成功
+    // 都回报 false，主进程据此不重启（暂存的更新由 autoInstallOnAppQuit 兜底）
+    native?.onSaveRequest(() => {
+      void saveDocument().then(() => native?.reportSaveResult(!hasDirty()))
+    })
+
     // 菜单（Electron）
     native?.onMenu((action) => {
       // 格式化命令：统一走 format 命令层；仅在所见即所得为可编辑侧时生效——

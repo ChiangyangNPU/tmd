@@ -62,8 +62,12 @@ export interface NativeFileAPI {
   checkForUpdates(): Promise<void>
   /** 用户同意后触发下载 */
   downloadUpdate(): void
-  /** 安装已下载的更新并重启 */
+  /** 安装已下载的更新并重启（有未保存修改时主进程会先三选处置） */
   installUpdate(): void
+  /** 「保存并重启」握手：主进程请求保存当前文档（更新重启前的脏文档处置） */
+  onSaveRequest(callback: () => void): void
+  /** 保存请求处理完毕回报：true=已保存干净（可安全重启），false=失败/被取消 */
+  reportSaveResult(ok: boolean): void
   /** 监听主进程推送的更新状态变化 */
   onUpdateStatus(callback: (status: UpdateStatus) => void): void
   /** 同步"启动时自动检查更新"开关给主进程 */
@@ -268,6 +272,10 @@ export interface IpcChannels {
   updateDownload: string
   updateInstall: string
   updateAutoCheck: string
+  /** 「保存并重启」握手：主进程请求渲染层保存当前文档 */
+  docSaveRequest: string
+  /** 「保存并重启」握手：渲染层回报保存结果 */
+  docSaveResult: string
   setThemeSource: string
   winMinimize: string
   winMaximizeToggle: string

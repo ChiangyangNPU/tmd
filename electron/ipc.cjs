@@ -32,6 +32,12 @@ const channels = {
   updateDownload: 'tmd:update-download',
   updateInstall: 'tmd:update-install',
   updateAutoCheck: 'tmd:update-auto-check',
+  // 更新重启握手：「保存并重启」时主进程请求渲染层保存当前文档，渲染层
+  // 处理完回报结果——另存为对话框 / 写盘耗时都在等待范围内，主进程不设超时
+  // （超时后重启会把未写完的文档留在半路；悬挂的代价只是更新不立即安装，
+  // autoInstallOnAppQuit 会在下次退出时兜底）
+  docSaveRequest: 'tmd:doc-save-request',
+  docSaveResult: 'tmd:doc-save-result',
   setThemeSource: 'tmd:set-theme-source',
   winMinimize: 'tmd:win-minimize',
   winMaximizeToggle: 'tmd:win-maximize-toggle',

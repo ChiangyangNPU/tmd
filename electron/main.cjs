@@ -226,11 +226,32 @@ let customShortcuts = {}
 /** @type {string[]} */
 const pendingOpenPaths = []
 
-/** @param {string} channel @param {unknown} payload */
+/** @param {string} channel @param {unknown} [payload] */
 function sendToRenderer(channel, payload) {
   // 只发主窗口：兜底取 getAllWindows()[0] 可能选中隐藏的离屏导出窗口——
   // 它没有对应的渲染层 handler，消息只会静默丢失；主窗口不在时干脆不发
   mainWindow?.webContents.send(channel, payload)
+}
+
+/**
+ * 清除渲染层 localStorage 的恢复副本（关闭确认的「放弃修改并关闭」与更新重启
+ * 的「放弃修改并重启」共用）。用户明确放弃修改：绕过渲染层 beforeunload，需在
+ * 主进程直接清除，否则下次启动会"复活"被放弃的内容（与"放弃修改"语义冲突）。
+ * 注意：此键名与渲染层 src/store.ts 的 DOC_KEY 一致，改键名时须同步。
+ * 渲染层卡死（非崩溃）时 executeJavaScript 永不返回——3s 兜底后放弃清除
+ * （副本多留一份的代价小于流程卡死）。
+ */
+async function clearRendererRecoveryCopy() {
+  try {
+    await Promise.race([
+      mainWindow?.webContents.executeJavaScript(
+        "localStorage.removeItem('tmd:doc:v1')",
+      ),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ])
+  } catch (err) {
+    console.warn('[tmd] 清除恢复副本失败', err)
+  }
 }
 
 /** @param {string} filePath */
@@ -475,22 +496,7 @@ function createWindow() {
         closingDialogOpen = false
         if (response !== 0) return
         rendererDirty = false
-        // 用户明确放弃修改：绕过渲染层 beforeunload，需在主进程直接清除恢复副本，
-        // 否则下次启动会"复活"被放弃的内容（与"放弃修改"语义冲突）。
-        // 注意：此键名与渲染层 src/store.ts 的 DOC_KEY 一致，改键名时须同步
-        try {
-          // 渲染层卡死（非崩溃）时 executeJavaScript 永不返回，destroy 将被
-          // 无限挂起——3s 兜底后放弃清除直接销毁（副本多留一份的代价小于
-          // 窗口关不掉）
-          await Promise.race([
-            mainWindow?.webContents.executeJavaScript(
-              "localStorage.removeItem('tmd:doc:v1')",
-            ),
-            new Promise((resolve) => setTimeout(resolve, 3000)),
-          ])
-        } catch (err) {
-          console.warn('[tmd] 清除恢复副本失败', err)
-        }
+        await clearRendererRecoveryCopy()
         mainWindow?.destroy()
       })
       .catch((err) => {
@@ -512,6 +518,88 @@ function setUpdateSource(source) {
   autoUpdater.setFeedURL(source === 'gitee' ? GITEE_SOURCE : GITHUB_SOURCE)
   // 切换源后允许出错时再切换到另一个源
   updateSourceSwitched = false
+}
+
+/**
+ * 请求渲染层保存当前文档并等待结果回报（「保存并重启」的握手）。
+ * 不设超时：另存为对话框开多久都得等——超时后重启会把未写完的文档留在半路；
+ * 悬挂的代价只是更新不立即安装（autoInstallOnAppQuit 在下次退出时兜底）。
+ * 同一时刻至多一个待决保存请求（弹窗本身模态），先清旧监听防叠加。
+ * @returns {Promise<boolean>} true=已保存干净（脏标记已清），false=失败/被取消/渲染层无响应
+ */
+function requestRendererSave() {
+  return new Promise((resolve) => {
+    ipcMain.removeAllListeners(IPC.docSaveResult)
+    ipcMain.once(IPC.docSaveResult, (_event, ok) => resolve(ok === true))
+    sendToRenderer(IPC.docSaveRequest)
+  })
+}
+
+/**
+ * 安装已下载的更新——update-downloaded 弹窗与设置面板「立即重启」共用入口。
+ * 文档干净：确认后 quitAndInstall（Squirrel 退出时从暂存 zip 原子替换
+ * /Applications/TMD.app 并重启，全程无需用户动手）。
+ * 有未保存修改：不落入窗口 close 拦截的通用「放弃修改并关闭/取消」确认
+ * （语义不对且叠在更新流程上），改为三选——保存并重启 / 放弃修改并重启 /
+ * 稍后。「稍后」不退出，由 autoInstallOnAppQuit 在下次退出时自动安装。
+ */
+async function installDownloadedUpdate() {
+  // 主窗口已不在（渲染层进程随之消失）：无脏数据可言，直接走干净重启
+  if (!mainWindow || !rendererDirty) {
+    const { response } = await showMessageBoxSafe({
+      type: 'info',
+      title: 'TMD',
+      message: '下载完成，重启以安装',
+      detail: '应用将关闭并安装更新后重新启动。',
+      buttons: ['立即重启', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    if (response === 0) autoUpdater.quitAndInstall()
+    return
+  }
+  try {
+    const { response } = await showMessageBoxSafe({
+      type: 'warning',
+      title: 'TMD',
+      message: '下载完成，重启以安装',
+      detail: '有未保存的修改，重启前需要先处理。',
+      // 默认落在「保存并重启」：数据安全优先
+      buttons: ['保存并重启', '放弃修改并重启', '稍后'],
+      defaultId: 0,
+      cancelId: 2,
+    })
+    if (response === 2) return
+    if (response === 1) {
+      // 放弃修改并重启：与关闭确认的「放弃修改并关闭」同语义——先清恢复副本，
+      // 再销毁窗口绕过 beforeunload 的挂起序列化回写，防止被放弃的内容
+      // 以恢复副本"复活"；窗口没了之后再走更新重启（Squirrel 不依赖窗口）
+      rendererDirty = false
+      await clearRendererRecoveryCopy()
+      mainWindow?.destroy()
+      autoUpdater.quitAndInstall()
+      return
+    }
+    // 保存并重启：saveDocument 成功后渲染层会先同步 setDirty(false)
+    // 再回报结果，quitAndInstall 走 close 拦截时 rendererDirty 已是 false
+    const saved = await requestRendererSave()
+    if (saved) {
+      autoUpdater.quitAndInstall()
+      return
+    }
+    // 保存失败/被另存为取消（渲染层已 toast 过失败原因）：留在应用内由用户处理
+    showMessageBoxSafe({
+      type: 'info',
+      title: 'TMD',
+      message: '暂不重启',
+      detail: '文档未能保存，应用没有重启。已下载的更新会在下次退出时自动安装。',
+      buttons: ['确定'],
+      defaultId: 0,
+    }).catch(() => {})
+  } catch (err) {
+    // 对话框本身失败（极少见）：停在原地，更新留给下次退出自动安装
+    console.warn('[tmd] 更新重启流程中断', err)
+  }
 }
 
 /**
@@ -586,17 +674,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on('update-downloaded', () => {
     sendToRenderer(IPC.updateStatus, { status: 'downloaded' })
-    showMessageBoxSafe({
-      type: 'info',
-      title: 'TMD',
-      message: '下载完成，重启以安装',
-      detail: '应用将关闭并安装更新后重新启动。',
-      buttons: ['立即重启', '稍后'],
-      defaultId: 0,
-      cancelId: 1,
-    }).then(({ response }) => {
-      if (response === 0) autoUpdater.quitAndInstall()
-    })
+    void installDownloadedUpdate()
   })
 
   autoUpdater.on('error', (err) => {
@@ -1102,9 +1180,9 @@ ipcMain.handle(IPC.updateDownload, async () => {
   }
 })
 
-// 安装已下载的更新
+// 安装已下载的更新（设置面板「立即重启」）：有未保存修改时先三选处置
 ipcMain.handle(IPC.updateInstall, () => {
-  autoUpdater.quitAndInstall()
+  void installDownloadedUpdate()
 })
 
 // 渲染层同步"启动时自动检查更新"开关

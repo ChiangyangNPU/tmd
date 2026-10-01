@@ -78,8 +78,14 @@ const api = {
   checkForUpdates: () => ipcRenderer.invoke(IPC.updateCheck),
   /** 用户同意后触发下载 */
   downloadUpdate: () => ipcRenderer.invoke(IPC.updateDownload),
-  /** 安装已下载的更新并重启 */
+  /** 安装已下载的更新并重启（有未保存修改时主进程会先三选处置） */
   installUpdate: () => ipcRenderer.invoke(IPC.updateInstall),
+  /** 「保存并重启」握手：主进程请求保存当前文档（更新重启前的脏文档处置） */
+  onSaveRequest: (callback) => {
+    ipcRenderer.on(IPC.docSaveRequest, () => callback())
+  },
+  /** 保存请求处理完毕回报：true=已保存干净（可安全重启），false=失败/被取消 */
+  reportSaveResult: (ok) => ipcRenderer.send(IPC.docSaveResult, ok),
   /** 监听主进程推送的更新状态变化 */
   onUpdateStatus: (callback) => {
     ipcRenderer.on(IPC.updateStatus, (_event, status) => callback(status))
