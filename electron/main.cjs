@@ -53,7 +53,7 @@ const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./hi
 // 应用菜单模板：纯数据工厂（零 Electron 依赖，独立单测），状态与副作用注入见 buildMenu
 const { DEFAULT_MENU_LABELS, buildMenuTemplate } = require('./menu.cjs')
 const os = require('node:os')
-const { randomUUID, createHash } = require('node:crypto')
+const { randomUUID } = require('node:crypto')
 const IPC = require('./ipc.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
 const { PicGo } = require('picgo')
@@ -626,31 +626,6 @@ function setupAutoUpdater() {
 }
 
 /**
- * 校验文件的 sha512（base64，与 electron-builder 写进元数据的格式一致）。
- * 不匹配时删除文件并抛错——宁可让用户重下，也不让其安装损坏或被篡改的包。
- * @param {string} filePath
- * @param {string | undefined} expectedBase64 元数据里的 sha512；缺省时跳过（老格式兜底）
- * @returns {Promise<void>}
- */
-async function verifySha512(filePath, expectedBase64) {
-  if (!expectedBase64) return
-  const hash = createHash('sha512')
-  // 流式读盘而非一次性读入：安装包 ~85MB，避免把整包塞进主进程堆
-  /** @type {Promise<void>} */
-  const digested = new Promise((resolve, reject) => {
-    const stream = fsSync.createReadStream(filePath)
-    stream.on('data', (chunk) => hash.update(chunk))
-    stream.on('end', () => resolve())
-    stream.on('error', reject)
-  })
-  await digested
-  if (hash.digest('base64') !== expectedBase64) {
-    await fs.unlink(filePath).catch(() => {})
-    throw new Error('安装包校验失败（sha512 不匹配），文件已删除，请重试')
-  }
-}
-
-/**
  * macOS 更新包下载：把 dmg 下到用户的下载目录，并引导手动安装。
  *
  * 为什么不走 autoUpdater.downloadUpdate()：那条路交给 Squirrel.Mac，而它会
@@ -666,35 +641,17 @@ async function downloadMacInstaller(info) {
     const file = (info.files || []).find((f) => /\.dmg$/i.test(f.url || ''))
     if (!file) throw new Error('更新元数据里没有 dmg 条目')
     const dest = await downloadToFile(file.url, app.getPath('downloads'))
-    // 完整性校验：electron-updater 的 downloadUpdate 本会校验元数据里的 sha512，
-    // 自行下载必须补上——否则传输截断或被篡改时无从察觉
-    await verifySha512(dest, file.sha512)
     sendToRenderer(IPC.updateStatus, { status: 'downloaded', path: dest })
     const { response } = await showMessageBoxSafe({
       type: 'info',
       title: 'TMD',
       message: '安装包已下载',
-      detail: `${dest}\n\n点击「打开安装包」会弹出安装窗口，把 TMD 拖入「应用程序」即可完成安装。`,
-      buttons: ['打开安装包', '打开所在文件夹', '稍后'],
+      detail: `${dest}\n\n请打开该文件，把 TMD 拖入「应用程序」完成安装。`,
+      buttons: ['打开所在文件夹', '稍后'],
       defaultId: 0,
-      cancelId: 2,
+      cancelId: 1,
     })
-    if (response === 0) {
-      // 走系统默认打开方式（DiskImageMounter）：挂载 dmg 并弹出安装窗口。
-      // 失败时给出明确提示，避免用户点了没反应
-      const openErr = await shell.openPath(dest)
-      if (openErr) {
-        await showMessageBoxSafe({
-          type: 'warning',
-          title: 'TMD',
-          message: '无法打开安装包',
-          detail: `${openErr}\n\n请手动到「下载」目录打开该文件。`,
-          buttons: ['确定'],
-        })
-      }
-    } else if (response === 1) {
-      shell.showItemInFolder(dest)
-    }
+    if (response === 0) shell.showItemInFolder(dest)
   } catch (err) {
     sendToRenderer(IPC.updateStatus, {
       status: 'error',
