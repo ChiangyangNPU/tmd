@@ -62,7 +62,7 @@ export interface NativeFileAPI {
   checkForUpdates(): Promise<void>
   /** 用户同意后触发下载 */
   downloadUpdate(): void
-  /** 安装已下载的更新并重启（有未保存修改时主进程会先三选处置） */
+  /** 安装已下载的更新：macOS 打开 dmg 引导手动安装并退出应用；Windows 重启安装 */
   installUpdate(): void
   /** 「保存并重启」握手：主进程请求保存当前文档（更新重启前的脏文档处置） */
   onSaveRequest(callback: () => void): void
@@ -230,7 +230,11 @@ export type UpdateStatus =
   | { status: 'available'; version: string; releaseNotes?: string }
   | { status: 'not-available' }
   | { status: 'downloading'; percent: number }
-  | { status: 'downloaded' }
+  /**
+   * 下载完成。path 为「手动安装模式」的安装包落盘路径（macOS 下载 dmg 后
+   * 提示用户自行拖入「应用程序」）；缺省表示自动安装模式（Windows，走
+   * electron-updater） */
+  | { status: 'downloaded'; path?: string }
   | { status: 'error'; message: string }
 
 declare global {

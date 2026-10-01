@@ -712,9 +712,20 @@ export function wireSettings() {
         updateInstallBtn.hidden = true
         break
       case 'downloaded':
-        updateStatus.textContent = t('settings.updateDownloaded')
         updateCheckBtn.disabled = true
         updateInstallBtn.hidden = false
+        if (status.path) {
+          // macOS 手动安装模式：提示落盘路径，按钮语义为「打开安装包」
+          // （关闭应用并挂载 dmg，引导拖入「应用程序」）
+          updateStatus.textContent = t('settings.updateDownloadedManual', {
+            path: status.path,
+          })
+          updateInstallBtn.textContent = t('settings.updateOpenInstaller')
+        } else {
+          // Windows 自动安装模式：重启即装
+          updateStatus.textContent = t('settings.updateDownloaded')
+          updateInstallBtn.textContent = t('settings.updateInstall')
+        }
         break
       case 'error':
         updateStatus.textContent = t('settings.updateError', { message: status.message })

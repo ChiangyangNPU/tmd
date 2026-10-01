@@ -288,6 +288,8 @@
     "updateNotAvailable": "当前已是最新版本",
     "updateDownloading": "下载中 {percent}%",
     "updateDownloaded": "下载完成，重启以安装",
+    "updateDownloadedManual": "安装包已下载到 {path}，打开它并拖入「应用程序」完成安装",
+    "updateOpenInstaller": "打开安装包",
     "updateError": "更新失败：{message}",
     "updateInstall": "立即重启",
     "logs": "日志与诊断",

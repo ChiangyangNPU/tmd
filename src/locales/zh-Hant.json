@@ -288,6 +288,8 @@
     "updateNotAvailable": "目前已是最新版本",
     "updateDownloading": "下載中 {percent}%",
     "updateDownloaded": "下載完成，重新啟動以安裝",
+    "updateDownloadedManual": "安裝包已下載到 {path}，打開它並拖入「應用程式」完成安裝",
+    "updateOpenInstaller": "打開安裝包",
     "updateError": "更新失敗：{message}",
     "updateInstall": "立即重新啟動",
     "logs": "日誌與診斷",

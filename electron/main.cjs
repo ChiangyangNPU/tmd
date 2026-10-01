@@ -29,6 +29,8 @@ const {
 const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
+const { execFile } = require('node:child_process')
+const { createHash } = require('node:crypto')
 const {
   collectSearchFiles,
   searchInFiles,
@@ -196,6 +198,12 @@ let currentUpdateSource = 'gitee'
 let autoCheckUpdateEnabled = false
 /** 最近一次更新检查是否来自用户手动触发（菜单）；自动检查置 false */
 let updateCheckManual = false
+/** 最近一次 update-available 的元数据（macOS 手动下载 dmg 时取下载地址用） */
+/** @type {import('electron-updater').UpdateInfo | null} */
+let lastUpdateInfo = null
+/** macOS 已下载并校验通过的 dmg 落盘路径（「打开安装包」用） */
+/** @type {string | null} */
+let downloadedInstallerPath = null
 /** 是否已因出错切换过源（避免 error 事件中无限切换重试） */
 let updateSourceSwitched = false
 
@@ -602,6 +610,202 @@ async function installDownloadedUpdate() {
   }
 }
 
+// ---------- macOS：自行下载 dmg + 引导手动安装 ----------
+// 为什么不走 autoUpdater.downloadUpdate()：那条路的安装环节交给 Squirrel.Mac，
+// 实测在 macOS 26 + electron-updater 6.8.9 下两轮复现失败——electron-updater
+// 下载完成后经本地代理把包交给 Squirrel，Squirrel 侧却始终零连接、ShipIt 暂存
+// 目录为空、无任何错误上报，「立即重启」也只是静默挂号，更新永远装不上。故
+// macOS 只用 electron-updater 做版本检查，安装包由这里自行下载，引导用户手动
+// 拖入「应用程序」。
+
+/**
+ * 校验安装包 sha512 与元数据一致。
+ * electron-updater 的 downloadUpdate 本会校验元数据里的 sha512，自行下载必须
+ * 补上——否则传输截断或被篡改时无从察觉。
+ * @param {string} filePath
+ * @param {string | undefined} expectedBase64 元数据里的 sha512；缺省时跳过（老格式兜底）
+ * @returns {Promise<void>}
+ */
+async function verifySha512(filePath, expectedBase64) {
+  if (!expectedBase64) return
+  const hash = createHash('sha512')
+  // 流式读盘而非一次性读入：安装包 ~85MB，避免把整包塞进主进程堆
+  /** @type {Promise<void>} */
+  const digested = new Promise((resolve, reject) => {
+    const stream = fsSync.createReadStream(filePath)
+    stream.on('data', (chunk) => hash.update(chunk))
+    stream.on('end', () => resolve())
+    stream.on('error', reject)
+  })
+  await digested
+  if (hash.digest('base64') !== expectedBase64) {
+    await fs.unlink(filePath).catch(() => {})
+    throw new Error('安装包校验失败（sha512 不匹配），文件已删除，请重试')
+  }
+}
+
+/**
+ * 清除下载隔离标记（com.apple.quarantine）。
+ * Chromium 的下载栈会给落盘文件打上该标记，用户拖进「应用程序」的 app 会
+ * 继承它；本项目为 ad-hoc 签名（build.mac.identity = "-"，不使用开发者证书、
+ * 裁剪语言包后与实际内容不符），会被判「已损坏，无法打开」。dmg 由我们自己
+ * 下载、且已通过 sha512 校验（来源可信），故主动清除标记，让用户装完直接
+ * 双击即可使用。
+ *
+ * 文件本就没有该标记时 xattr 会返回非零，属正常情况，静默忽略。
+ * @param {string} filePath
+ * @returns {Promise<void>}
+ */
+function clearQuarantine(filePath) {
+  return new Promise((resolve) => {
+    execFile('xattr', ['-d', 'com.apple.quarantine', filePath], () => resolve())
+  })
+}
+
+/**
+ * 下载 URL 到指定目录，返回落盘绝对路径。
+ * 走 session.downloadURL + will-download，复用 Electron 自身的下载栈
+ * （自动处理重定向），并借 updated 事件回推进度。
+ * @param {string} url
+ * @param {string} destDir
+ * @returns {Promise<string>}
+ */
+function downloadToFile(url, destDir) {
+  return new Promise((resolve, reject) => {
+    const ses = mainWindow?.webContents.session ?? session.defaultSession
+    let started = false
+    const timer = setTimeout(() => {
+      if (started) return
+      ses.removeListener('will-download', onWillDownload)
+      reject(new Error('下载未启动'))
+    }, 10000)
+
+    /**
+     * @param {import('electron').Event} _event
+     * @param {import('electron').DownloadItem} item
+     */
+    function onWillDownload(_event, item) {
+      // 只认本次发起的下载（同一会话同一时刻可能还有其他下载在进行）
+      if (item.getURL() !== url) return
+      started = true
+      clearTimeout(timer)
+      ses.removeListener('will-download', onWillDownload)
+      const dest = path.join(destDir, item.getFilename())
+      item.setSavePath(dest)
+      item.on('updated', (_e, state) => {
+        if (state !== 'progressing') return
+        const total = item.getTotalBytes()
+        sendToRenderer(IPC.updateStatus, {
+          status: 'downloading',
+          percent: total > 0 ? (item.getReceivedBytes() / total) * 100 : 0,
+        })
+      })
+      item.once('done', (_e, state) => {
+        if (state === 'completed') resolve(dest)
+        else reject(new Error(`下载未完成（${state}）`))
+      })
+    }
+
+    ses.on('will-download', onWillDownload)
+    ses.downloadURL(url)
+  })
+}
+
+/**
+ * macOS 更新安装包下载：把 dmg 下到用户的下载目录并引导手动安装。
+ * 依次做 sha512 校验（防截断/篡改）与清除下载隔离标记（防 Gatekeeper 判
+ * 「已损坏」），完成后弹窗引导「关闭应用并打开安装包」。
+ * @param {import('electron-updater').UpdateInfo} info
+ */
+async function downloadMacInstaller(info) {
+  try {
+    const file = (info.files || []).find((f) => /\.dmg$/i.test(f.url || ''))
+    if (!file) throw new Error('更新元数据里没有 dmg 条目')
+    const dest = await downloadToFile(file.url, app.getPath('downloads'))
+    await verifySha512(dest, file.sha512)
+    // 去掉下载隔离标记：否则用户拖进「应用程序」的 app 会被 Gatekeeper 拦下
+    await clearQuarantine(dest)
+    downloadedInstallerPath = dest
+    sendToRenderer(IPC.updateStatus, { status: 'downloaded', path: dest })
+    const { response } = await showMessageBoxSafe({
+      type: 'info',
+      title: 'TMD',
+      message: '安装包已下载',
+      detail: `${dest}\n\n点击「关闭应用并打开安装包」会退出应用并弹出安装窗口，把 TMD 拖入「应用程序」即可完成安装。`,
+      buttons: ['关闭应用并打开安装包', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    if (response === 0) void openDownloadedInstallerAndQuit()
+  } catch (err) {
+    sendToRenderer(IPC.updateStatus, {
+      status: 'error',
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
+/**
+ * 打开已下载的 dmg 并退出应用（下载完成弹窗与设置面板「打开安装包」共用）。
+ * 有未保存修改时先三选处置（保存 / 放弃 / 取消）。顺序上先 openPath 挂载
+ * dmg 再退出应用：安装窗口由 Finder 接管，应用退出后依然显示，避免
+ * 「点了之后应用关了却什么都没发生」的空窗。
+ * @returns {Promise<void>}
+ */
+async function openDownloadedInstallerAndQuit() {
+  if (!downloadedInstallerPath) return
+  try {
+    if (rendererDirty && mainWindow) {
+      const { response } = await showMessageBoxSafe({
+        type: 'warning',
+        title: 'TMD',
+        message: '准备安装更新',
+        detail: '有未保存的修改，关闭应用前需要先处理。',
+        buttons: ['保存并继续安装', '放弃修改并继续安装', '取消'],
+        // 默认落在「保存并继续安装」：数据安全优先
+        defaultId: 0,
+        cancelId: 2,
+      })
+      if (response === 2) return
+      if (response === 1) {
+        // 与关闭确认的「放弃修改并关闭」同语义：清恢复副本，防止被放弃的
+        // 内容以恢复副本"复活"
+        rendererDirty = false
+        await clearRendererRecoveryCopy()
+      } else {
+        const saved = await requestRendererSave()
+        if (!saved) {
+          // 保存失败/被另存为取消（渲染层已 toast 过失败原因）：留在应用内
+          showMessageBoxSafe({
+            type: 'info',
+            title: 'TMD',
+            message: '暂不安装',
+            detail: '文档未能保存，应用没有关闭。稍后可在设置面板重新打开安装包。',
+            buttons: ['确定'],
+            defaultId: 0,
+          }).catch(() => {})
+          return
+        }
+      }
+    }
+    const openErr = await shell.openPath(downloadedInstallerPath)
+    if (openErr) {
+      // 失败时给出明确提示并留在应用内，避免用户点了没反应
+      await showMessageBoxSafe({
+        type: 'warning',
+        title: 'TMD',
+        message: '无法打开安装包',
+        detail: `${openErr}\n\n请手动到「下载」目录打开该文件。`,
+        buttons: ['确定'],
+      })
+      return
+    }
+    app.quit()
+  } catch (err) {
+    console.warn('[tmd] 打开安装包流程中断', err)
+  }
+}
+
 /**
  * 装配自动更新：监听 electron-updater 事件，经 IPC 推送状态给渲染层。
  * 发现新版本后用原生 dialog 询问用户，不静默下载。
@@ -625,13 +829,17 @@ function setupAutoUpdater() {
       status: 'available',
       version: info.version,
     })
+    lastUpdateInfo = info
+    const isMac = process.platform === 'darwin'
     /** @type {import('electron').MessageBoxOptions} */
     const boxOptions = {
       type: 'info',
       title: 'TMD',
       message: `发现新版本 ${info.version}`,
-      detail: '是否立即下载更新？',
-      buttons: ['下载更新', '稍后'],
+      detail: isMac
+        ? '是否下载安装包？下载后需手动打开并拖入「应用程序」完成安装。'
+        : '是否立即下载更新？',
+      buttons: isMac ? ['下载安装包', '稍后'] : ['下载更新', '稍后'],
       defaultId: 0,
       cancelId: 1,
     }
@@ -639,12 +847,19 @@ function setupAutoUpdater() {
     showMessageBoxSafe(boxOptions)
       .then(({ response }) => {
         if (response === 0) {
-          autoUpdater.downloadUpdate().catch((err) => {
-            sendToRenderer(IPC.updateStatus, {
-              status: 'error',
-              message: err instanceof Error ? err.message : String(err),
+          if (isMac) {
+            // 不走 autoUpdater.downloadUpdate()：macOS 交给 Squirrel.Mac 的
+            // 路径实测不可靠（见 downloadMacInstaller 处注释），改为自行
+            // 下载 dmg 引导手动安装
+            void downloadMacInstaller(info)
+          } else {
+            autoUpdater.downloadUpdate().catch((err) => {
+              sendToRenderer(IPC.updateStatus, {
+                status: 'error',
+                message: err instanceof Error ? err.message : String(err),
+              })
             })
-          })
+          }
         } else {
           sendToRenderer(IPC.updateStatus, { status: 'idle' })
         }
@@ -1171,6 +1386,13 @@ ipcMain.handle(IPC.updateCheck, async () => {
 // 用户同意下载
 ipcMain.handle(IPC.updateDownload, async () => {
   try {
+    // macOS 不走 electron-updater 下载（Squirrel 路径不可靠，见
+    // downloadMacInstaller 注释）：从最近一次 update-available 的元数据
+    // 自行下载 dmg
+    if (process.platform === 'darwin') {
+      if (lastUpdateInfo) await downloadMacInstaller(lastUpdateInfo)
+      return
+    }
     await autoUpdater.downloadUpdate()
   } catch (err) {
     sendToRenderer(IPC.updateStatus, {
@@ -1180,9 +1402,14 @@ ipcMain.handle(IPC.updateDownload, async () => {
   }
 })
 
-// 安装已下载的更新（设置面板「立即重启」）：有未保存修改时先三选处置
+// 安装已下载的更新：macOS 打开 dmg 引导手动安装并退出应用；
+// Windows 走 electron-updater 重启安装（有未保存修改时先三选处置）
 ipcMain.handle(IPC.updateInstall, () => {
-  void installDownloadedUpdate()
+  if (process.platform === 'darwin') {
+    void openDownloadedInstallerAndQuit()
+  } else {
+    void installDownloadedUpdate()
+  }
 })
 
 // 渲染层同步"启动时自动检查更新"开关

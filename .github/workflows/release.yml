@@ -75,7 +75,6 @@ jobs:
           path: |
             release/*.yml
             release/*.dmg
-            release/*.zip
             release/*.exe
             release/*.blockmap
           retention-days: 7
@@ -116,7 +115,7 @@ jobs:
           # 兜底转正：gh release view 只判断「存在」，不区分 draft；若已有同名
           # draft（更新器完全不可见，会卡死 GitHub 源自动更新）则强制发布
           gh release edit "$TAG" --draft=false
-          for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap release/latest*.yml; do
+          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
             [ -f "$f" ] || continue
             gh release upload "$TAG" "$f" --clobber
           done
@@ -128,7 +127,7 @@ jobs:
             echo "::error::GitHub Release 仍为 draft 状态，electron-updater 不可见"
             MISSING=1
           fi
-          for f in release/*.dmg release/*.zip release/*.exe release/*.blockmap release/latest*.yml; do
+          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
             if node -e "
@@ -244,8 +243,8 @@ jobs:
             echo "$code" > "/tmp/attach-${name}.code"
           }
 
-          # mac zip 不在其中：体积约 112MB，超 Gitee 附件 100MB 上限，
-          # 只发 GitHub Release（元数据里它的下载地址已指向 GitHub）
+          # 大文件并行上传：dmg 约 85MB、exe 约 96MB，均在 Gitee 附件单文件
+          # 100MB 上限内（不再产出 mac zip，macOS 改走「下载 dmg 手动安装」）
           BIG_FILES=""
           for f in release/*.dmg release/*.exe; do
             [ -f "$f" ] && BIG_FILES="$BIG_FILES $f"

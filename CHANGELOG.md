@@ -4,7 +4,9 @@
 
 ## [未发布]
 
-暂无。
+### 平台与分发
+
+- **macOS 更新改回「下载 dmg + 手动安装」，弃用 Squirrel 自动安装**：v0.1.2 重新发布后首次真实升级实测发现，electron-updater 6.8.9 在 macOS 26 上「下载正常、安装环节静默失败」——zip 下载与 sha512 校验两轮全部成功，但交给 Squirrel.Mac 的取包环节两轮复现失败（本地代理零连接、ShipIt 暂存目录始终为空、无任何错误上报），「立即重启」只是静默挂号，应用永不自动换装。故 macOS 回退到 electron-updater 只做版本检查、dmg 由应用自行下载（`session.downloadURL`，带进度回推）的方案：依次做元数据 **sha512 校验**（不匹配即删包报错）与**清除下载隔离标记**（`xattr -d com.apple.quarantine`，避免拖入后 Gatekeeper 拦「无法验证」），完成后弹窗「**关闭应用并打开安装包 / 稍后」——打开前若有未保存修改先三选处置（保存并继续安装 / 放弃修改并继续安装 / 取消，复用「保存并重启」的握手通道），然后挂载 dmg 弹出安装窗口并退出应用，拖入「应用程序」即完成；设置面板下载完成态显示落盘路径并提供「打开安装包」按钮（三语言补 `updateDownloadedManual` / `updateOpenInstaller`）。连带：`mac.target` 移除 zip（112MB 超 Gitee 附件上限的 GitHub 分流逻辑随之删除，dmg 约 85MB 直接挂 Gitee，更新源不再依赖 GitHub）；`release.yml` 与 `prepare-gitee-release.mjs` 同步移除 zip 产物与分流
 
 ## [0.1.2] - 2026-10-01
 

@@ -288,6 +288,8 @@
     "updateNotAvailable": "You're on the latest version",
     "updateDownloading": "Downloading {percent}%",
     "updateDownloaded": "Downloaded. Restart to install.",
+    "updateDownloadedManual": "Installer downloaded to {path}. Open it and drag TMD into Applications.",
+    "updateOpenInstaller": "Open Installer",
     "updateError": "Update failed: {message}",
     "updateInstall": "Restart Now",
     "logs": "Logs & Diagnostics",
