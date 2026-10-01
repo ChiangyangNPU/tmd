@@ -517,11 +517,10 @@ function setUpdateSource(source) {
 /**
  * 装配自动更新：监听 electron-updater 事件，经 IPC 推送状态给渲染层。
  * 发现新版本后用原生 dialog 询问用户，不静默下载。
- *
- * 平台差异：Windows 走 electron-updater 自动下载安装（NSIS 不要求签名）；
- * macOS 因构建未公证、Squirrel.Mac 的签名校验必然失败，改为下载 dmg 后
- * 引导用户手动安装（见 downloadMacInstaller）。
+ * macOS 为 ad-hoc 签名构建（package.json 的 build.mac.identity = "-"，不使用
+ * 开发者证书）；ad-hoc 已能满足 Squirrel.Mac 的签名校验，此处不再额外强制校验。
  */
+
 function setupAutoUpdater() {
   // 不自动下载：发现新版本后弹窗问用户
   autoUpdater.autoDownload = false
@@ -538,36 +537,30 @@ function setupAutoUpdater() {
       status: 'available',
       version: info.version,
     })
-    const isMac = process.platform === 'darwin'
     /** @type {import('electron').MessageBoxOptions} */
     const boxOptions = {
       type: 'info',
       title: 'TMD',
       message: `发现新版本 ${info.version}`,
-      detail: isMac
-        ? '是否下载安装包？下载后需手动打开并拖入「应用程序」完成安装。'
-        : '是否立即下载更新？',
-      buttons: isMac ? ['下载安装包', '稍后'] : ['下载更新', '稍后'],
+      detail: '是否立即下载更新？',
+      buttons: ['下载更新', '稍后'],
       defaultId: 0,
       cancelId: 1,
     }
     // 主窗口可能已关闭（自动更新是应用级事件）：无窗口时以无父窗模式弹出
-    showMessageBoxSafe(boxOptions).then(({ response }) => {
-      if (response !== 0) {
-        sendToRenderer(IPC.updateStatus, { status: 'idle' })
-        return
-      }
-      if (isMac) {
-        void downloadMacInstaller(info)
-      } else {
-        autoUpdater.downloadUpdate().catch((err) => {
-          sendToRenderer(IPC.updateStatus, {
-            status: 'error',
-            message: err instanceof Error ? err.message : String(err),
+    showMessageBoxSafe(boxOptions)
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.downloadUpdate().catch((err) => {
+            sendToRenderer(IPC.updateStatus, {
+              status: 'error',
+              message: err instanceof Error ? err.message : String(err),
+            })
           })
-        })
-      }
-    })
+        } else {
+          sendToRenderer(IPC.updateStatus, { status: 'idle' })
+        }
+      })
   })
 
   autoUpdater.on('update-not-available', () => {
@@ -622,90 +615,6 @@ function setupAutoUpdater() {
       status: 'error',
       message: err instanceof Error ? err.message : String(err),
     })
-  })
-}
-
-/**
- * macOS 更新包下载：把 dmg 下到用户的下载目录，并引导手动安装。
- *
- * 为什么不走 autoUpdater.downloadUpdate()：那条路交给 Squirrel.Mac，而它会
- * 对新 app 做严格的签名校验（SecStaticCodeCheckValidity）。本项目为未公证
- * 构建，该校验必然失败——表现为「更新失败：Code signature … did not pass
- * validation」，既不重启也不进入安装界面。这里只从更新元数据里取 dmg 的
- * 下载地址自行下载，落到用户找得到的目录，再提示拖入「应用程序」。
- *
- * @param {import('electron-updater').UpdateInfo} info
- */
-async function downloadMacInstaller(info) {
-  try {
-    const file = (info.files || []).find((f) => /\.dmg$/i.test(f.url || ''))
-    if (!file) throw new Error('更新元数据里没有 dmg 条目')
-    const dest = await downloadToFile(file.url, app.getPath('downloads'))
-    sendToRenderer(IPC.updateStatus, { status: 'downloaded', path: dest })
-    const { response } = await showMessageBoxSafe({
-      type: 'info',
-      title: 'TMD',
-      message: '安装包已下载',
-      detail: `${dest}\n\n请打开该文件，把 TMD 拖入「应用程序」完成安装。`,
-      buttons: ['打开所在文件夹', '稍后'],
-      defaultId: 0,
-      cancelId: 1,
-    })
-    if (response === 0) shell.showItemInFolder(dest)
-  } catch (err) {
-    sendToRenderer(IPC.updateStatus, {
-      status: 'error',
-      message: err instanceof Error ? err.message : String(err),
-    })
-  }
-}
-
-/**
- * 下载 URL 到指定目录，返回落盘绝对路径。
- * 走 session.downloadURL + will-download，复用 Electron 自身的下载栈
- * （自动处理重定向），并借 updated 事件回推进度。
- * @param {string} url
- * @param {string} destDir
- * @returns {Promise<string>}
- */
-function downloadToFile(url, destDir) {
-  return new Promise((resolve, reject) => {
-    const ses = mainWindow?.webContents.session ?? session.defaultSession
-    let started = false
-    const timer = setTimeout(() => {
-      if (started) return
-      ses.removeListener('will-download', onWillDownload)
-      reject(new Error('下载未启动'))
-    }, 10000)
-
-    /**
-     * @param {import('electron').Event} _event
-     * @param {import('electron').DownloadItem} item
-     */
-    function onWillDownload(_event, item) {
-      // 只认本次发起的下载（同一会话同一时刻可能还有其他下载在进行）
-      if (item.getURL() !== url) return
-      started = true
-      clearTimeout(timer)
-      ses.removeListener('will-download', onWillDownload)
-      const dest = path.join(destDir, item.getFilename())
-      item.setSavePath(dest)
-      item.on('updated', (_e, state) => {
-        if (state !== 'progressing') return
-        const total = item.getTotalBytes()
-        sendToRenderer(IPC.updateStatus, {
-          status: 'downloading',
-          percent: total > 0 ? (item.getReceivedBytes() / total) * 100 : 0,
-        })
-      })
-      item.once('done', (_e, state) => {
-        if (state === 'completed') resolve(dest)
-        else reject(new Error(`下载未完成（${state}）`))
-      })
-    }
-
-    ses.on('will-download', onWillDownload)
-    ses.downloadURL(url)
   })
 }
 
