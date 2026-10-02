@@ -1,14 +1,12 @@
-version: 0.1.4
+version: 0.1.5
 files:
-  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.4/TMD-0.1.4-x64-Setup.exe
-    sha512: PBMFr45DFxfUQ9XaRpViMYNyrwAMvznIaBRYDgVLv/wy41MJ9D1eOiysC8+MGsYyD3Jx6BjedwRVZ4ExTB3Eyg==
-    size: 95666125
-path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.4/TMD-0.1.4-x64-Setup.exe
-sha512: PBMFr45DFxfUQ9XaRpViMYNyrwAMvznIaBRYDgVLv/wy41MJ9D1eOiysC8+MGsYyD3Jx6BjedwRVZ4ExTB3Eyg==
+  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.5/TMD-0.1.5-x64-Setup.exe
+    sha512: 5qTa/nSvgKGJowModIZjsaLZO/mWUUGx4TNdfyyLNynsdAhCw8EO/IYxzJz/g/3FxHH0vM5aJmOPSThzcZJxkw==
+    size: 95666090
+path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.5/TMD-0.1.5-x64-Setup.exe
+sha512: 5qTa/nSvgKGJowModIZjsaLZO/mWUUGx4TNdfyyLNynsdAhCw8EO/IYxzJz/g/3FxHH0vM5aJmOPSThzcZJxkw==
 releaseNotes: |
-  ## [0.1.4] - 2026-10-01
+  ## [0.1.5] - 2026-10-01
 
-  ### 修复
-
-  - **macOS 更新包下载误报「下载未启动」且进度不显示**：Gitee 附件地址会 302 跳转到带令牌的最终地址（`foruda.gitee.com/...?token=...`），`will-download` 事件触发时 `item.getURL()` 已是最终地址、与发起 URL 不再相等（发起地址保留在 `getURLChain()` 里）——下载监听按「URL 严格相等」匹配随即失败，10 秒兜底误报「下载未启动」，设置面板不显示进度，而 Chromium 按默认行为继续下载到「下载」目录（表现为「后台在下载但界面报失败」）。实测 Gitee 跳转响应仅 839ms，非慢响应问题。现放宽匹配口径：URL 或重定向链上任一与发起一致，或文件名与目标一致，三者中其一即接管下载（进度回推、落盘路径控制随之恢复）
-releaseDate: '2026-10-01T22:56:22.311Z'
+  端到端升级验证版本：与 0.1.4 代码一致，专用于验证修复后的 macOS 完整升级链路——「检查更新 → 应用内下载 dmg（进度实时显示，Gitee 302 匹配已修复）→ 关闭应用并打开安装包 → 拖入「应用程序」」。
+releaseDate: '2026-10-02T01:49:49.528Z'
