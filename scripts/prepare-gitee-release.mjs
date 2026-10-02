@@ -66,10 +66,17 @@ function reposOf(pkg) {
  * 用 curl 发起 GET（Node 内置 fetch 不读系统/环境代理，国内直连 GitHub 常失败；
  * curl 尊重 http_proxy 等配置，且 macOS / Windows 10+ 均自带）。
  * @param {string} url
+ * @param {{ authGitHub?: boolean }} [opts] authGitHub=true 时带 GH_TOKEN/GITHUB_TOKEN
+ *   做 Bearer 认证——GitHub Actions runner 出口 IP 为共享池，未认证限额
+ *   （60 次/小时/IP）常被同 IP 其他任务耗尽，返回 403；认证后独立 1000 次/小时
  * @returns {{ status: number, body: string }} HTTP 状态码与响应体
  */
-function curlGet(url) {
-  const out = execFileSync('curl', ['-sL', '--max-time', '120', '-w', '\n%{http_code}', url], {
+function curlGet(url, { authGitHub = false } = {}) {
+  const args = ['-sL', '--max-time', '120', '-w', '\n%{http_code}']
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN
+  if (authGitHub && token) args.push('-H', `Authorization: Bearer ${token}`)
+  args.push(url)
+  const out = execFileSync('curl', args, {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   })
@@ -78,13 +85,13 @@ function curlGet(url) {
 }
 
 /**
- * 取 GitHub Release 的 assets 列表（公开 API，未认证限 60 次/小时，本脚本仅调用一次）
+ * 取 GitHub Release 的 assets 列表（有 token 则认证调用，规避共享 IP 的未认证限额）
  * @param {{ owner: string, repo: string }} repoRef
  * @param {string} tag
  */
 async function fetchReleaseAssets({ owner, repo }, tag) {
   const url = `https://api.github.com/repos/${owner}/${repo}/releases/tags/${tag}`
-  const { status, body } = curlGet(url)
+  const { status, body } = curlGet(url, { authGitHub: true })
   if (status !== 200) {
     throw new Error(
       `拉取 GitHub Release 失败（HTTP ${status}）：${url}\n` +
