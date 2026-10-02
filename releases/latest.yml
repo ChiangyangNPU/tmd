@@ -1,10 +1,10 @@
 version: 0.1.0
 files:
   - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe
-    sha512: GG8gnsMwAgFh/gfDOmXg8akGMf8/MObfXFg1B1HRX/ROxhwlWmwlXNyQ8urSa0ez6Od8TdFrXjlcxe+F3WkDew==
-    size: 95666285
+    sha512: G3ZXBBfMW6WPtgNlAsRpE2yIv+I4zF9vPEAXA1tQ/mUCvonvEafsBHTSRJVyvo5Rw/EBHwDFlM+S8K/gZrxJng==
+    size: 95666284
 path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe
-sha512: GG8gnsMwAgFh/gfDOmXg8akGMf8/MObfXFg1B1HRX/ROxhwlWmwlXNyQ8urSa0ez6Od8TdFrXjlcxe+F3WkDew==
+sha512: G3ZXBBfMW6WPtgNlAsRpE2yIv+I4zF9vPEAXA1tQ/mUCvonvEafsBHTSRJVyvo5Rw/EBHwDFlM+S8K/gZrxJng==
 releaseNotes: |
   ## [0.1.0] - 2026-10-02
 
@@ -197,4 +197,4 @@ releaseNotes: |
   ### 修复
 
   - **macOS 更新包下载误报「下载未启动」且进度不显示**：Gitee 附件地址会 302 跳转到带令牌的最终地址（`foruda.gitee.com/...?token=...`），`will-download` 事件触发时 `item.getURL()` 已是最终地址、与发起 URL 不再相等（发起地址保留在 `getURLChain()` 里）——下载监听按「URL 严格相等」匹配随即失败，10 秒兜底误报「下载未启动」，设置面板不显示进度，而 Chromium 按默认行为继续下载到「下载」目录（表现为「后台在下载但界面报失败」）。实测 Gitee 跳转响应仅 839ms，非慢响应问题。现放宽匹配口径：URL 或重定向链上任一与发起一致，或文件名与目标一致，三者中其一即接管下载（进度回推、落盘路径控制随之恢复）
-releaseDate: '2026-10-02T02:21:30.734Z'
+releaseDate: '2026-10-02T09:14:51.084Z'
