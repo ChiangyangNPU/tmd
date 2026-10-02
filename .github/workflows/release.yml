@@ -222,9 +222,10 @@ jobs:
             local f="$1" name size_mb attempt code
             name=$(basename "$f")
             size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
-            # 失败重试一次：跨国链路偶发中断（v0.1.1 实测 dmg 整包未落库，
-            # 故另有上传后 API 校验兜底，见步骤 5）
-            for attempt in 1 2; do
+            # 失败重试三次：跨国链路偶发中断（v0.1.1 实测 dmg 整包未落库，
+            # 故另有上传后 API 校验兜底，见步骤 5）。v0.1.0 实测 2 次重试
+            # 仍会双双失败（dmg 或 exe 各挂一轮），加到 4 次 + 拉长退避
+            for attempt in 1 2 3 4; do
               echo "Uploading $name (${size_mb}MB) to Gitee Release (attempt $attempt)"
               code=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
                 --speed-limit 512 --speed-time 900 \
@@ -237,8 +238,8 @@ jobs:
                 echo "$code" > "/tmp/attach-${name}.code"
                 return 0
               fi
-              echo "::warning::$name 上传失败（HTTP $code），5s 后重试"
-              sleep 5
+              echo "::warning::$name 上传失败（HTTP $code），15s 后重试"
+              sleep 15
             done
             # 两次都失败：仍落下最终状态码供步骤 4 判定
             echo "$code" > "/tmp/attach-${name}.code"
