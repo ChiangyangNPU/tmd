@@ -24,6 +24,15 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 > Electron 二进制首次下载失败（GitHub 直连问题）时，改用镜像：
 > `ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" node node_modules/electron/install.js`
 
+## 下载安装（普通用户）
+
+从 [GitHub Releases](https://github.com/ChiangyangNPU/tmd/releases/latest) 或 [Gitee Releases](https://gitee.com/chiangyangNPU/tmd/releases/latest) 下载安装包：
+
+- **macOS**：下载 `TMD-x.y.z-arm64.dmg`，打开后把 TMD 拖入「应用程序」
+- **Windows**：下载 `TMD-x.y.z-x64-Setup.exe`，双击安装
+
+> **macOS 首次打开被拦？** 从网页下载的安装包首次打开会被 Gatekeeper 拦截（提示「Apple 无法验证"TMD"…」），属正常现象，按 [docs/mac安装后启动报错解决方案.md](docs/mac安装后启动报错解决方案.md) 放行一次即可；通过应用内「检查更新」安装则不会有这一步。
+
 ## 功能特性
 
 - 所见即所得编辑（Milkdown / ProseMirror 内核 + GFM：表格、任务列表、删除线）

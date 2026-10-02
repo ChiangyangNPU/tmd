@@ -24,6 +24,15 @@ npm run dist           # Build installer (mac: dmg / win: nsis)
 > If the Electron binary fails to download on first install (direct GitHub connection issues), use a mirror instead:
 > `ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" node node_modules/electron/install.js`
 
+## Download & Install (end users)
+
+Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/releases/latest) or [Gitee Releases](https://gitee.com/chiangyangNPU/tmd/releases/latest):
+
+- **macOS**: download `TMD-x.y.z-arm64.dmg`, open it and drag TMD into Applications
+- **Windows**: download `TMD-x.y.z-x64-Setup.exe` and run the installer
+
+> **Blocked on first launch on macOS?** Installers downloaded from the web trigger Gatekeeper on first open ("Apple cannot verify "TMD"…"). This is expected — follow [docs/mac安装后启动报错解决方案.md](docs/mac安装后启动报错解决方案.md) (in Chinese) to allow it once. Updates installed through the in-app updater clear the quarantine flag automatically and skip this entirely.
+
 ## Features
 
 - WYSIWYG editing (Milkdown / ProseMirror core + GFM: tables, task lists, strikethrough)
