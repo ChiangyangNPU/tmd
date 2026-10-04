@@ -12,7 +12,12 @@ const path = require('node:path')
 /** 名称长度上限（与常见文件系统上限一致） */
 const MAX_NAME_LENGTH = 255
 
-/** Windows 非法字符（POSIX 合法；冒号在 macOS 亦为 HFS 路径分隔符，桌面端一并拒绝） */
+/**
+ * Windows 非法字符（POSIX 合法，仅 Windows 平台拒绝）。
+ * macOS 上的半角冒号经权衡刻意放行：POSIX 合法、写盘无碍，仅 Finder 有
+ * 显示怪癖（POSIX 名 `a:b` 显示为 `a/b`）；全角冒号"："不受影响。
+ * 勿顺手把冒号提为全平台拒绝——跨平台一致清洗是另一条产品路线，未采纳。
+ */
 const WIN32_ILLEGAL_CHARS = /[<>:"|?*]/
 
 /** Windows 保留设备名（大小写不敏感，裸名或带扩展名均保留，如 CON、CON.md） */
