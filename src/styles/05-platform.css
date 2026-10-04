@@ -178,3 +178,24 @@ html.win .win-controls {
 .theme-toggle:hover {
   background: var(--code-bg);
 }
+
+/* 字号缩放 HUD：底部居中胶囊，连续滚动原地刷新数值 */
+.font-zoom-hud {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 32;
+  padding: 6px 16px;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 8px;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.font-zoom-hud.visible {
+  opacity: 1;
+}

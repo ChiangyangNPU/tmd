@@ -323,7 +323,8 @@
     "aboutEmail": "電子郵件",
     "aboutHomepage": "首頁",
     "aboutLicense": "授權條款",
-    "aboutThirdParty": "第三方元件"
+    "aboutThirdParty": "第三方元件",
+    "fontZoom": "字號 {size}"
   },
   "image": {
     "alignLeft": "靠左對齊",

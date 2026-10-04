@@ -67,6 +67,31 @@ export function changeTypography(next: Typography): void {
   applyTypography()
 }
 
+// ---------- 字号缩放（Ctrl/Cmd+滚轮 / 触控板捏合） ----------
+
+export const FONT_SIZE_MIN = 12
+export const FONT_SIZE_MAX = 28
+/** fontSize 存储空串时的实际生效字号（与 style.css 默认值一致） */
+export const FONT_SIZE_DEFAULT = 16
+
+/**
+ * 缩放后的新字号（纯函数，可独立单测）：
+ * 空档位按默认值起算，逐级 ±1px，钳制在 [MIN, MAX]。
+ * @param current 存储中的字号档位（'' 或数字串）
+ * @param delta 缩放步数（+1 放大 / -1 缩小，连续滚轮多次触发累加）
+ */
+export function nextFontSize(current: string, delta: number): string {
+  const base = Number.parseInt(current, 10) || FONT_SIZE_DEFAULT
+  return String(Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, base + delta)))
+}
+
+/** 缩放字号并持久化（返回新字号供 HUD 展示） */
+export function adjustFontSize(delta: number): number {
+  const next = nextFontSize(getTypography().fontSize, delta)
+  changeTypography({ ...getTypography(), fontSize: next })
+  return Number(next)
+}
+
 /** 设置面板反射当前排版配置（打开面板时调用） */
 export function reflectTypography(): void {
   const overlay = document.getElementById('settings-overlay')

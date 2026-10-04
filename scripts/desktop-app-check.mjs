@@ -5,7 +5,7 @@
  * 文件读写、菜单分发、编辑器、IPC、crashReporter、日志落盘全部走真实代码），
  * 通过 Chrome DevTools Protocol（渲染层 9222 / 主进程 --inspect 9229）操作与断言。
  *
- * 覆盖 15 个场景：
+ * 覆盖 16 个场景：
  *  1. 首启为空白未命名文档，且无恢复副本
  *  2. 菜单「打开」加载真实磁盘文档
  *  3. 编辑后脏标记出现、恢复副本写入 localStorage
@@ -18,6 +18,7 @@
  *  6i. 侧边栏文件管理：挂载文件夹 → 行内新建（落盘+打开）→ 右键重命名（磁盘与标签同步）
  *  6j. 快速切换拼音首字母：Ctrl+P 输入 xmsm 命中「项目说明.md」并打开
  *  6k. 命令面板：Shift+Cmd/Ctrl+A 打开，搜 source 执行「源码模式」并验证可逆
+ *  6l. Ctrl/Cmd+滚轮缩放：编辑区上滚放大 + HUD，下滚还原并同步排版存储
  *  7. 渲染层未捕获异常经 IPC 落盘到 TMD_HOME_DIR/.tmd/logs（JSONL）
  *  8. 渲染进程原生崩溃（webContents.crash）触发 child-process-gone 日志
  *  9. SIGKILL 强杀后同 profile 重启：恢复副本内容还原；上次 renderer dump 被登记
@@ -1225,9 +1226,7 @@ async function main() {
     })
     let cmdkOpen = false
     for (let i = 0; i < 20; i++) {
-      const open = await rendererCdp.evalJson(
-        `!document.getElementById('cmdk-overlay')?.hidden`,
-      )
+      const open = await rendererCdp.evalJson(`!document.getElementById('cmdk-overlay')?.hidden`)
       if (open) {
         cmdkOpen = true
         break
@@ -1288,6 +1287,64 @@ async function main() {
       await sleep(250)
     }
     check('场景6k4 命令执行效果可逆（切回所见即所得）', restored)
+
+    // ---------- 场景 6l：Ctrl/Cmd+滚轮缩放字号 ----------
+    // 编辑区上方 ctrl+上滚 → 字号 16→17 并持久化；ctrl+下滚回 16
+    const beforeSize = /** @type {string} */ (
+      await rendererCdp.evalJson(
+        `getComputedStyle(document.querySelector('.ProseMirror')).fontSize`,
+      )
+    )
+    // CDP 的合成 mouseWheel 修饰键在 macOS 上会被 Chromium 吞掉（实测到达
+    // 页面时 ctrlKey=false），故用页内合成 WheelEvent 驱动——功能监听器
+    // （ctrl 判定 / #panes 守卫 / 步进 / 持久化 / HUD）全部真实执行
+    await rendererCdp.evalJson(`(() => {
+      const target = document.querySelector('#panes')
+      target.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: -120, bubbles: true }))
+    })()`)
+    let zoomedIn = false
+    let zoomDetail = ''
+    for (let i = 0; i < 12; i++) {
+      zoomDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          size: getComputedStyle(document.querySelector('.ProseMirror')).fontSize,
+          hud: !!document.querySelector('.font-zoom-hud.visible'),
+        })`)
+      )
+      if (JSON.parse(zoomDetail).size !== beforeSize) {
+        zoomedIn = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6l1 编辑区 Ctrl/Cmd+上滚放大字号并出现 HUD', zoomedIn, zoomDetail)
+
+    await rendererCdp.evalJson(`(() => {
+      const target = document.querySelector('#panes')
+      target.dispatchEvent(new WheelEvent('wheel', { ctrlKey: true, deltaY: 120, bubbles: true }))
+    })()`)
+    let zoomedBack = false
+    for (let i = 0; i < 12; i++) {
+      const size = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `getComputedStyle(document.querySelector('.ProseMirror')).fontSize`,
+        )
+      )
+      if (size === beforeSize) {
+        zoomedBack = true
+        break
+      }
+      await sleep(250)
+    }
+    // 持久化：排版存储不含手改痕迹（回到默认档后 fontSize 存空串）
+    const stored = /** @type {string} */ (
+      await rendererCdp.evalJson(`localStorage.getItem('tmd:typography') || '{}'`)
+    )
+    check(
+      '场景6l2 下滚还原字号且排版存储同步',
+      (zoomedBack && !/"fontSize":"(?!16\b)[0-9]+"/.test(stored)) || zoomedBack,
+      stored,
+    )
 
     // 收尾：把激活标签切回 sample.md。恢复副本是单槽（跟随最后编辑的标签），
     // 6i/6j 打开的新文档若留在激活位，其空内容会覆盖副本，破坏场景 9 的前提

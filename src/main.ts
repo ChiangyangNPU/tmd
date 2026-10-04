@@ -92,6 +92,7 @@ import {
   applySpellcheck,
 } from './settings'
 import { applyTypography } from './typography'
+import { wireFontZoom } from './font-zoom'
 import { applyWritingModes, wireTypewriter } from './writing-modes'
 import {
   saveDoc,
@@ -682,6 +683,7 @@ async function boot() {
     wireTabMenu()
     wireQuickSwitch()
     wireCommandPalette()
+    wireFontZoom()
     wireSearch()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
     wireSplit()

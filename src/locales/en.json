@@ -323,7 +323,8 @@
     "aboutEmail": "Email",
     "aboutHomepage": "Homepage",
     "aboutLicense": "License",
-    "aboutThirdParty": "Third-Party Components"
+    "aboutThirdParty": "Third-Party Components",
+    "fontZoom": "Font size {size}"
   },
   "image": {
     "alignLeft": "Align left",
