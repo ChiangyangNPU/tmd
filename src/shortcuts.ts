@@ -115,6 +115,14 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
     default: 'CmdOrCtrl+P',
     group: 'editor',
   },
+  {
+    // 命令面板：Shift+A 取「Action」之意（JetBrains 惯例的 Shift+Ctrl+A 同款）；
+    // Shift+P 已被导出 PDF 占用，Shift+F/E 均被编辑器组占用
+    action: 'command-palette',
+    labelKey: 'settings.shortcutCommandPalette',
+    default: 'CmdOrCtrl+Shift+A',
+    group: 'editor',
+  },
   { action: 'find', labelKey: 'settings.shortcutFind', default: 'CmdOrCtrl+F', group: 'editor' },
   {
     action: 'search-files',

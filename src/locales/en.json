@@ -177,6 +177,10 @@
     "placeholder": "Search files by name, Enter to open",
     "empty": "No matching files"
   },
+  "cmdk": {
+    "placeholder": "Type a command, Enter to run",
+    "empty": "No matching commands"
+  },
   "search": {
     "placeholder": "Search in mounted folders",
     "searching": "Searching…",
@@ -285,6 +289,7 @@
     "shortcutsReset": "Reset to Defaults",
     "shortcutGroupEditor": "Editor",
     "shortcutQuickSwitch": "Quick Switch",
+    "shortcutCommandPalette": "Command palette",
     "shortcutFind": "Find & Replace",
     "shortcutSearchFiles": "Search in Folders",
     "shortcutSourceMode": "Source Mode",

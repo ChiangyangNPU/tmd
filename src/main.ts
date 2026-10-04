@@ -56,6 +56,13 @@ import { wireContextMenu, closeContextMenu } from './context-menu'
 import { wireTabMenu } from './tab-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
+import {
+  registerCommands,
+  openCommandPalette,
+  closeCommandPalette,
+  wireCommandPalette,
+  type CommandItem,
+} from './command-palette'
 import { openSearch, closeSearch, wireSearch } from './search'
 import { wireSplit } from './split'
 import { openHistory, wireHistory } from './history'
@@ -75,7 +82,7 @@ import {
   setEditorHooks,
   flushMarkdownSync,
 } from './editor-core'
-import { initAutosave, setAutosaveOn, stopAutosave } from './autosave'
+import { initAutosave, isAutosaveOn, setAutosaveOn, stopAutosave } from './autosave'
 import {
   openSettings,
   closeSettings,
@@ -457,6 +464,7 @@ async function boot() {
         closeLinkBar()
         closeContextMenu()
         closeQuickSwitch()
+        closeCommandPalette()
         closeSearch()
         // 焦点在编辑器里时也能用 Esc 收起查找栏（关闭后焦点归还编辑器）
         closeFindBar()
@@ -483,6 +491,9 @@ async function boot() {
       } else if (isSameAccelerator(acc, shortcuts['quick-switch'])) {
         e.preventDefault()
         openQuickSwitch()
+      } else if (isSameAccelerator(acc, shortcuts['command-palette'])) {
+        e.preventDefault()
+        openCommandPalette()
       } else if (isSameAccelerator(acc, shortcuts['search-files'])) {
         e.preventDefault()
         openSearch()
@@ -514,6 +525,49 @@ async function boot() {
     })
 
     // 菜单（Electron）
+    // 动作处理表提升到 boot 作用域：菜单分发与命令面板共用同一批函数
+    //（命令即菜单，不另建第二套语义——面板只是同一动作的另一个入口）
+    const menuHandlers: Record<string, () => void> = {
+      open: () => void openDocument(),
+      'open-folder': () => void openFolder(),
+      save: () => void saveDocument(),
+      'save-as': () => void saveDocument(true),
+      history: () => void openHistory(),
+      'open-settings': () => openSettings(),
+      'new-tab': () => createNewTab(),
+      'close-tab': () => {
+        const id = getActiveTabId()
+        if (id) void closeTab(id)
+      },
+      'export-html': () =>
+        runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))),
+      'export-pdf': () => runExport((m) => m.exportPdf()),
+      'export-word': () =>
+        runExport((m) =>
+          m.exportWord(
+            currentMarkdown(),
+            activeTab()?.name ?? t('tab.untitled'),
+            getActiveBaseDir(),
+          ),
+        ),
+      'export-longimage': () =>
+        runExport((m) =>
+          m.exportLongimage(
+            currentMarkdown(),
+            activeTab()?.name ?? t('tab.untitled'),
+            getActiveBaseDir(),
+          ),
+        ),
+      'export-latex': () =>
+        runExport((m) =>
+          m.exportLatex(
+            currentMarkdown(),
+            activeTab()?.name ?? t('tab.untitled'),
+            getActiveBaseDir(),
+          ),
+        ),
+      'clear-recent': () => clearRecentDocuments(),
+    }
     native?.onMenu((action) => {
       // 格式化命令：统一走 format 命令层；仅在所见即所得为可编辑侧时生效——
       // 纯源码模式下它是隐藏的，分屏中源码为编辑侧时它是只读跟随
@@ -523,48 +577,88 @@ async function boot() {
         if (view && canEditWysiwyg()) applyFormatAction(view, action)
         return
       }
-      const handlers: Record<string, () => void> = {
-        open: () => void openDocument(),
-        'open-folder': () => void openFolder(),
-        save: () => void saveDocument(),
-        'save-as': () => void saveDocument(true),
-        history: () => void openHistory(),
-        'open-settings': () => openSettings(),
-        'new-tab': () => createNewTab(),
-        'close-tab': () => {
-          const id = getActiveTabId()
-          if (id) void closeTab(id)
-        },
-        'export-html': () =>
-          runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))),
-        'export-pdf': () => runExport((m) => m.exportPdf()),
-        'export-word': () =>
-          runExport((m) =>
-            m.exportWord(
-              currentMarkdown(),
-              activeTab()?.name ?? t('tab.untitled'),
-              getActiveBaseDir(),
-            ),
-          ),
-        'export-longimage': () =>
-          runExport((m) =>
-            m.exportLongimage(
-              currentMarkdown(),
-              activeTab()?.name ?? t('tab.untitled'),
-              getActiveBaseDir(),
-            ),
-          ),
-        'export-latex': () =>
-          runExport((m) =>
-            m.exportLatex(
-              currentMarkdown(),
-              activeTab()?.name ?? t('tab.untitled'),
-              getActiveBaseDir(),
-            ),
-          ),
-        'clear-recent': () => clearRecentDocuments(),
+      menuHandlers[action]?.()
+    })
+
+    // 命令面板命令源：标题/关键词表集中在此（i18n 键全部复用既有 menu.*/settings.* 组）
+    const COMMAND_DEFS: Record<string, [string, string]> = {
+      open: ['menu.open', 'open file'],
+      'open-folder': ['menu.openFolder', 'open folder workspace'],
+      save: ['menu.save', 'save write disk'],
+      'save-as': ['menu.saveAs', 'save as copy'],
+      history: ['menu.history', 'history snapshot version'],
+      'open-settings': ['menu.settings', 'settings preferences options'],
+      'new-tab': ['menu.newTab', 'new tab document'],
+      'close-tab': ['menu.closeTab', 'close tab'],
+      'export-html': ['menu.exportHtml', 'export html web'],
+      'export-pdf': ['menu.exportPdf', 'export pdf print'],
+      'export-word': ['menu.exportWord', 'export word docx'],
+      'export-longimage': ['menu.exportLongimage', 'export long image png'],
+      'export-latex': ['menu.exportLatex', 'export latex tex'],
+      'insert-toc': ['menu.insertToc', 'toc table of contents outline'],
+      'view-source': ['settings.shortcutSourceMode', 'source mode codemirror text'],
+      'view-split': ['settings.shortcutSplitView', 'split view preview side'],
+      'toggle-autosave': ['menu.autosave', 'autosave toggle switch'],
+      'fmt-bold': ['menu.bold', 'bold strong'],
+      'fmt-italic': ['menu.italic', 'italic emphasize'],
+      'fmt-mark': ['menu.highlight', 'highlight mark'],
+      'fmt-sup': ['menu.superscript', 'superscript'],
+      'fmt-sub': ['menu.subscript', 'subscript'],
+      'fmt-link': ['menu.link', 'link url href'],
+      'fmt-h1': ['menu.h1', 'heading 1 title'],
+      'fmt-h2': ['menu.h2', 'heading 2'],
+      'fmt-h3': ['menu.h3', 'heading 3'],
+      'fmt-h4': ['menu.h4', 'heading 4'],
+      'fmt-h5': ['menu.h5', 'heading 5'],
+      'fmt-h6': ['menu.h6', 'heading 6'],
+      'fmt-paragraph': ['menu.paragraph', 'paragraph plain body'],
+      'fmt-quote': ['menu.quote', 'quote blockquote'],
+      'fmt-codeblock': ['menu.codeBlock', 'code block fence'],
+      'fmt-bullet': ['menu.bulletList', 'bullet unordered list'],
+      'fmt-ordered': ['menu.orderedList', 'ordered numbered list'],
+    }
+    registerCommands(() => {
+      const items: CommandItem[] = []
+      // 菜单动作（clear-recent 为破坏性操作且无确认，不入面板）
+      for (const [id, run] of Object.entries(menuHandlers)) {
+        const def = COMMAND_DEFS[id]
+        if (def) items.push({ id, title: t(def[0]), keywords: def[1], run })
       }
-      handlers[action]?.()
+      // 视图 / 外观切换
+      items.push(
+        {
+          id: 'view-source',
+          title: t('settings.shortcutSourceMode'),
+          keywords: COMMAND_DEFS['view-source'][1],
+          run: () => setSourceMode(!isSourceMode()),
+        },
+        {
+          id: 'view-split',
+          title: t('settings.shortcutSplitView'),
+          keywords: COMMAND_DEFS['view-split'][1],
+          run: () => toggleSplitView(),
+        },
+        {
+          id: 'toggle-autosave',
+          title: t('menu.autosave'),
+          keywords: COMMAND_DEFS['toggle-autosave'][1],
+          run: () => setAutosaveOn(!isAutosaveOn()),
+        },
+      )
+      // 格式化命令：与菜单 fmt-* 分发同一守卫（仅所见即所得可编辑侧生效）
+      for (const id of Object.keys(COMMAND_DEFS).filter((k) => k.startsWith('fmt-'))) {
+        const [titleKey, kw] = COMMAND_DEFS[id]
+        items.push({
+          id,
+          title: t(titleKey),
+          keywords: kw,
+          run: () => {
+            const view = getPmView()
+            if (view && canEditWysiwyg()) applyFormatAction(view, id)
+          },
+        })
+      }
+      return items
     })
     // 自动保存：渲染层为状态权威，启动对齐菜单并按需起定时器；菜单勾选走单入口
     initAutosave()
@@ -587,6 +681,7 @@ async function boot() {
     // 标签栏右键菜单：关闭当前/其他/左侧/右侧/已保存/全部
     wireTabMenu()
     wireQuickSwitch()
+    wireCommandPalette()
     wireSearch()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
     wireSplit()

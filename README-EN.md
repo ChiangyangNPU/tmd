@@ -49,6 +49,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - Outline panel (headings level 1-3, click to jump) and TOC block (GitHub-style anchors)
 - Table editing: floating toolbar on cursor entry (row/column add-remove, per-column alignment), drag-to-resize columns
 - Quick switch panel (Ctrl/Cmd+P): fuzzy-search open tabs, all expanded folders and recent files, Enter to open; Chinese-named files support **pinyin-initial matching** (e.g. `xmsm` → 项目说明.md; the dictionary lazy-loads on first panel open, zero overhead for pure-Latin workspaces)
+- **Command palette** (Ctrl/Cmd+Shift+A, remappable): fuzzy-search and run every menu action (file / export / version history / settings), formatting commands and view toggles (source / split / autosave) — commands share the exact same handlers as the menus, searchable by Chinese and English keywords
 - **Cross-file search** (Ctrl/Cmd+Shift+F): line-by-line search across the folders mounted in the sidebar; results are grouped by file with line numbers and context (keyword highlighting) — ↑↓ to select, Enter to open and jump to the match. Dependency folders are skipped and per-file/result limits are enforced, so large workspaces never freeze the UI
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - **Sidebar file management** (desktop): folder root rows show hover buttons "＋file / ＋folder" for inline creation (auto .md extension, duplicate names rejected, new files open immediately); right-click any row for "New / Rename / Reveal in Finder" — renaming syncs the associated path of open tabs, so later saves write to the new path
@@ -75,7 +76,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
 - **External change detection & reload**: files opened in the editor are watched on disk (content fingerprinting in `electron/filewatcher.cjs`, own writes filtered out) — clean tabs reload silently; dirty tabs are never overwritten silently and get a prompt bar to choose "Reload" (take disk content, clear dirty) or "Keep mine" (prompts again on further changes); externally deleted files show a notice and keep the editor content
 - **Split view**: source and WYSIWYG side by side (the ⋯ menu → "Split" / `Ctrl/Cmd+Shift+E`) — one pane is editable, the other follows along read-only; click a pane to make it the editable one (two-way live sync is intentionally not offered: Markdown round-tripping would rewrite your hand-written source). Scrolling is approximately synced, the divider is draggable and its width is remembered
-- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / external-change detection (auto reload & dirty-state prompt) / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 38 assertions in total
+- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / external-change detection (auto reload & dirty-state prompt) / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 42 assertions in total
 - **Electron desktop shell** (`electron/`):
   - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
   - Native open / save / save-as dialogs; File menu shortcuts Cmd/Ctrl+O / S / Shift+S
@@ -111,7 +112,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 ├─ scripts/                      Build / test / pack scripts
 │  ├─ trim-runtime.cjs           Pack hook: trims redundant Electron runtime files (locales, WebGL DLLs)
 │  ├─ gen-lens-map.mjs           Generates the Liquid Glass Pro refraction displacement map (PNG data URI; tweak params, rerun, paste the constant)
-│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history & split-view desktop E2E (38 assertions)
+│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history & split-view desktop E2E (42 assertions)
 │  ├─ desktop-export-check.mjs   Word / long-image export desktop E2E
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 │  └─ lib/

@@ -5,7 +5,7 @@
  * 文件读写、菜单分发、编辑器、IPC、crashReporter、日志落盘全部走真实代码），
  * 通过 Chrome DevTools Protocol（渲染层 9222 / 主进程 --inspect 9229）操作与断言。
  *
- * 覆盖 14 个场景：
+ * 覆盖 15 个场景：
  *  1. 首启为空白未命名文档，且无恢复副本
  *  2. 菜单「打开」加载真实磁盘文档
  *  3. 编辑后脏标记出现、恢复副本写入 localStorage
@@ -17,6 +17,7 @@
  *  6g. 源码模式：单栏可编辑、退出并回、恢复副本跟随
  *  6i. 侧边栏文件管理：挂载文件夹 → 行内新建（落盘+打开）→ 右键重命名（磁盘与标签同步）
  *  6j. 快速切换拼音首字母：Ctrl+P 输入 xmsm 命中「项目说明.md」并打开
+ *  6k. 命令面板：Shift+Cmd/Ctrl+A 打开，搜 source 执行「源码模式」并验证可逆
  *  7. 渲染层未捕获异常经 IPC 落盘到 TMD_HOME_DIR/.tmd/logs（JSONL）
  *  8. 渲染进程原生崩溃（webContents.crash）触发 child-process-gone 日志
  *  9. SIGKILL 强杀后同 profile 重启：恢复副本内容还原；上次 renderer dump 被登记
@@ -1210,6 +1211,83 @@ async function main() {
       await sleep(250)
     }
     check('场景6j3 回车打开中文名文件', qsOpened)
+
+    // ---------- 场景 6k：命令面板 ----------
+    // Shift+Cmd/Ctrl+A 打开 → 搜 "source" → 命中「源码模式」→ 回车执行 →
+    // 断言切到源码视图 → 点击工具栏按钮切回（恢复后续场景的视图状态）
+    const PALETTE_MODS = process.platform === 'darwin' ? 12 : 10 // Meta|Shift / Ctrl|Shift
+    await rendererCdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'a',
+      code: 'KeyA',
+      windowsVirtualKeyCode: 65,
+      modifiers: PALETTE_MODS,
+    })
+    let cmdkOpen = false
+    for (let i = 0; i < 20; i++) {
+      const open = await rendererCdp.evalJson(
+        `!document.getElementById('cmdk-overlay')?.hidden`,
+      )
+      if (open) {
+        cmdkOpen = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6k1 快捷键打开命令面板', cmdkOpen)
+
+    await rendererCdp.send('Input.insertText', { text: 'source' })
+    let cmdkHit = false
+    let cmdkDetail = ''
+    for (let i = 0; i < 40; i++) {
+      cmdkDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          first: document.querySelector('#cmdk-list .qs-item .qs-name')?.textContent || '',
+          count: document.querySelectorAll('#cmdk-list .qs-item').length,
+        })`)
+      )
+      const parsed = JSON.parse(cmdkDetail)
+      if (parsed.count > 0 && /源码|source/i.test(parsed.first)) {
+        cmdkHit = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6k2 关键词 source 命中「源码模式」命令', cmdkHit, cmdkDetail)
+
+    await rendererCdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'Enter',
+      code: 'Enter',
+      windowsVirtualKeyCode: 13,
+    })
+    let sourceOn = false
+    for (let i = 0; i < 20; i++) {
+      const st = await rendererCdp.evalJson(`JSON.stringify({
+        cls: document.body.className,
+        srcVisible: !document.getElementById('src-pane')?.hidden,
+      })`)
+      const parsed = JSON.parse(st)
+      if (parsed.cls.includes('view-source') && parsed.srcVisible) {
+        sourceOn = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6k3 执行命令切换到源码视图', sourceOn)
+
+    // 切回所见即所得（后续场景依赖常规视图状态）
+    await rendererCdp.evalJson(`document.getElementById('source-mode-btn')?.click()`)
+    let restored = false
+    for (let i = 0; i < 20; i++) {
+      const cls = /** @type {string} */ (await rendererCdp.evalJson(`document.body.className`))
+      if (!cls.includes('view-source')) {
+        restored = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6k4 命令执行效果可逆（切回所见即所得）', restored)
 
     // 收尾：把激活标签切回 sample.md。恢复副本是单槽（跟随最后编辑的标签），
     // 6i/6j 打开的新文档若留在激活位，其空内容会覆盖副本，破坏场景 9 的前提

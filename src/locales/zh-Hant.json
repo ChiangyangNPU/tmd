@@ -177,6 +177,10 @@
     "placeholder": "搜尋檔案名稱，按 Enter 開啟",
     "empty": "沒有符合的檔案"
   },
+  "cmdk": {
+    "placeholder": "搜尋命令，Enter 執行",
+    "empty": "無符合命令"
+  },
   "search": {
     "placeholder": "在已掛載的資料夾中搜尋",
     "searching": "搜尋中…",
@@ -285,6 +289,7 @@
     "shortcutsReset": "還原預設",
     "shortcutGroupEditor": "編輯器",
     "shortcutQuickSwitch": "快速切換檔案",
+    "shortcutCommandPalette": "命令面板",
     "shortcutFind": "尋找與取代",
     "shortcutSearchFiles": "在資料夾中搜尋",
     "shortcutSourceMode": "原始碼模式",

@@ -177,6 +177,10 @@
     "placeholder": "搜索文件名，回车打开",
     "empty": "无匹配文件"
   },
+  "cmdk": {
+    "placeholder": "搜索命令，回车执行",
+    "empty": "无匹配命令"
+  },
   "search": {
     "placeholder": "在已挂载的文件夹中搜索",
     "searching": "搜索中…",
@@ -285,6 +289,7 @@
     "shortcutsReset": "恢复默认",
     "shortcutGroupEditor": "编辑器",
     "shortcutQuickSwitch": "快速切换文件",
+    "shortcutCommandPalette": "命令面板",
     "shortcutFind": "查找替换",
     "shortcutSearchFiles": "在文件夹中搜索",
     "shortcutSourceMode": "源码模式",
