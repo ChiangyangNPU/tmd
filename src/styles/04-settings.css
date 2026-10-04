@@ -456,6 +456,23 @@
   font-size: 12px;
 }
 
+/* 自定义 CSS 编辑框：原生 textarea 不吃页面配色（color-scheme 只翻转深浅、
+   不跟主题预设调色板），需与 .settings-input 同源着色；等宽便于编辑样式代码 */
+.settings-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
 /* 图床配置区：label + 控件横排 */
 .settings-row {
   display: flex;
