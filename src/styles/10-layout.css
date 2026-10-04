@@ -184,6 +184,43 @@
   text-align: center;
 }
 
+/* 文件管理：根行 hover 出现的「＋文 / ＋夹」新建按钮（复用 tree-file-remove 的
+   hover 显隐规则），字号略小以适应侧边栏宽度 */
+.tree-dir-add {
+  font-size: 11px;
+  padding: 0 4px;
+  color: var(--muted);
+}
+
+.tree-dir-add:hover {
+  color: var(--accent);
+  background: transparent;
+}
+
+/* 行内输入（新建 / 重命名共用）：占据 tree-file-name 的位置 */
+.tree-inline-input {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  padding: 1px 4px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--fg);
+  outline: none;
+}
+
+/* 文件树右键菜单：more-menu 基础样式 + JS 定位（覆盖 right 默认值） */
+.file-context-menu {
+  right: auto;
+  left: 0;
+  top: 0;
+  min-width: 148px;
+  display: flex;
+  flex-direction: column;
+}
+
 .content {
   flex: 1;
   display: flex;

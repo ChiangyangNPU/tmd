@@ -32,7 +32,7 @@ import {
   removeFolder,
   clearFolders,
 } from './store'
-import { renderRecent, renderFolders } from './filetree'
+import { renderRecent, renderFolders, beginInlineCreate, beginRename, type FolderMenuTarget } from './filetree'
 import { normalizeEmptyTableCells } from './table-markdown'
 import { t } from './i18n'
 
@@ -336,6 +336,111 @@ export function clearFolderEntries() {
   renderFilesSidebar()
 }
 
+// ---------- 侧边栏文件管理（新建 / 重命名 / 在系统中显示；桌面端专属） ----------
+
+/** 重读包含 dir 的（最近的）已挂载根目录并重渲染；都读不到时仅重渲染 */
+async function refreshTreeRootContaining(dir: string) {
+  if (native) {
+    const root = [...folderList()]
+      .sort((a, b) => b.path.length - a.path.length)
+      .find((f) => dir === f.path || dir.startsWith(f.path + '/') || dir.startsWith(f.path + '\\'))
+    if (root) {
+      try {
+        const tree = await native.readDir(root.path)
+        if (tree) folderChildrenCache.set(root.path, tree.children)
+      } catch {
+        /* 目录读取失败：保留旧缓存 */
+      }
+    }
+  }
+  renderFilesSidebar()
+}
+
+/** 在 dir 下新建文件（自动补 .md）或文件夹：成功后刷新树，文件直接打开 */
+export async function createEntryIn(dir: string, kind: 'file' | 'dir', name: string) {
+  if (!native) return
+  try {
+    const result =
+      kind === 'file' ? await native.createFile(dir, name) : await native.createDir(dir, name)
+    await refreshTreeRootContaining(dir)
+    if (kind === 'file') await openPath(result.path)
+  } catch (err) {
+    console.error('[tmd] 新建失败', err)
+    showToast(t('files.createFailed'))
+  }
+}
+
+/** 重命名（同目录内）：同步打开标签的关联路径与名称，避免后续写回旧路径 */
+export async function renameEntry(path: string, newName: string) {
+  if (!native) return
+  try {
+    const result = await native.renamePath(path, newName)
+    const tab = findByPath(path)
+    if (tab) {
+      tab.path = result.path
+      tab.name = result.name
+      renderTabs()
+      syncFileWatchers()
+    }
+    await refreshTreeRootContaining(result.path)
+  } catch (err) {
+    console.error('[tmd] 重命名失败', err)
+    showToast(t('files.renameFailed'))
+  }
+}
+
+/** 行右键菜单单实例（点击任意处关闭） */
+let folderMenu: HTMLElement | null = null
+
+function hideFolderMenu() {
+  folderMenu?.remove()
+  folderMenu = null
+}
+
+/** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示 */
+function showFolderMenu(target: FolderMenuTarget) {
+  hideFolderMenu()
+  const isDir = target.entry.children != null
+  const subVisible = !!target.subContainer && !target.subContainer.hidden
+  const menu = document.createElement('div')
+  menu.className = 'more-menu file-context-menu'
+  const add = (label: string, fn: () => void) => {
+    const item = document.createElement('button')
+    item.type = 'button'
+    item.className = 'menu-item'
+    item.textContent = label
+    item.addEventListener('click', () => {
+      hideFolderMenu()
+      fn()
+    })
+    menu.appendChild(item)
+  }
+  if (isDir && subVisible) {
+    const createIn = target.subContainer as HTMLElement
+    add(t('files.newFile'), () => {
+      beginInlineCreate(createIn, 1, (name) => void createEntryIn(target.entry.path, 'file', name))
+    })
+    add(t('files.newFolder'), () => {
+      beginInlineCreate(createIn, 1, (name) => void createEntryIn(target.entry.path, 'dir', name))
+    })
+  }
+  add(t('files.rename'), () => {
+    const ok = beginRename(target.treeContainer, target.entry.path, (name) =>
+      void renameEntry(target.entry.path, name),
+    )
+    if (!ok) showToast(t('files.renameFailed'))
+  })
+  add(t('files.reveal'), () => void native?.revealInFolder(target.entry.path))
+  document.body.appendChild(menu)
+  // 视口钳制：先挂载量尺寸再定位，避免超出右/下边缘
+  const rect = menu.getBoundingClientRect()
+  menu.style.left = `${Math.max(4, Math.min(target.x, window.innerWidth - rect.width - 8))}px`
+  menu.style.top = `${Math.max(4, Math.min(target.y, window.innerHeight - rect.height - 8))}px`
+  folderMenu = menu
+  // 右键本身不产生 click；等当前事件循环结束再挂一次性关闭监听
+  setTimeout(() => document.addEventListener('click', hideFolderMenu, { once: true }), 0)
+}
+
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
 export function renderFilesSidebar() {
   const recent = recentList()
@@ -366,6 +471,14 @@ export function renderFilesSidebar() {
       (p) => void openPath(p),
       (p) => void toggleFolder(p),
       (p) => removeFolderEntry(p),
+      native
+        ? {
+            onCreate: (dir, kind, name) => void createEntryIn(dir, kind, name),
+            onRename: (p, name) => void renameEntry(p, name),
+            onReveal: (p) => void native?.revealInFolder(p),
+            onMenu: (target) => showFolderMenu(target),
+          }
+        : undefined,
     )
   }
 }

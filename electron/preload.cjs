@@ -146,6 +146,14 @@ const api = {
   onFileChanged: (callback) => {
     ipcRenderer.on(IPC.fileChanged, (_event, info) => callback(info))
   },
+  /** 文件管理：在目录下新建 Markdown 文件（无 .md 扩展名自动补；重名抛错），返回新路径与名称 */
+  createFile: (dirPath, name) => ipcRenderer.invoke(IPC.createFile, dirPath, name),
+  /** 文件管理：在目录下新建文件夹（重名抛错），返回新路径与名称 */
+  createDir: (dirPath, name) => ipcRenderer.invoke(IPC.createDir, dirPath, name),
+  /** 文件管理：重命名（同目录内，重名或非法名抛错），返回新路径与名称 */
+  renamePath: (oldPath, name) => ipcRenderer.invoke(IPC.renamePath, oldPath, name),
+  /** 文件管理：在系统文件管理器中显示该文件/文件夹 */
+  revealInFolder: (targetPath) => ipcRenderer.invoke(IPC.revealInFolder, targetPath),
   /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
   exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
 }

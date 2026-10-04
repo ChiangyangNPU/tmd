@@ -43,6 +43,7 @@ const {
   ensureThemesDirWithSample,
 } = require('./themes.cjs')
 const { createFileWatcher } = require('./filewatcher.cjs')
+const { sanitizeFileName, childPath, ensureMarkdownExt } = require('./fsops.cjs')
 const { createExporter } = require('./exporter.cjs')
 const {
   tmdHome,
@@ -1105,6 +1106,43 @@ ipcMain.handle(IPC.saveFileAs, async (_event, content) => {
 /** 外部修改监视：渲染层全量同步「已打开文件」集合，主进程差量增删 watcher */
 ipcMain.handle(IPC.watchFiles, (_event, paths) => {
   fileWatcher.sync(paths)
+  return true
+})
+
+// ---------- 侧边栏文件管理（新建 / 重命名 / 在系统中显示） ----------
+// 名称经 fsops.cjs 清洗 + 路径二次校验；已存在时抛错（wx / recursive:false），
+// 渲染层捕获后 toast，不覆盖任何现有文件。
+
+/** @param {unknown} _event @param {string} dirPath @param {unknown} name */
+ipcMain.handle(IPC.createFile, async (_event, dirPath, name) => {
+  const safe = sanitizeFileName(name)
+  const target = childPath(dirPath, ensureMarkdownExt(safe ?? ''))
+  if (!target) throw new Error('invalid file name')
+  await fs.writeFile(target, '', { flag: 'wx' })
+  return { path: target, name: path.basename(target) }
+})
+
+/** @param {unknown} _event @param {string} dirPath @param {unknown} name */
+ipcMain.handle(IPC.createDir, async (_event, dirPath, name) => {
+  const target = childPath(dirPath, name)
+  if (!target) throw new Error('invalid folder name')
+  await fs.mkdir(target, { recursive: false })
+  return { path: target, name: path.basename(target) }
+})
+
+/** @param {unknown} _event @param {string} oldPath @param {unknown} name */
+ipcMain.handle(IPC.renamePath, async (_event, oldPath, name) => {
+  if (typeof oldPath !== 'string' || !oldPath) throw new Error('invalid path')
+  const target = childPath(path.dirname(oldPath), name)
+  if (!target || target === oldPath) throw new Error('invalid rename target')
+  await fs.rename(oldPath, target)
+  return { path: target, name: path.basename(target) }
+})
+
+/** @param {unknown} _event @param {unknown} targetPath */
+ipcMain.handle(IPC.revealInFolder, (_event, targetPath) => {
+  if (typeof targetPath !== 'string' || !targetPath) return false
+  shell.showItemInFolder(targetPath)
   return true
 })
 

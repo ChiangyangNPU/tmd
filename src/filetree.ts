@@ -18,18 +18,41 @@ export interface RecentEntry {
   path: string
 }
 
-/** 递归渲染目录树：目录行点击展开/收起，文件行点击触发 onOpen 回调 */
+/** 行右键菜单目标：entry + 鼠标位置 + 行内编辑所需的容器引用 */
+export interface FolderMenuTarget {
+  entry: FileEntry
+  x: number
+  y: number
+  /** 目录行展开后的子树容器（目录行才有；行内新建输入插到它顶部） */
+  subContainer: HTMLElement | null
+  /** 整棵树容器（重命名按路径在其中定位行） */
+  treeContainer: HTMLElement
+}
+
+/** 递归渲染目录树：目录行点击展开/收起，文件行点击触发 onOpen 回调。
+ *  onMenu：行右键菜单（文件管理），不传则无右键行为 */
 export function renderFileTree(
   container: HTMLElement,
   entries: FileEntry[],
   onOpen: (path: string) => void,
   depth = 0,
+  onMenu?: (target: FolderMenuTarget) => void,
 ) {
   for (const item of entries) {
     const row = document.createElement('div')
     row.className = item.children ? 'tree-folder' : 'tree-file'
     row.style.paddingLeft = `${8 + depth * 14}px`
+    row.title = item.path
     row.textContent = item.name
+    if (onMenu) {
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        const sub = row.nextElementSibling?.classList.contains('folder-sub')
+          ? (row.nextElementSibling as HTMLElement)
+          : null
+        onMenu({ entry: item, x: e.clientX, y: e.clientY, subContainer: sub, treeContainer: container })
+      })
+    }
     container.appendChild(row)
 
     if (item.children) {
@@ -39,7 +62,7 @@ export function renderFileTree(
         sub.hidden = !sub.hidden
       })
       container.appendChild(sub)
-      renderFileTree(sub, item.children, onOpen, depth + 1)
+      renderFileTree(sub, item.children, onOpen, depth + 1, onMenu)
     } else {
       row.addEventListener('click', () => onOpen(item.path))
     }
@@ -96,16 +119,94 @@ export interface FolderRow {
   expanded: boolean
 }
 
+/** 文件管理回调（全部可选；不传则侧边栏保持只读，浏览器降级即此形态） */
+export interface FolderManageCallbacks {
+  /** 在 dir 下新建文件/文件夹（名称来自行内输入；提交后由调用方刷新树） */
+  onCreate: (dir: string, kind: 'file' | 'dir', name: string) => void
+  /** 重命名（同目录内）；成功后由调用方刷新树并同步打开标签 */
+  onRename: (path: string, newName: string) => void
+  /** 在系统文件管理器中显示 */
+  onReveal: (path: string) => void
+  /** 行右键菜单 */
+  onMenu: (target: FolderMenuTarget) => void
+}
+
+/** 行内输入框（新建 / 重命名共用）：Enter 提交、Esc 取消、失焦取消 */
+function beginInlineEdit(
+  row: HTMLElement,
+  initialName: string,
+  selectBase: boolean,
+  onSubmit: (name: string) => void,
+): void {
+  const label = row.querySelector<HTMLElement>('.tree-file-name')
+  if (!label || row.querySelector('.tree-inline-input')) return
+  const input = document.createElement('input')
+  input.className = 'tree-inline-input'
+  input.value = initialName
+  // 重命名选中主名（不含扩展名）；新建全选便于直接输入
+  const baseLen = selectBase ? initialName.replace(/\.md$/i, '').length : initialName.length
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const name = input.value
+      settle()
+      if (name.trim()) onSubmit(name)
+    } else if (e.key === 'Escape') {
+      settle()
+    }
+  })
+  input.addEventListener('blur', () => settle())
+  const settle = () => {
+    input.remove()
+    label.style.display = ''
+  }
+  label.style.display = 'none'
+  row.appendChild(input)
+  input.focus()
+  input.setSelectionRange(0, baseLen)
+}
+
+/** 新建入口的行内输入：在树容器顶部插入一行输入（Enter 提交 / Esc 或失焦取消） */
+export function beginInlineCreate(
+  container: HTMLElement,
+  depth: number,
+  onSubmit: (name: string) => void,
+): void {
+  if (container.querySelector('.tree-inline-row')) return
+  const row = document.createElement('div')
+  row.className = 'tree-file tree-recent tree-inline-row'
+  row.style.paddingLeft = `${8 + depth * 14}px`
+  const input = document.createElement('input')
+  input.className = 'tree-inline-input'
+  input.placeholder = t('files.newNamePlaceholder')
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      const name = input.value
+      row.remove()
+      if (name.trim()) onSubmit(name)
+    } else if (e.key === 'Escape') {
+      row.remove()
+    }
+  })
+  input.addEventListener('blur', () => row.remove())
+  row.appendChild(input)
+  container.prepend(row)
+  input.focus()
+}
+
 /** 渲染已打开文件夹列表（工作区多根）；列表为空时显示占位文案。
  *  - 点击文件夹行：onToggle 展开/收起（子树懒加载由调用方处理后重渲染）
  *  - 子树内文件行点击：onOpen
- *  - onRemove：根行 hover × 单条移除（仅移除侧边栏引用，不删除磁盘文件） */
+ *  - onRemove：根行 hover × 单条移除（仅移除侧边栏引用，不删除磁盘文件）
+ *  - manage：文件管理能力（根行 ＋新建按钮 / 行右键菜单），不传则只读 */
 export function renderFolders(
   container: HTMLElement,
   folders: FolderRow[],
   onOpen: (path: string) => void,
   onToggle: (path: string) => void,
   onRemove?: (path: string) => void,
+  manage?: FolderManageCallbacks,
 ) {
   container.textContent = ''
   if (!folders.length) {
@@ -128,6 +229,44 @@ export function renderFolders(
     label.className = 'tree-file-name'
     label.textContent = folder.name
     row.appendChild(label)
+    if (manage) {
+      // 根行 hover ＋新建按钮（文件 / 文件夹）：行内输入 → onCreate 提交
+      for (const kind of ['file', 'dir'] as const) {
+        const addBtn = document.createElement('button')
+        addBtn.type = 'button'
+        addBtn.className = `tree-file-remove tree-dir-add tree-dir-add-${kind}`
+        addBtn.title = kind === 'file' ? t('files.newFile') : t('files.newFolder')
+        addBtn.textContent = kind === 'file' ? '＋文' : '＋夹'
+        addBtn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          // 已展开：输入行插入本根的子树顶部（紧跟本行的兄弟 sub 容器）；
+          // 未展开：先展开（重渲染后子树出现）再在树容器顶部插入输入行
+          const sub = row.nextElementSibling?.classList.contains('folder-sub')
+            ? (row.nextElementSibling as HTMLElement)
+            : null
+          if (sub) {
+            beginInlineCreate(sub, 1, (name) => manage.onCreate(folder.path, kind, name))
+          } else {
+            onToggle(folder.path)
+            beginInlineCreate(container, 0, (name) => manage.onCreate(folder.path, kind, name))
+          }
+        })
+        row.appendChild(addBtn)
+      }
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        const sub = row.nextElementSibling?.classList.contains('folder-sub')
+          ? (row.nextElementSibling as HTMLElement)
+          : null
+        manage.onMenu({
+          entry: { name: folder.name, path: folder.path, children: folder.children },
+          x: e.clientX,
+          y: e.clientY,
+          subContainer: sub,
+          treeContainer: container,
+        })
+      })
+    }
     if (onRemove) {
       const removeBtn = document.createElement('button')
       removeBtn.type = 'button'
@@ -147,8 +286,22 @@ export function renderFolders(
     // 展开子树：children 已加载时渲染（未加载的条目保持折叠，首次展开时懒加载）
     if (folder.expanded && folder.children) {
       const sub = document.createElement('div')
-      renderFileTree(sub, folder.children, onOpen, 1)
+      sub.className = 'folder-sub'
+      renderFileTree(sub, folder.children, onOpen, 1, manage?.onMenu)
       container.appendChild(sub)
     }
   }
+}
+
+/** 行内重命名入口（文件行 / 文件夹行右键菜单调用）：label 换输入框 */
+export function beginRename(container: HTMLElement, path: string, onSubmit: (name: string) => void): boolean {
+  // 按路径找行：title 属性携带绝对路径（根行 / 文件行均有）
+  const row = [...container.querySelectorAll<HTMLElement>('[title]')].find(
+    (el) => el.title === path,
+  )
+  if (!row) return false
+  const label = row.querySelector<HTMLElement>('.tree-file-name')
+  const name = label?.textContent ?? ''
+  beginInlineEdit(row, name, true, onSubmit)
+  return true
 }

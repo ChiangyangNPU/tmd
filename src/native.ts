@@ -125,6 +125,14 @@ export interface NativeFileAPI {
   watchFiles(paths: string[]): void
   /** 订阅外部修改事件（kind: 'change' 内容变化 / 'unlink' 文件被移除） */
   onFileChanged(callback: (info: FileChangeInfo) => void): void
+  /** 文件管理：目录下新建 Markdown 文件（自动补 .md；重名/非法名 reject），返回新路径与名称 */
+  createFile(dirPath: string, name: string): Promise<{ path: string; name: string }>
+  /** 文件管理：目录下新建文件夹（重名/非法名 reject），返回新路径与名称 */
+  createDir(dirPath: string, name: string): Promise<{ path: string; name: string }>
+  /** 文件管理：同目录内重命名（重名/非法名 reject），返回新路径与名称 */
+  renamePath(oldPath: string, name: string): Promise<{ path: string; name: string }>
+  /** 文件管理：系统文件管理器中显示该文件/文件夹 */
+  revealInFolder(targetPath: string): Promise<boolean>
   /**
    * Word / 长图离屏导出：主进程先弹保存框（取消返回 null），
    * 再把任务下发给隐藏导出窗口执行并写入目标文件。
@@ -331,4 +339,12 @@ export interface IpcChannels {
   watchFiles: string
   /** 外部修改检测：主进程推送变化事件 */
   fileChanged: string
+  /** 文件管理：目录下新建 Markdown 文件 */
+  createFile: string
+  /** 文件管理：目录下新建文件夹 */
+  createDir: string
+  /** 文件管理：同目录内重命名 */
+  renamePath: string
+  /** 文件管理：在系统文件管理器中显示 */
+  revealInFolder: string
 }

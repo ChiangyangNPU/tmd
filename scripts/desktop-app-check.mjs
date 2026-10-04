@@ -5,7 +5,7 @@
  * 文件读写、菜单分发、编辑器、IPC、crashReporter、日志落盘全部走真实代码），
  * 通过 Chrome DevTools Protocol（渲染层 9222 / 主进程 --inspect 9229）操作与断言。
  *
- * 覆盖 11 个场景：
+ * 覆盖 12 个场景：
  *  1. 首启为空白未命名文档，且无恢复副本
  *  2. 菜单「打开」加载真实磁盘文档
  *  3. 编辑后脏标记出现、恢复副本写入 localStorage
@@ -14,6 +14,9 @@
  *  5a. 外部修改检测：干净标签自动重载；脏标签弹提示条，
  *      「重新加载」采用磁盘内容清脏 / 「保留我的版本」不覆盖本地
  *  6. 未保存关闭走原生确认框，选「取消」窗口存活
+ *  6g. 源码模式：单栏可编辑、退出并回、恢复副本跟随
+ *  6i. 侧边栏文件管理：挂载文件夹 → 行内新建（落盘+打开）→ 右键重命名（磁盘与标签同步）
+ *  6j. 快速切换拼音首字母：Ctrl+P 输入 xmsm 命中「项目说明.md」并打开
  *  7. 渲染层未捕获异常经 IPC 落盘到 TMD_HOME_DIR/.tmd/logs（JSONL）
  *  8. 渲染进程原生崩溃（webContents.crash）触发 child-process-gone 日志
  *  9. SIGKILL 强杀后同 profile 重启：恢复副本内容还原；上次 renderer dump 被登记
@@ -149,10 +152,13 @@ async function installDialogStubs(main) {
     const { dialog } = req('electron')
     const fs = req('node:fs')
     global.__tmdE2E = { nextMsgResponse: 0 }
-    dialog.showOpenDialog = async () => ({
-      canceled: false,
-      filePaths: [${JSON.stringify(MD_PATH)}],
-    })
+    dialog.showOpenDialog = async () => {
+      // nextOpenDir：文件管理场景临时把「打开文件夹」指向工作目录（消费式）
+      const dir = global.__tmdE2E.nextOpenDir
+      global.__tmdE2E.nextOpenDir = null
+      if (dir) return { canceled: false, filePaths: [dir] }
+      return { canceled: false, filePaths: [${JSON.stringify(MD_PATH)}] }
+    }
     dialog.showSaveDialog = async () => {
       fs.mkdirSync(${JSON.stringify(WORK)}, { recursive: true })
       return { canceled: false, filePath: ${JSON.stringify(COPY_PATH)} }
@@ -999,6 +1005,172 @@ async function main() {
       afterSourceExit.includes(SOURCE_MARKER),
       `正文 ${afterSourceExit.length} 字符`,
     )
+
+    // ---------- 场景 6i：侧边栏文件管理（挂载 → 新建 → 重命名） ----------
+    // 打开文件夹（stub 指向工作目录）→ 根行 ＋文 按钮行内新建 → 右键重命名。
+    // 全程断言磁盘真实变化；「在系统中显示」会拉起访达窗口，不在 E2E 覆盖。
+    // 中文名文档同时就位：供场景 6j 的拼音首字母匹配使用（挂载读盘时必须在场）
+    await writeFile(
+      join(DOCS_DIR, '项目说明.md'),
+      '# 项目说明\n\n拼音首字母匹配验证文档。\n',
+      'utf-8',
+    )
+    await rendererCdp.evalJson(
+      `document.getElementById('menu-files-btn')?.click()`,
+    )
+    await rendererCdp.evalJson(`(() => {
+      document.querySelector('.sidebar-subtitle-row') // 确保 files 面板 DOM 存在
+    })()`)
+    await mainCdp.evalJson(`global.__tmdE2E.nextOpenDir = ${JSON.stringify(DOCS_DIR)}`)
+    await rendererCdp.evalJson(`document.getElementById('open-folder-btn')?.click()`)
+    let folderMounted = false
+    for (let i = 0; i < 40; i++) {
+      const has = await rendererCdp.evalJson(
+        `!!document.querySelector('#folder-tree .tree-folder.tree-recent')`,
+      )
+      if (has) {
+        folderMounted = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6i1 打开文件夹挂载到侧边栏并展开', folderMounted)
+
+    // 根行「＋文」→ 行内输入 → Enter：磁盘产出 .md 并自动打开为激活标签
+    await rendererCdp.evalJson(`(() => {
+      document.querySelector('.tree-dir-add-file')?.click()
+      const input = document.querySelector('.tree-inline-input')
+      if (!input) return
+      input.value = 'e2e-created'
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })()`)
+    let created = false
+    let createDetail = ''
+    for (let i = 0; i < 40; i++) {
+      const exists = existsSync(join(DOCS_DIR, 'e2e-created.md'))
+      createDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `document.querySelector('.tab.active')?.textContent?.trim() || ''`,
+        )
+      )
+      if (exists && /e2e-created\.md/.test(createDetail)) {
+        created = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6i2 行内新建文件落盘并自动打开', created, createDetail)
+
+    // 右键该行 → 菜单「重命名」→ 行内输入 → Enter：磁盘与标签同步改名
+    await rendererCdp.evalJson(`(() => {
+      const row = [...document.querySelectorAll('#folder-tree [title]')].find(
+        (el) => el.title.endsWith('e2e-created.md'),
+      )
+      row?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    })()`)
+    let menuShown = false
+    for (let i = 0; i < 20; i++) {
+      const has = await rendererCdp.evalJson(
+        `!!document.querySelector('.file-context-menu')`,
+      )
+      if (has) {
+        menuShown = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6i3 文件行右键弹出管理菜单', menuShown)
+
+    await rendererCdp.evalJson(`(() => {
+      const item = [...document.querySelectorAll('.file-context-menu .menu-item')].find(
+        (el) => /重命名|Rename/.test(el.textContent || ''),
+      )
+      item?.click()
+    })()`)
+    await rendererCdp.evalJson(`(() => {
+      const input = document.querySelector('.tree-inline-input')
+      if (!input) return
+      input.value = 'e2e-renamed.md'
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    })()`)
+    let renamed = false
+    let renameDetail = ''
+    for (let i = 0; i < 40; i++) {
+      const moved = existsSync(join(DOCS_DIR, 'e2e-renamed.md')) && !existsSync(join(DOCS_DIR, 'e2e-created.md'))
+      renameDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `document.querySelector('.tab.active')?.textContent?.trim() || ''`,
+        )
+      )
+      if (moved && /e2e-renamed\.md/.test(renameDetail)) {
+        renamed = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6i4 重命名落盘生效且打开标签同步改名', renamed, renameDetail)
+
+    // ---------- 场景 6j：快速切换拼音首字母匹配 ----------
+    // Ctrl+P → 输入「xmsm」→ 命中「项目说明.md」→ 回车打开。
+    // pinyin-pro 字典在面板首次打开时懒加载，轮询断言天然容忍加载延迟。
+    await rendererCdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'p',
+      code: 'KeyP',
+      windowsVirtualKeyCode: 80,
+      modifiers: 2, // CDP 位掩码：Ctrl=2
+    })
+    let qsOpen = false
+    for (let i = 0; i < 20; i++) {
+      const open = await rendererCdp.evalJson(
+        `!document.getElementById('qs-overlay')?.hidden`,
+      )
+      if (open) {
+        qsOpen = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6j1 Ctrl+P 打开快速切换面板', qsOpen)
+
+    await rendererCdp.send('Input.insertText', { text: 'xmsm' })
+    let qsHit = false
+    let qsDetail = ''
+    for (let i = 0; i < 40; i++) {
+      qsDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          first: document.querySelector('.qs-item .qs-name')?.textContent || '',
+          count: document.querySelectorAll('.qs-item').length,
+        })`)
+      )
+      if (JSON.parse(qsDetail).first.includes('项目说明.md')) {
+        qsHit = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6j2 拼音首字母 xmsm 命中中文名文件', qsHit, qsDetail)
+
+    await rendererCdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'Enter',
+      code: 'Enter',
+      windowsVirtualKeyCode: 13,
+    })
+    let qsOpened = false
+    for (let i = 0; i < 20; i++) {
+      const tabText = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `document.querySelector('.tab.active')?.textContent?.trim() || ''`,
+        )
+      )
+      if (/项目说明\.md/.test(tabText)) {
+        qsOpened = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6j3 回车打开中文名文件', qsOpened)
 
     // ---------- 场景 7：渲染层异常落盘 ----------
     await rendererCdp.evalJson(`window.dispatchEvent(new ErrorEvent('error', {

@@ -76,6 +76,11 @@ const channels = {
   // 外部修改检测：渲染层全量同步打开文件集合，主进程推送变化事件
   watchFiles: 'tmd:watch-files',
   fileChanged: 'tmd:file-changed',
+  // 侧边栏文件管理：新建文件 / 新建文件夹 / 重命名 / 在系统中显示
+  createFile: 'tmd:create-file',
+  createDir: 'tmd:create-dir',
+  renamePath: 'tmd:rename-path',
+  revealInFolder: 'tmd:reveal-in-folder',
 }
 
 module.exports = channels
