@@ -43,14 +43,24 @@ export function renderFileTree(
     row.className = item.children ? 'tree-folder' : 'tree-file'
     row.style.paddingLeft = `${8 + depth * 14}px`
     row.title = item.path
-    row.textContent = item.name
+    // 名称放 .tree-file-name 标签：行内重命名靠它替换输入框（与根行/最近行同构）
+    const label = document.createElement('span')
+    label.className = 'tree-file-name'
+    label.textContent = item.name
+    row.appendChild(label)
     if (onMenu) {
       row.addEventListener('contextmenu', (e) => {
         e.preventDefault()
         const sub = row.nextElementSibling?.classList.contains('folder-sub')
           ? (row.nextElementSibling as HTMLElement)
           : null
-        onMenu({ entry: item, x: e.clientX, y: e.clientY, subContainer: sub, treeContainer: container })
+        onMenu({
+          entry: item,
+          x: e.clientX,
+          y: e.clientY,
+          subContainer: sub,
+          treeContainer: container,
+        })
       })
     }
     container.appendChild(row)
@@ -131,7 +141,9 @@ export interface FolderManageCallbacks {
   onMenu: (target: FolderMenuTarget) => void
 }
 
-/** 行内输入框（新建 / 重命名共用）：Enter 提交、Esc 取消、失焦取消 */
+/** 行内输入框（新建 / 重命名共用）：Enter 提交、Esc 取消、失焦取消。
+ *  done 幂等闩：移除聚焦中的 input 会同步触发 blur，重入的收尾必须被挡住
+ *  （否则 row.remove() 重入抛 NotFoundError，提交链路被异常打断） */
 function beginInlineEdit(
   row: HTMLElement,
   initialName: string,
@@ -143,23 +155,27 @@ function beginInlineEdit(
   const input = document.createElement('input')
   input.className = 'tree-inline-input'
   input.value = initialName
+  let done = false
+  const finish = (submit: boolean) => {
+    if (done) return
+    done = true
+    const name = input.value
+    input.remove()
+    row.remove()
+    label.style.display = ''
+    if (submit && name.trim()) onSubmit(name)
+  }
   // 重命名选中主名（不含扩展名）；新建全选便于直接输入
   const baseLen = selectBase ? initialName.replace(/\.md$/i, '').length : initialName.length
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      const name = input.value
-      settle()
-      if (name.trim()) onSubmit(name)
+      finish(true)
     } else if (e.key === 'Escape') {
-      settle()
+      finish(false)
     }
   })
-  input.addEventListener('blur', () => settle())
-  const settle = () => {
-    input.remove()
-    label.style.display = ''
-  }
+  input.addEventListener('blur', () => finish(false))
   label.style.display = 'none'
   row.appendChild(input)
   input.focus()
@@ -179,17 +195,24 @@ export function beginInlineCreate(
   const input = document.createElement('input')
   input.className = 'tree-inline-input'
   input.placeholder = t('files.newNamePlaceholder')
+  let done = false
+  const finish = (submit: boolean) => {
+    if (done) return
+    done = true
+    const name = input.value
+    input.remove()
+    row.remove()
+    if (submit && name.trim()) onSubmit(name)
+  }
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault()
-      const name = input.value
-      row.remove()
-      if (name.trim()) onSubmit(name)
+      finish(true)
     } else if (e.key === 'Escape') {
-      row.remove()
+      finish(false)
     }
   })
-  input.addEventListener('blur', () => row.remove())
+  input.addEventListener('blur', () => finish(false))
   row.appendChild(input)
   container.prepend(row)
   input.focus()
@@ -294,7 +317,11 @@ export function renderFolders(
 }
 
 /** 行内重命名入口（文件行 / 文件夹行右键菜单调用）：label 换输入框 */
-export function beginRename(container: HTMLElement, path: string, onSubmit: (name: string) => void): boolean {
+export function beginRename(
+  container: HTMLElement,
+  path: string,
+  onSubmit: (name: string) => void,
+): boolean {
   // 按路径找行：title 属性携带绝对路径（根行 / 文件行均有）
   const row = [...container.querySelectorAll<HTMLElement>('[title]')].find(
     (el) => el.title === path,

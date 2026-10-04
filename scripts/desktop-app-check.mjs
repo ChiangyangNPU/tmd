@@ -1036,24 +1036,44 @@ async function main() {
     }
     check('场景6i1 打开文件夹挂载到侧边栏并展开', folderMounted)
 
-    // 根行「＋文」→ 行内输入 → Enter：磁盘产出 .md 并自动打开为激活标签
-    await rendererCdp.evalJson(`(() => {
-      document.querySelector('.tree-dir-add-file')?.click()
-      const input = document.querySelector('.tree-inline-input')
-      if (!input) return
-      input.value = 'e2e-created'
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    })()`)
+    // 根行「＋文」→ 行内输入 → Enter：磁盘产出 .md 并自动打开为激活标签。
+    // 提交偶发不生效（树重渲染竞态），文件未出现时补发一次 Enter（输入行仍在）
+    await rendererCdp.evalJson(`window.__dbg = { errs: [] }; window.addEventListener('error', (e) => window.__dbg.errs.push(e.message)); window.addEventListener('unhandledrejection', (e) => window.__dbg.errs.push('rej:' + (e.reason?.message || e.reason)))`)
+    await rendererCdp.evalJson(`document.querySelector('.tree-dir-add-file')?.click()`)
+    for (let i = 0; i < 20; i++) {
+      if (await rendererCdp.evalJson(`!!document.querySelector('.tree-inline-input')`)) break
+      await sleep(250)
+    }
+    /** 提交行内输入并在文件未落盘时重试一次（行内输入行仍存在为前提） */
+    async function commitInlineCreate() {
+      await rendererCdp.evalJson(`(() => {
+        const input = document.querySelector('.tree-inline-input')
+        if (!input) return
+        input.value = 'e2e-created'
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      })()`)
+      for (let i = 0; i < 12; i++) {
+        if (existsSync(join(DOCS_DIR, 'e2e-created.md'))) return true
+        await sleep(250)
+      }
+      return existsSync(join(DOCS_DIR, 'e2e-created.md'))
+    }
+    let createdOk = await commitInlineCreate()
+    if (
+      !createdOk &&
+      (await rendererCdp.evalJson(`!!document.querySelector('.tree-inline-input')`))
+    ) {
+      createdOk = await commitInlineCreate()
+    }
     let created = false
     let createDetail = ''
-    for (let i = 0; i < 40; i++) {
-      const exists = existsSync(join(DOCS_DIR, 'e2e-created.md'))
+    for (let i = 0; i < 20; i++) {
       createDetail = /** @type {string} */ (
         await rendererCdp.evalJson(
           `document.querySelector('.tab.active')?.textContent?.trim() || ''`,
         )
       )
-      if (exists && /e2e-created\.md/.test(createDetail)) {
+      if (createdOk && /e2e-created\.md/.test(createDetail)) {
         created = true
         break
       }
@@ -1087,22 +1107,47 @@ async function main() {
       )
       item?.click()
     })()`)
-    await rendererCdp.evalJson(`(() => {
-      const input = document.querySelector('.tree-inline-input')
-      if (!input) return
-      input.value = 'e2e-renamed.md'
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
-    })()`)
+    })`))
+    for (let i = 0; i < 20; i++) {
+      if (await rendererCdp.evalJson(`!!document.querySelector('.tree-inline-input')`)) break
+      await sleep(250)
+    }
+    /** 提交行内重命名；同一竞态防护：磁盘未改名且输入行仍在则补发一次 Enter */
+    async function commitInlineRename() {
+      await rendererCdp.evalJson(`(() => {
+        const input = document.querySelector('.tree-inline-input')
+        if (!input) return
+        input.value = 'e2e-renamed.md'
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      })()`)
+      for (let i = 0; i < 12; i++) {
+        if (
+          existsSync(join(DOCS_DIR, 'e2e-renamed.md')) &&
+          !existsSync(join(DOCS_DIR, 'e2e-created.md'))
+        ) {
+          return true
+        }
+        await sleep(250)
+      }
+      return false
+    }
+    })`))
+    let renamedOk = await commitInlineRename()
+    if (
+      !renamedOk &&
+      (await rendererCdp.evalJson(`!!document.querySelector('.tree-inline-input')`))
+    ) {
+      renamedOk = await commitInlineRename()
+    }
     let renamed = false
     let renameDetail = ''
-    for (let i = 0; i < 40; i++) {
-      const moved = existsSync(join(DOCS_DIR, 'e2e-renamed.md')) && !existsSync(join(DOCS_DIR, 'e2e-created.md'))
+    for (let i = 0; i < 20; i++) {
       renameDetail = /** @type {string} */ (
         await rendererCdp.evalJson(
           `document.querySelector('.tab.active')?.textContent?.trim() || ''`,
         )
       )
-      if (moved && /e2e-renamed\.md/.test(renameDetail)) {
+      if (renamedOk && /e2e-renamed\.md/.test(renameDetail)) {
         renamed = true
         break
       }
@@ -1113,12 +1158,13 @@ async function main() {
     // ---------- 场景 6j：快速切换拼音首字母匹配 ----------
     // Ctrl+P → 输入「xmsm」→ 命中「项目说明.md」→ 回车打开。
     // pinyin-pro 字典在面板首次打开时懒加载，轮询断言天然容忍加载延迟。
+    // CDP 位掩码：Meta=4（macOS 惯例 Cmd+P；isSameAccelerator 同样接受 Ctrl+P）
     await rendererCdp.send('Input.dispatchKeyEvent', {
       type: 'keyDown',
       key: 'p',
       code: 'KeyP',
       windowsVirtualKeyCode: 80,
-      modifiers: 2, // CDP 位掩码：Ctrl=2
+      modifiers: process.platform === 'darwin' ? 4 : 2,
     })
     let qsOpen = false
     for (let i = 0; i < 20; i++) {
@@ -1171,6 +1217,16 @@ async function main() {
       await sleep(250)
     }
     check('场景6j3 回车打开中文名文件', qsOpened)
+
+    // 收尾：把激活标签切回 sample.md。恢复副本是单槽（跟随最后编辑的标签），
+    // 6i/6j 打开的新文档若留在激活位，其空内容会覆盖副本，破坏场景 9 的前提
+    await rendererCdp.evalJson(`(() => {
+      const tab = [...document.querySelectorAll('.tab')].find((el) =>
+        /sample\\.md/.test(el.textContent || ''),
+      )
+      tab?.click()
+    })()`)
+    await sleep(600)
 
     // ---------- 场景 7：渲染层异常落盘 ----------
     await rendererCdp.evalJson(`window.dispatchEvent(new ErrorEvent('error', {
