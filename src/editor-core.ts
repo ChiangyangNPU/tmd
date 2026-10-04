@@ -19,6 +19,7 @@ import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import { mermaidPlugins } from './mermaid'
 import { pasteImage } from './paste-image'
 import { pasteHtml } from './paste-html'
+import { pasteTsv } from './paste-tsv'
 import { findPlugin, findClear, findState, findRefreshAfterReplace, findTextRanges } from './find'
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
@@ -263,6 +264,7 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(math)
       .use(pasteImage)
       .use(pasteHtml)
+      .use(pasteTsv)
       .use(findPlugin)
       .use(taskListClick)
       .use(tocPlugins)

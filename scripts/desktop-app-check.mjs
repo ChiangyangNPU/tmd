@@ -5,7 +5,7 @@
  * 文件读写、菜单分发、编辑器、IPC、crashReporter、日志落盘全部走真实代码），
  * 通过 Chrome DevTools Protocol（渲染层 9222 / 主进程 --inspect 9229）操作与断言。
  *
- * 覆盖 16 个场景：
+ * 覆盖 18 个场景：
  *  1. 首启为空白未命名文档，且无恢复副本
  *  2. 菜单「打开」加载真实磁盘文档
  *  3. 编辑后脏标记出现、恢复副本写入 localStorage
@@ -19,6 +19,7 @@
  *  6j. 快速切换拼音首字母：Ctrl+P 输入 xmsm 命中「项目说明.md」并打开
  *  6k. 命令面板：Shift+Cmd/Ctrl+A 打开，搜 source 执行「源码模式」并验证可逆
  *  6l. Ctrl/Cmd+滚轮缩放：编辑区上滚放大 + HUD，下滚还原并同步排版存储
+ *  6m. TSV 粘贴转表格：纯文本多行制表符数据 → 表格 DOM + Markdown 序列化
  *  7. 渲染层未捕获异常经 IPC 落盘到 TMD_HOME_DIR/.tmd/logs（JSONL）
  *  8. 渲染进程原生崩溃（webContents.crash）触发 child-process-gone 日志
  *  9. SIGKILL 强杀后同 profile 重启：恢复副本内容还原；上次 renderer dump 被登记
@@ -1346,6 +1347,50 @@ async function main() {
       stored,
     )
 
+    // ---------- 场景 6m：TSV 粘贴转表格 ----------
+    // 页内合成 paste 事件（clipboardData 带 TSV 纯文本）走真实 schema 与
+    // 序列化链路：断言表格 DOM（表头 + 2 数据行）与 Markdown 序列化
+    await rendererCdp.evalJson(`(() => {
+      const dt = new DataTransfer()
+      dt.setData('text/plain', '名称\\t数量\\n苹果\\t3\\n香蕉\\t5')
+      document
+        .querySelector('#editor .ProseMirror')
+        ?.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }))
+    })()`)
+    let tsvTable = false
+    let tsvDetail = ''
+    for (let i = 0; i < 20; i++) {
+      tsvDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          rows: document.querySelectorAll('#editor table tr').length,
+          hasApple: [...document.querySelectorAll('#editor table td')]
+            .some((c) => c.textContent === '苹果'),
+        })`)
+      )
+      const parsed = JSON.parse(tsvDetail)
+      if (parsed.rows === 3 && parsed.hasApple) {
+        tsvTable = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6m1 TSV 粘贴生成表格（表头 + 2 数据行）', tsvTable, tsvDetail)
+
+    // 序列化：恢复副本（markdownUpdated 低优回调）应出现管道表格语法
+    let tsvMd = false
+    for (let i = 0; i < 20; i++) {
+      const doc = /** @type {string} */ (
+        await rendererCdp.evalJson(`localStorage.getItem('tmd:doc:v1') || ''`)
+      )
+      // Milkdown gfm 序列化按列宽填充空格（| 苹果 | 3  |），只锚定表头行
+      if (doc.includes('| 名称 | 数量 |')) {
+        tsvMd = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6m2 表格序列化为 Markdown 管道语法', tsvMd)
+
     // 收尾：把激活标签切回 sample.md。恢复副本是单槽（跟随最后编辑的标签），
     // 6i/6j 打开的新文档若留在激活位，其空内容会覆盖副本，破坏场景 9 的前提
     await rendererCdp.evalJson(`(() => {
@@ -1354,7 +1399,20 @@ async function main() {
       )
       tab?.click()
     })()`)
-    await sleep(600)
+    // 强制刷新恢复副本：副本经 markdownUpdated 低优回调写入，纯切标签
+    // （destroy+create 初始化文档）不产生文档更新事件——补一次空格编辑并
+    // 轮询副本真正落定为「sample.md 的当前内容」（后续场景 9 的前提）
+    await rendererCdp.evalJson(`document.querySelector('#editor .ProseMirror')?.focus()`)
+    await rendererCdp.evalJson(`document.execCommand('insertText', false, ' ')`)
+    let copyRefreshed = false
+    for (let i = 0; i < 32 && !copyRefreshed; i++) {
+      const doc = /** @type {string} */ (
+        await rendererCdp.evalJson(`localStorage.getItem('tmd:doc:v1') || ''`)
+      )
+      if (doc.includes('TMD 主链路验证文档')) copyRefreshed = true
+      else await sleep(250)
+    }
+    check('场景6n 恢复副本回到 sample.md 内容（单槽副本语义自洽）', copyRefreshed)
 
     // ---------- 场景 7：渲染层异常落盘 ----------
     await rendererCdp.evalJson(`window.dispatchEvent(new ErrorEvent('error', {
