@@ -76,6 +76,18 @@ export function findByPath(path: string): DocTab | undefined {
   return tabs.find((t) => t.path === path)
 }
 
+/**
+ * 打开文件集合变化回调（外部修改监视用）：关标签后打开路径集合缩小，
+ * files.ts 在启动时经 setOnTabsSetChanged 注册同步函数，此处只负责触发。
+ * 打开/另存为路径在 files.ts 内直接调用同步，不经此钩子。
+ */
+let onTabsSetChanged: (() => void) | null = null
+
+/** 注册「打开文件集合变化」回调（幂等覆盖；传 null 注销） */
+export function setOnTabsSetChanged(fn: (() => void) | null) {
+  onTabsSetChanged = fn
+}
+
 /** 可被"打开文件"原地替换的空白标签索引（无路径、无修改、空内容、非恢复），无则 -1 */
 export function blankIndex(): number {
   return tabs.findIndex((t) => !t.path && !t.recovered && !t.dirty && t.markdown === '')
@@ -264,6 +276,7 @@ export async function closeTab(id: string) {
 
   const index = tabs.indexOf(tab)
   tabs.splice(index, 1)
+  onTabsSetChanged?.()
   if (activeTabId === id) {
     activeTabId = null
     const next = tabs[Math.min(index, tabs.length - 1)]
@@ -314,6 +327,7 @@ export async function closeTabsBulk(ids: string[], anchorId?: string) {
   const activeClosed = targets.some((tb) => tb.id === activeTabId)
 
   for (const tb of targets) tabs.splice(tabs.indexOf(tb), 1)
+  onTabsSetChanged?.()
 
   if (activeClosed) {
     activeTabId = null

@@ -14,6 +14,7 @@ vi.mock('../native', () => ({
     openFile: vi.fn(),
     readFile: vi.fn(),
     recentAdd: vi.fn(),
+    watchFiles: vi.fn(),
   },
 }))
 vi.mock('../editor-core', () => ({
@@ -32,6 +33,8 @@ vi.mock('../tabs', () => ({
   hasDirty: vi.fn(() => false),
   isTabOpen: vi.fn(() => true),
   syncDirtyWith: vi.fn(),
+  listTabs: vi.fn(() => []),
+  setOnTabsSetChanged: vi.fn(),
 }))
 vi.mock('../store', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../store')>()
@@ -84,7 +87,14 @@ beforeEach(() => {
 })
 
 function makeTab(overrides: Partial<{ path?: string; markdown: string; dirty: boolean }> = {}) {
-  return { id: 'tab-1', name: 'a.md', path: '/tmp/a.md', markdown: 'OLD', dirty: true, ...overrides }
+  return {
+    id: 'tab-1',
+    name: 'a.md',
+    path: '/tmp/a.md',
+    markdown: 'OLD',
+    dirty: true,
+    ...overrides,
+  }
 }
 
 describe('saveDocument 基准推进语义', () => {

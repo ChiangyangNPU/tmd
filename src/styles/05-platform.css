@@ -24,6 +24,74 @@ html.mac .toolbar {
   padding-left: 80px;
 }
 
+/* 外部修改提示条（脏标签被外部改动时顶部悬浮，二选一：重新加载 / 保留我的版本）。
+   单实例由 external-change.ts 管理；z-index 高于编辑器与工具栏、低于浮层（35+） */
+.extchange-bar {
+  position: fixed;
+  top: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 32;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 640px);
+  padding: 8px 12px 8px 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+
+.extchange-msg {
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.extchange-btn {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.extchange-btn:hover {
+  background: var(--bg-hover);
+}
+
+.extchange-reload {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.extchange-reload:hover {
+  background: var(--accent);
+  opacity: 0.88;
+}
+
+.extchange-close {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.extchange-close:hover {
+  color: var(--fg);
+}
+
 html.mac .toolbar-left {
   margin-left: auto;
 }

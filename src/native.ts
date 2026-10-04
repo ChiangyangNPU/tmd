@@ -121,6 +121,10 @@ export interface NativeFileAPI {
   listHistory(filePath: string): Promise<FileHistory | null>
   /** 本地历史版本：读取单条快照正文（id 非法或文件缺失返回 null） */
   readHistory(filePath: string, id: string): Promise<HistoryEntry | null>
+  /** 外部修改监视：全量同步「已打开文件」路径集合（主进程差量增删 watcher） */
+  watchFiles(paths: string[]): void
+  /** 订阅外部修改事件（kind: 'change' 内容变化 / 'unlink' 文件被移除） */
+  onFileChanged(callback: (info: FileChangeInfo) => void): void
   /**
    * Word / 长图离屏导出：主进程先弹保存框（取消返回 null），
    * 再把任务下发给隐藏导出窗口执行并写入目标文件。
@@ -195,6 +199,13 @@ export interface HistoryEntry {
   id: string
   ts: string
   content: string
+}
+
+/** 外部修改事件（主进程内容指纹比对后推送，自身写入已被过滤） */
+export interface FileChangeInfo {
+  path: string
+  /** change = 内容变化；unlink = 文件被移除 */
+  kind: 'change' | 'unlink'
 }
 
 /** 文件式主题条目（主题目录中的一个 .css 文件） */
@@ -316,4 +327,8 @@ export interface IpcChannels {
   historyList: string
   /** 本地历史版本：读取单条快照正文 */
   historyRead: string
+  /** 外部修改检测：渲染层全量同步打开文件集合 */
+  watchFiles: string
+  /** 外部修改检测：主进程推送变化事件 */
+  fileChanged: string
 }

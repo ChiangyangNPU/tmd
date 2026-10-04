@@ -79,6 +79,13 @@
     "clearFoldersTitle": "清空資料夾清單",
     "clearFoldersConfirm": "確定要清空全部已開啟的資料夾嗎？（不會刪除磁碟檔案）"
   },
+  "extchange": {
+    "changed": "「{name}」已在磁碟上被外部修改",
+    "reload": "重新載入",
+    "keepMine": "保留我的版本",
+    "reloaded": "已重新載入「{name}」",
+    "deleted": "「{name}」已從磁碟移除，編輯器內容保留"
+  },
   "tab": {
     "untitled": "未命名.md"
   },

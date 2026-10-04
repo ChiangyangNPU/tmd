@@ -17,6 +17,8 @@ import {
   hasDirty,
   isTabOpen,
   syncDirtyWith,
+  listTabs,
+  setOnTabsSetChanged,
   type DocTab,
 } from './tabs'
 import {
@@ -69,6 +71,25 @@ function pushRecentWithRender(path: string, name: string) {
 }
 
 /**
+ * 全量同步「已打开文件」集合给主进程的外部修改监视器（差量增删 watcher）。
+ * 在开关标签 / 打开 / 另存为后调用；浏览器环境无 native 自然跳过。
+ */
+export function syncFileWatchers() {
+  const paths = [...new Set(listTabs().flatMap((tb) => (tb.path ? [tb.path] : [])))]
+  native?.watchFiles(paths)
+}
+
+/**
+ * 装配外部修改监视（boot 时调用一次）：
+ * 注册标签集合变化钩子（关闭标签后收缩监视集合）并做首次同步。
+ * 变化事件的订阅在 external-change.ts（wireFileChanged），此处不碰 UI。
+ */
+export function initFileWatcherBridge() {
+  setOnTabsSetChanged(() => syncFileWatchers())
+  syncFileWatchers()
+}
+
+/**
  * 打开文档：
  * - Electron：原生文件选择对话框（自动去重已打开的同路径文件）
  * - 浏览器：降级为 <input type="file">
@@ -101,7 +122,7 @@ export async function openDocument() {
  * 同路径已打开 → 跳转既有标签；唯一的空白"未命名"标签 → 原地替换；否则新建标签。
  */
 export async function openFromData(data: { path?: string; name: string; content: string }) {
-  // 已打开同一文件 → 跳到那个标签页
+  // 已打开同一文件 → 跳到那个标签页（集合未变，无需重新同步监视）
   if (data.path) {
     const existing = findByPath(data.path)
     if (existing) {
@@ -121,10 +142,12 @@ export async function openFromData(data: { path?: string; name: string; content:
     await replaceEditor(data.content)
     renderTabs()
     updateTitle()
+    syncFileWatchers()
     return
   }
   const tab = newTab(data.name, data.content, data.path)
   await activateTab(tab.id)
+  syncFileWatchers()
 }
 
 /**
@@ -184,6 +207,8 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
       showToast(t('files.saveFailed'))
       return
     }
+    // 另存为会改变标签关联路径：按新集合重同步外部修改监视
+    syncFileWatchers()
   } else {
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)

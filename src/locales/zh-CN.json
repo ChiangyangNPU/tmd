@@ -79,6 +79,13 @@
     "clearFoldersTitle": "清空文件夹列表",
     "clearFoldersConfirm": "确定清空全部已打开的文件夹吗？（不会删除磁盘文件）"
   },
+  "extchange": {
+    "changed": "「{name}」已在磁盘上被外部修改",
+    "reload": "重新加载",
+    "keepMine": "保留我的版本",
+    "reloaded": "已重新加载「{name}」",
+    "deleted": "「{name}」已从磁盘移除，编辑器内容保留"
+  },
   "tab": {
     "untitled": "未命名.md"
   },

@@ -5,12 +5,14 @@
  * 文件读写、菜单分发、编辑器、IPC、crashReporter、日志落盘全部走真实代码），
  * 通过 Chrome DevTools Protocol（渲染层 9222 / 主进程 --inspect 9229）操作与断言。
  *
- * 覆盖 10 个场景：
+ * 覆盖 11 个场景：
  *  1. 首启为空白未命名文档，且无恢复副本
  *  2. 菜单「打开」加载真实磁盘文档
  *  3. 编辑后脏标记出现、恢复副本写入 localStorage
  *  4. 菜单「保存」写回磁盘、脏标记清除、恢复副本清除
  *  5. 菜单「另存为」产出新文件并切换关联路径
+ *  5a. 外部修改检测：干净标签自动重载；脏标签弹提示条，
+ *      「重新加载」采用磁盘内容清脏 / 「保留我的版本」不覆盖本地
  *  6. 未保存关闭走原生确认框，选「取消」窗口存活
  *  7. 渲染层未捕获异常经 IPC 落盘到 TMD_HOME_DIR/.tmd/logs（JSONL）
  *  8. 渲染进程原生崩溃（webContents.crash）触发 child-process-gone 日志
@@ -69,6 +71,12 @@ const SPLIT_MARKER = 'E2E-SPLIT-MARKER-3d1e'
 const SOURCE_MARKER = 'E2E-SOURCE-MARKER-5a8f'
 const CM_EDIT_MARKER = 'E2E-CM-MARKER-7b2c'
 const RENDER_ERROR_MARKER = 'tmd-e2e-render-error-marker'
+/** 外部修改检测场景：脚本直接改磁盘的三个版本 + 编辑/保留标记 */
+const EXT_V1 = 'E2E-EXT-CHANGE-1'
+const EXT_V2 = 'E2E-EXT-CHANGE-2'
+const EXT_V3 = 'E2E-EXT-CHANGE-3'
+const DIRTY_BEFORE_EXT = 'E2E-DIRTY-BEFORE-EXT'
+const KEEP_MINE_MARKER = 'E2E-KEEP-MINE'
 
 const KEEP = process.argv.includes('--keep')
 const results = []
@@ -328,6 +336,71 @@ function evalNoWait(cdp, expression) {
 // 主流程
 // ---------------------------------------------------------------------------
 
+/**
+ * 通过应用菜单勾选/取消「自动保存到文件」（场景 5b 期间关掉，
+ * 避免 5 秒周期写盘把脏标签中途变干净造成竞态；跑完恢复）。
+ * @param {Cdp} main
+ * @param {boolean} on 目标状态
+ */
+async function setAutosaveViaMenu(main, on) {
+  await main.evalJson(`(() => {
+    const req = typeof require === 'function' ? require : global.process.mainModule.require
+    const { Menu } = req('electron')
+    const m = Menu.getApplicationMenu()
+    const item = m.items
+      .flatMap((i) => (i.submenu ? i.submenu.items : []))
+      .find((s) => /自动保存|Autosave/.test(s.label || ''))
+    if (!item) throw new Error('未找到自动保存菜单项')
+    if (item.checked !== ${on}) item.click()
+    return item.checked
+  })()`)
+}
+
+/**
+ * 等待渲染层出现/消失外部修改提示条。
+ * @param {Cdp} renderer
+ * @param {boolean} visible
+ */
+async function waitExtBar(renderer, visible) {
+  for (let i = 0; i < 40; i++) {
+    const has = await renderer.evalJson(`!!document.querySelector('.extchange-bar')`)
+    if (has === visible) return true
+    await sleep(250)
+  }
+  return false
+}
+
+/**
+ * 点击提示条上的指定按钮（.extchange-reload / .extchange-keep）。
+ * @param {Cdp} renderer
+ * @param {'reload' | 'keep'} which
+ */
+async function clickExtBarButton(renderer, which) {
+  await renderer.evalJson(`document.querySelector('.extchange-${which}')?.click()`)
+}
+
+/**
+ * 等待编辑器正文包含指定标记且标签脏点符合预期。
+ * @param {Cdp} renderer
+ * @param {string} textMarker
+ * @param {boolean} expectDirty
+ */
+async function waitEditorState(renderer, textMarker, expectDirty) {
+  for (let i = 0; i < 40; i++) {
+    const s = /** @type {string} */ (
+      await renderer.evalJson(`JSON.stringify({
+        text: document.querySelector('#editor .ProseMirror')?.innerText || '',
+        dirty: (document.querySelector('.tab.active')?.textContent || '').trim().startsWith('•'),
+        bar: !!document.querySelector('.extchange-bar'),
+      })`)
+    )
+    const state = JSON.parse(s)
+    if (state.text.includes(textMarker) && state.dirty === expectDirty && !state.bar) return s
+    await sleep(250)
+  }
+  return ''
+}
+
 async function main() {
   if (!existsSync(join(REPO, 'dist', 'index.html'))) {
     console.error('未找到 dist 构建产物，请先执行：npm run build')
@@ -519,6 +592,56 @@ async function main() {
       if (/sample\.md/.test(name)) break
       await sleep(250)
     }
+
+    // ---------- 场景 5a：外部修改检测与重载 ----------
+    // 关自动保存避免 5s 周期写盘把脏标签中途变干净（跑完恢复）；打开文件时
+    // 渲染层已把 sample.md / copy-1.md 同步给主进程监视器，这里直接改磁盘。
+    await setAutosaveViaMenu(mainCdp, false)
+
+    // 5a-1 干净标签：外部修改后自动重载，不弹提示条
+    await writeFile(MD_PATH, `# 外部修改一\n\n${EXT_V1}\n`, 'utf-8')
+    const extAuto = await waitEditorState(rendererCdp, EXT_V1, false)
+    check('场景5a1 干净标签外部修改后自动重载', !!extAuto, extAuto)
+
+    // 5a-2 脏标签：外部修改弹提示条（绝不静默覆盖未保存内容）
+    await insertText(rendererCdp, DIRTY_BEFORE_EXT)
+    await waitEditorState(rendererCdp, DIRTY_BEFORE_EXT, true)
+    await writeFile(MD_PATH, `# 外部修改二\n\n${EXT_V2}\n`, 'utf-8')
+    const barShown = await waitExtBar(rendererCdp, true)
+    check('场景5a2 脏标签外部修改后弹出提示条', barShown)
+
+    // 5a-3 提示条「重新加载」：采用磁盘内容并清脏
+    await clickExtBarButton(rendererCdp, 'reload')
+    const extReload = await waitEditorState(rendererCdp, EXT_V2, false)
+    check('场景5a3 重新加载采用磁盘内容并清脏', !!extReload, extReload)
+
+    // 5a-4 提示条「保留我的版本」：本地未保存内容不被覆盖
+    await insertText(rendererCdp, KEEP_MINE_MARKER)
+    await waitEditorState(rendererCdp, KEEP_MINE_MARKER, true)
+    await writeFile(MD_PATH, `# 外部修改三\n\n${EXT_V3}\n`, 'utf-8')
+    await waitExtBar(rendererCdp, true)
+    await clickExtBarButton(rendererCdp, 'keep')
+    const extKeep = await waitEditorState(rendererCdp, KEEP_MINE_MARKER, true)
+    const keptText = /** @type {string} */ (
+      await rendererCdp.evalJson(
+        `document.querySelector('#editor .ProseMirror')?.innerText || ''`,
+      )
+    )
+    check(
+      '场景5a4 保留我的版本不覆盖本地未保存内容',
+      !!extKeep && !keptText.includes(EXT_V3),
+      extKeep,
+    )
+
+    // 恢复自动保存（后续场景的脏标签状态不受 5s 定时写盘影响：内容仍持续被编辑）
+    await setAutosaveViaMenu(mainCdp, true)
+    // 恢复磁盘正文为场景 4 保存的内容：5a 的三次外部改写只为验证监视链路，
+    // 不还原会污染后续历史快照断言（场景 5f 校验「恢复不直接改写磁盘」）
+    await writeFile(
+      MD_PATH,
+      `# E2E-EDIT-MARKER-7f3aTMD 主链路验证文档\n\n用于桌面主链路 E2E：打开 → 编辑 → 保存 → 另存为 → 崩溃恢复。\n`,
+      'utf-8',
+    )
 
     // ---------- 场景 5b：历史版本（写盘前自动快照） ----------
     // 场景 4 的保存覆盖了磁盘旧内容，主进程应在写盘前把它存进 ~/.tmd/history。

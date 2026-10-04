@@ -46,8 +46,10 @@ import {
   renderFilesSidebar,
   clearRecentDocuments,
   clearFolderEntries,
+  initFileWatcherBridge,
   showToast,
 } from './files'
+import { wireFileChanged } from './external-change'
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
@@ -567,6 +569,10 @@ async function boot() {
     // 自动保存：渲染层为状态权威，启动对齐菜单并按需起定时器；菜单勾选走单入口
     initAutosave()
     native?.onAutosave((enabled) => setAutosaveOn(enabled))
+    // 外部修改检测：同步打开文件集合给主进程监视器 + 订阅变化事件
+    // （干净标签自动重载、脏标签弹条二选一；浏览器环境两者皆空操作）
+    initFileWatcherBridge()
+    wireFileChanged()
     // 文件关联：Finder 双击 / 系统打开方式
     native?.onOpenPath((path) => void openPath(path))
     // 「打开最近文件」菜单：主进程菜单项点击 → 按路径打开

@@ -42,6 +42,7 @@ const {
   readThemeFile,
   ensureThemesDirWithSample,
 } = require('./themes.cjs')
+const { createFileWatcher } = require('./filewatcher.cjs')
 const { createExporter } = require('./exporter.cjs')
 const {
   tmdHome,
@@ -123,6 +124,14 @@ async function snapshotBeforeWrite(filePath) {
     /* 文件尚不存在（首次保存）或读取失败：无旧内容可存 */
   }
 }
+
+// ---------- 外部修改检测（打开文件的磁盘监视） ----------
+// 渲染层把「已打开文件路径集合」全量同步过来（开关标签 / 另存为后），
+// 这里差量挂 fs.watch；内容真变化时经 IPC 推给渲染层分流（干净自动重载 /
+// 脏态弹条二选一）。指纹过滤保证自身保存不会误报。
+const fileWatcher = createFileWatcher({
+  onEvent: (info) => sendToRenderer(IPC.fileChanged, info),
+})
 
 // 主进程 JS 异常：落盘后保持 Electron 默认语义（不主动退出），仅补本地记录。
 // 注意写盘失败已在 logger 内部静默，不会递归进入本钩子。
@@ -1073,6 +1082,8 @@ ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
   // 先留旧版快照再覆盖：这是「历史版本」唯一的产生点（自动保存同样经此路径）
   await snapshotBeforeWrite(filePath)
   await fs.writeFile(filePath, content, 'utf-8')
+  // 登记自身写入的新指纹：随后的文件事件按指纹比对自然被过滤，不会误报外部修改
+  fileWatcher.noteWrite(filePath, content)
   return true
 })
 
@@ -1087,7 +1098,14 @@ ipcMain.handle(IPC.saveFileAs, async (_event, content) => {
   // 另存为若覆盖了已存在的文件，那份内容同样值得留档
   await snapshotBeforeWrite(result.filePath)
   await fs.writeFile(result.filePath, content, 'utf-8')
+  fileWatcher.noteWrite(result.filePath, content)
   return { path: result.filePath, name: path.basename(result.filePath) }
+})
+
+/** 外部修改监视：渲染层全量同步「已打开文件」集合，主进程差量增删 watcher */
+ipcMain.handle(IPC.watchFiles, (_event, paths) => {
+  fileWatcher.sync(paths)
+  return true
 })
 
 /** 本地历史版本：列出某文件的快照清单（最新在前），无历史返回 null */

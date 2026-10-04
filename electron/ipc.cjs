@@ -73,6 +73,9 @@ const channels = {
   // 这两个通道仅供渲染层查阅清单与读取正文
   historyList: 'tmd:history-list',
   historyRead: 'tmd:history-read',
+  // 外部修改检测：渲染层全量同步打开文件集合，主进程推送变化事件
+  watchFiles: 'tmd:watch-files',
+  fileChanged: 'tmd:file-changed',
 }
 
 module.exports = channels

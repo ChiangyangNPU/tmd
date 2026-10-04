@@ -140,6 +140,12 @@ const api = {
   listHistory: (filePath) => ipcRenderer.invoke(IPC.historyList, filePath),
   /** 本地历史版本：读取单条快照正文 */
   readHistory: (filePath, id) => ipcRenderer.invoke(IPC.historyRead, filePath, id),
+  /** 外部修改监视：全量同步「已打开文件」路径集合（主进程差量增删 watcher） */
+  watchFiles: (paths) => ipcRenderer.invoke(IPC.watchFiles, paths),
+  /** 订阅外部修改事件（kind: 'change' 内容变化 / 'unlink' 文件被移除） */
+  onFileChanged: (callback) => {
+    ipcRenderer.on(IPC.fileChanged, (_event, info) => callback(info))
+  },
   /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
   exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
 }
