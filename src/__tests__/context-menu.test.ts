@@ -41,3 +41,13 @@ describe('resolveMenuEntries（源码侧）', () => {
     expect(resolveMenuEntries(false, false, 'source', false)).toEqual([])
   })
 })
+
+describe('resolveMenuEntries（只读跟随侧，两侧同款退化）', () => {
+  it('所见即所得只读跟随（分屏源码为编辑侧）：有选区仅复制', () => {
+    expect(resolveMenuEntries(true, true, 'wysiwyg', false)).toEqual(['copy'])
+  })
+
+  it('所见即所得只读跟随且无选区：无条目（调用方不弹菜单）', () => {
+    expect(resolveMenuEntries(false, false, 'wysiwyg', false)).toEqual([])
+  })
+})

@@ -9,12 +9,12 @@
  *   浏览器模式 execCommand('paste') 被禁用，两侧均降级为剪贴板 API 插入纯文本
  *   （Electron 无默认右键菜单，源码侧此前右键无任何菜单，Windows 尤其反直觉）
  * - 格式化项：复用 format.ts 的统一命令（fmt-* action），仅所见即所得侧显示；
- *   分屏只读跟随侧（CM 不可编辑）退化为仅复制
+ *   分屏只读跟随侧（不可编辑的一侧，两侧同款）退化为仅复制
  * - 显隐：按目标侧、选区与链接上下文动态裁剪（resolveMenuEntries 纯函数，可单测）
  *
  * @author chiangyang
  */
-import { getPmView, isSourceMode, getSourceView } from './editor-core'
+import { getPmView, isSourceMode, getSourceView, canEditWysiwyg } from './editor-core'
 import type { EditorView as SourceView } from 'codemirror'
 import { EditorView as CMFacets } from 'codemirror'
 import { applyFormatAction, toggleLink } from './format'
@@ -32,18 +32,19 @@ let menuSide: MenuSide = 'wysiwyg'
 /**
  * 计算当前上下文应显示的菜单项（顺序即显示顺序）。
  * 所见即所得：无选区仅粘贴；有选区：剪切/复制 + 内联格式组（链接项按是否已链接切换）。
- * 源码：只有剪切/复制/粘贴（格式化是 ProseMirror 专属命令）；只读跟随侧退化为仅复制。
+ * 源码：只有剪切/复制/粘贴（格式化是 ProseMirror 专属命令）。
+ * 只读跟随侧（分屏中不可编辑的一侧，两侧同款）：有选区仅复制，无选区不弹菜单。
+ * 可编辑性必须由调用方显式传入：PM/CM 的程序化 dispatch 不受只读门控，
+ * 菜单不裁剪的话格式化/粘贴会真的写进只读跟随侧、再被下次同步覆盖。
  */
 export function resolveMenuEntries(
   hasSelection: boolean,
   hasLink: boolean,
   side: MenuSide = 'wysiwyg',
-  sourceEditable = true,
+  editable = true,
 ): MenuAction[] {
-  if (side === 'source') {
-    if (!sourceEditable) return hasSelection ? ['copy'] : []
-    return hasSelection ? ['cut', 'copy', 'paste'] : ['paste']
-  }
+  if (!editable) return hasSelection ? ['copy'] : []
+  if (side === 'source') return hasSelection ? ['cut', 'copy', 'paste'] : ['paste']
   if (!hasSelection) return ['paste']
   return [
     'cut',
@@ -193,7 +194,7 @@ export function wireContextMenu(): void {
     openContextMenu(
       e.clientX,
       e.clientY,
-      resolveMenuEntries(hasSelection, selectionHasLink()),
+      resolveMenuEntries(hasSelection, selectionHasLink(), 'wysiwyg', canEditWysiwyg()),
       'wysiwyg',
     )
   })
