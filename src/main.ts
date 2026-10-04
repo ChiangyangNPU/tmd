@@ -47,13 +47,14 @@ import {
   clearRecentDocuments,
   clearFolderEntries,
   initFileWatcherBridge,
+  closeFolderMenu,
   showToast,
 } from './files'
 import { wireFileChanged } from './external-change'
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
-import { wireTabMenu } from './tab-menu'
+import { wireTabMenu, closeTabMenu } from './tab-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
 import {
@@ -464,6 +465,8 @@ async function boot() {
         closeSettings()
         closeLinkBar()
         closeContextMenu()
+        closeTabMenu()
+        closeFolderMenu()
         closeQuickSwitch()
         closeCommandPalette()
         closeSearch()

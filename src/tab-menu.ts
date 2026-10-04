@@ -100,6 +100,12 @@ function openTabMenu(x: number, y: number, anchorId: string) {
   menu.style.top = `${Math.min(y, window.innerHeight - rect.height - 8)}px`
 }
 
+/** 关闭菜单（Esc 统一收口等调用） */
+export function closeTabMenu(): void {
+  const menu = document.getElementById('tab-context-menu')
+  if (menu) menu.hidden = true
+}
+
 /** 装配标签栏右键菜单（boot 调用一次） */
 export function wireTabMenu(): void {
   const bar = document.getElementById('tab-bar')
@@ -136,5 +142,14 @@ export function wireTabMenu(): void {
   document.addEventListener('click', (e) => {
     if (!menu || menu.hidden) return
     if (!(e.target as HTMLElement).closest('#tab-context-menu')) menu.hidden = true
+  })
+
+  // 编辑区/侧边栏等处右键：先关掉残留菜单（右键不产生 click，仅靠 click 关外会残留；
+  // 命中的是标签本身时交给上面的 bar 处理器原地重开，不当作「别处」）
+  document.addEventListener('contextmenu', (e) => {
+    if (!menu || menu.hidden) return
+    const target = e.target as HTMLElement
+    if (target.closest('#tab-context-menu') || target.closest('.tab')) return
+    menu.hidden = true
   })
 }

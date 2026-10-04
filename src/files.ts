@@ -32,7 +32,13 @@ import {
   removeFolder,
   clearFolders,
 } from './store'
-import { renderRecent, renderFolders, beginInlineCreate, beginRename, type FolderMenuTarget } from './filetree'
+import {
+  renderRecent,
+  renderFolders,
+  beginInlineCreate,
+  beginRename,
+  type FolderMenuTarget,
+} from './filetree'
 import { normalizeEmptyTableCells } from './table-markdown'
 import { t } from './i18n'
 
@@ -397,9 +403,31 @@ function hideFolderMenu() {
   folderMenu = null
 }
 
+/** 关闭文件树右键菜单（Esc 统一收口等调用） */
+export function closeFolderMenu(): void {
+  hideFolderMenu()
+}
+
+/** 右键「关旧菜单」监听只注册一次（showFolderMenu 每次开菜单都会触发） */
+let folderMenuCloserWired = false
+
+function ensureFolderMenuCloser() {
+  if (folderMenuCloserWired) return
+  folderMenuCloserWired = true
+  // 右键不产生 click，仅靠一次性 click 关外会残留：菜单开着时在别处右键先关掉。
+  // 命中树行时行处理器会原地重开（先于本监听冒泡到 document），不当作「别处」
+  document.addEventListener('contextmenu', (e) => {
+    if (!folderMenu) return
+    const target = e.target as HTMLElement
+    if (target.closest('.file-context-menu') || target.closest('.tree-file, .tree-folder')) return
+    hideFolderMenu()
+  })
+}
+
 /** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示 */
 function showFolderMenu(target: FolderMenuTarget) {
   hideFolderMenu()
+  ensureFolderMenuCloser()
   const isDir = target.entry.children != null
   const subVisible = !!target.subContainer && !target.subContainer.hidden
   const menu = document.createElement('div')
@@ -425,8 +453,10 @@ function showFolderMenu(target: FolderMenuTarget) {
     })
   }
   add(t('files.rename'), () => {
-    const ok = beginRename(target.treeContainer, target.entry.path, (name) =>
-      void renameEntry(target.entry.path, name),
+    const ok = beginRename(
+      target.treeContainer,
+      target.entry.path,
+      (name) => void renameEntry(target.entry.path, name),
     )
     if (!ok) showToast(t('files.renameFailed'))
   })

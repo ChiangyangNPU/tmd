@@ -5,8 +5,8 @@ import path from 'node:path'
 // electron/fsops.cjs 是纯 Node CJS 模块：文件管理的名称清洗与路径拼装
 const require = createRequire(import.meta.url)
 const fsops = require('../../electron/fsops.cjs') as {
-  sanitizeFileName: (name: unknown) => string | null
-  childPath: (dir: unknown, name: unknown) => string | null
+  sanitizeFileName: (name: unknown, isWin?: boolean) => string | null
+  childPath: (dir: unknown, name: unknown, isWin?: boolean) => string | null
   ensureMarkdownExt: (name: string) => string
   MAX_NAME_LENGTH: number
 }
@@ -41,7 +41,37 @@ describe('sanitizeFileName', () => {
 
   it('拒绝超长名称', () => {
     expect(fsops.sanitizeFileName('a'.repeat(fsops.MAX_NAME_LENGTH + 1))).toBeNull()
-    expect(fsops.sanitizeFileName('a'.repeat(fsops.MAX_NAME_LENGTH))).toBe('a'.repeat(fsops.MAX_NAME_LENGTH))
+    expect(fsops.sanitizeFileName('a'.repeat(fsops.MAX_NAME_LENGTH))).toBe(
+      'a'.repeat(fsops.MAX_NAME_LENGTH),
+    )
+  })
+
+  it('Windows 平台拒绝保留字符（POSIX 合法）', () => {
+    for (const name of ['a<b', 'a>b', 'a:b', 'a"b', 'a|b', 'a?b', 'a*b']) {
+      expect(fsops.sanitizeFileName(name, true)).toBeNull()
+      expect(fsops.sanitizeFileName(name, false)).toBe(name)
+    }
+  })
+
+  it('Windows 平台拒绝尾部点（Win32 规范化会剥掉，产生无法管理的文件）', () => {
+    expect(fsops.sanitizeFileName('name.', true)).toBeNull()
+    expect(fsops.sanitizeFileName('笔记。', true)).toBe('笔记。')
+    expect(fsops.sanitizeFileName('name.', false)).toBe('name.')
+  })
+
+  it('Windows 平台拒绝保留设备名（裸名与带扩展名，大小写不敏感）', () => {
+    for (const name of ['con', 'CON', 'Con.md', 'prn', 'aux', 'nul', 'com1', 'lpt9', 'NUL.md']) {
+      expect(fsops.sanitizeFileName(name, true)).toBeNull()
+    }
+    // 非保留形式放行：编号越界 / 非开头 / 带前缀
+    expect(fsops.sanitizeFileName('com10', true)).toBe('com10')
+    expect(fsops.sanitizeFileName('acon.md', true)).toBe('acon.md')
+    expect(fsops.sanitizeFileName('会议记录', true)).toBe('会议记录')
+  })
+
+  it('childPath 透传平台标记', () => {
+    expect(fsops.childPath('/tmp/ws', 'a<b.md', true)).toBeNull()
+    expect(fsops.childPath('/tmp/ws', 'a<b.md', false)).toBe(path.join('/tmp/ws', 'a<b.md'))
   })
 })
 
