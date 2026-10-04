@@ -48,7 +48,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - Find & replace (decorator-based highlighting in WYSIWYG mode, replace current / replace all)
 - Outline panel (headings level 1-3, click to jump) and TOC block (GitHub-style anchors)
 - Table editing: floating toolbar on cursor entry (row/column add-remove, per-column alignment), drag-to-resize columns
-- Quick switch panel (Ctrl/Cmd+P): fuzzy-search open tabs, all expanded folders and recent files, Enter to open
+- Quick switch panel (Ctrl/Cmd+P): fuzzy-search open tabs, all expanded folders and recent files, Enter to open; Chinese-named files support **pinyin-initial matching** (e.g. `xmsm` → 项目说明.md; the dictionary lazy-loads on first panel open, zero overhead for pure-Latin workspaces)
 - **Cross-file search** (Ctrl/Cmd+Shift+F): line-by-line search across the folders mounted in the sidebar; results are grouped by file with line numbers and context (keyword highlighting) — ↑↓ to select, Enter to open and jump to the match. Dependency folders are skipped and per-file/result limits are enforced, so large workspaces never freeze the UI
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - **Sidebar file management** (desktop): folder root rows show hover buttons "＋file / ＋folder" for inline creation (auto .md extension, duplicate names rejected, new files open immediately); right-click any row for "New / Rename / Reveal in Finder" — renaming syncs the associated path of open tabs, so later saves write to the new path

@@ -18,6 +18,7 @@ import { recentList } from './store'
 import { getFolderTrees } from './files'
 import { openPath } from './files'
 import { dirOf } from './fs-path'
+import { ensurePinyin, initialsOf } from './pinyin-index'
 
 /** 候选条目：路径唯一标识，展示名 + 所在目录 */
 export interface QuickEntry {
@@ -67,7 +68,8 @@ export function fuzzyScore(query: string, text: string): number | null {
   return qi === q.length ? score : null
 }
 
-/** 候选排序：得分降序，同分按文件名短者、路径字典序 */
+/** 候选排序：得分降序，同分按文件名短者、路径字典序。
+ *  中文名称在拼音索引就绪后额外参与首字母匹配（权重低于原始名称命中） */
 export function rankEntries(
   query: string,
   entries: QuickEntry[],
@@ -76,7 +78,11 @@ export function rankEntries(
   for (const entry of entries) {
     const byName = fuzzyScore(query, entry.name) ?? -1
     const byPath = fuzzyScore(query, `${entry.dir}/${entry.name}`) ?? -1
-    const score = Math.max(byName, byPath * 0.9) // 命中文件名优先于仅命中目录
+    const byInitials = initialsOf(entry.name)?.length
+      ? (fuzzyScore(query, initialsOf(entry.name) as string) ?? -1)
+      : -1
+    // 命中文件名 > 命中目录 ≈ 命中拼音首字母
+    const score = Math.max(byName, byPath * 0.9, byInitials * 0.9)
     if (score < 0) continue
     scored.push({ entry, score })
   }
@@ -151,7 +157,8 @@ async function openEntry(entry: QuickEntry): Promise<void> {
 let ranked: { entry: QuickEntry; score: number }[] = []
 let selected = 0
 
-/** 打开面板并聚焦输入框 */
+/** 打开面板并聚焦输入框。拼音字典在此懒加载：加载完成时若面板仍开着，
+ *  以当前查询补跑一次排序，首字母匹配即生效（首次 Ctrl+P 后常驻） */
 export function openQuickSwitch(): void {
   const overlay = document.getElementById('qs-overlay')
   const input = document.getElementById('qs-input') as HTMLInputElement | null
@@ -161,6 +168,9 @@ export function openQuickSwitch(): void {
   refreshList('')
   overlay.hidden = false
   input.focus()
+  void ensurePinyin().then(() => {
+    if (!overlay.hidden) refreshList(input.value)
+  })
 }
 
 /** 关闭面板 */

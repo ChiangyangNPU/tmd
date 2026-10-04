@@ -49,6 +49,7 @@
     "markdown-it-sub": "^2.0.0",
     "markdown-it-sup": "^2.0.0",
     "mermaid": "^11.0.0",
+    "pinyin-pro": "^3.29.4",
     "prettier": "^3.9.6",
     "remark-frontmatter": "^5.0.0",
     "typescript": "~5.6.0",
