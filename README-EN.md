@@ -78,7 +78,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
 - **External change detection & reload**: files opened in the editor are watched on disk (content fingerprinting in `electron/filewatcher.cjs`, own writes filtered out) — clean tabs reload silently; dirty tabs are never overwritten silently and get a prompt bar to choose "Reload" (take disk content, clear dirty) or "Keep mine" (prompts again on further changes); externally deleted files show a notice and keep the editor content
 - **Split view**: source and WYSIWYG side by side (the ⋯ menu → "Split" / `Ctrl/Cmd+Shift+E`) — one pane is editable, the other follows along read-only; click a pane to make it the editable one (two-way live sync is intentionally not offered: Markdown round-tripping would rewrite your hand-written source). Scrolling is approximately synced, the divider is draggable and its width is remembered
-- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / external-change detection (auto reload & dirty-state prompt) / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 47 assertions in total
+- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / external-change detection (auto reload & dirty-state prompt) / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 49 assertions in total
 - **Electron desktop shell** (`electron/`):
   - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
   - Native open / save / save-as dialogs; File menu shortcuts Cmd/Ctrl+O / S / Shift+S
@@ -114,7 +114,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 ├─ scripts/                      Build / test / pack scripts
 │  ├─ trim-runtime.cjs           Pack hook: trims redundant Electron runtime files (locales, WebGL DLLs)
 │  ├─ gen-lens-map.mjs           Generates the Liquid Glass Pro refraction displacement map (PNG data URI; tweak params, rerun, paste the constant)
-│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history & split-view desktop E2E (47 assertions)
+│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history & split-view desktop E2E (49 assertions)
 │  ├─ desktop-export-check.mjs   Word / long-image export desktop E2E
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 │  └─ lib/

@@ -5,7 +5,7 @@
  * 文件读写、菜单分发、编辑器、IPC、crashReporter、日志落盘全部走真实代码），
  * 通过 Chrome DevTools Protocol（渲染层 9222 / 主进程 --inspect 9229）操作与断言。
  *
- * 覆盖 18 个场景：
+ * 覆盖 19 个场景：
  *  1. 首启为空白未命名文档，且无恢复副本
  *  2. 菜单「打开」加载真实磁盘文档
  *  3. 编辑后脏标记出现、恢复副本写入 localStorage
@@ -20,6 +20,7 @@
  *  6k. 命令面板：Shift+Cmd/Ctrl+A 打开，搜 source 执行「源码模式」并验证可逆
  *  6l. Ctrl/Cmd+滚轮缩放：编辑区上滚放大 + HUD，下滚还原并同步排版存储
  *  6m. TSV 粘贴转表格：纯文本多行制表符数据 → 表格 DOM + Markdown 序列化
+ *  6o. 选区字数统计：双击选词切「已选 / 共」双数字，清除选区还原
  *  7. 渲染层未捕获异常经 IPC 落盘到 TMD_HOME_DIR/.tmd/logs（JSONL）
  *  8. 渲染进程原生崩溃（webContents.crash）触发 child-process-gone 日志
  *  9. SIGKILL 强杀后同 profile 重启：恢复副本内容还原；上次 renderer dump 被登记
@@ -1413,6 +1414,80 @@ async function main() {
       else await sleep(250)
     }
     check('场景6n 恢复副本回到 sample.md 内容（单槽副本语义自洽）', copyRefreshed)
+
+    // ---------- 场景 6o：选区字数统计 ----------
+    // 双击选中一个词 → 工具栏切「已选 / 共」双数字；点击空白清除选区 → 还原
+    const fullCount = /** @type {string} */ (
+      await rendererCdp.evalJson(`document.getElementById('word-count')?.textContent?.trim() || ''`)
+    )
+    // 双击编辑区首个段落（取 .ProseMirror 首行文字中点）
+    await rendererCdp.evalJson(`(() => {
+      const pm = document.querySelector('#editor .ProseMirror')
+      const rect = pm?.getBoundingClientRect()
+      if (rect) {
+        window.__dblAt = { x: Math.round(rect.left + 40), y: Math.round(rect.top + 12) }
+      }
+    })()`)
+    const at = JSON.parse(
+      /** @type {string} */ (await rendererCdp.evalJson(`JSON.stringify(window.__dblAt)`)),
+    )
+    await rendererCdp.send('Input.dispatchMouseEvent', {
+      type: 'mousePressed',
+      x: at.x,
+      y: at.y,
+      button: 'left',
+      clickCount: 2,
+    })
+    await rendererCdp.send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased',
+      x: at.x,
+      y: at.y,
+      button: 'left',
+      clickCount: 2,
+    })
+    let selCount = false
+    let selDetail = ''
+    for (let i = 0; i < 20; i++) {
+      selDetail = /** @type {string} */ (
+        await rendererCdp.evalJson(`JSON.stringify({
+          text: document.getElementById('word-count')?.textContent?.trim() || '',
+        })`)
+      )
+      const txt = JSON.parse(selDetail).text
+      // 中英双语文案形态不同，但双数字形态必含分隔符且与全文计数不同
+      if (txt !== fullCount && (txt.includes('/') || txt.includes('已选'))) {
+        selCount = true
+        break
+      }
+      await sleep(250)
+    }
+    check(
+      '场景6o1 双击选词后工具栏切「已选 / 共」双数字',
+      selCount,
+      `${selDetail}（全文: ${fullCount}）`,
+    )
+
+    // 清除选区（End 键把光标移到行尾，选区消空）→ 还原全文计数
+    await rendererCdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'End',
+      code: 'End',
+      windowsVirtualKeyCode: 35,
+    })
+    let restoredCount = false
+    for (let i = 0; i < 20; i++) {
+      const txt = /** @type {string} */ (
+        await rendererCdp.evalJson(
+          `document.getElementById('word-count')?.textContent?.trim() || ''`,
+        )
+      )
+      if (txt === fullCount) {
+        restoredCount = true
+        break
+      }
+      await sleep(250)
+    }
+    check('场景6o2 清除选区后工具栏还原全文计数', restoredCount)
 
     // ---------- 场景 7：渲染层异常落盘 ----------
     await rendererCdp.evalJson(`window.dispatchEvent(new ErrorEvent('error', {

@@ -97,7 +97,8 @@
     "untitled": "Untitled.md"
   },
   "editor": {
-    "wordCount": "{count} chars"
+    "wordCount": "{count} chars",
+    "wordCountSelected": "{selected} of {total} chars"
   },
   "dialog": {
     "closeConfirm": "\"{name}\" has unsaved changes. Close anyway?",

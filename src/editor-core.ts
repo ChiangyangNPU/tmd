@@ -15,6 +15,8 @@ import { prism } from '@milkdown/plugin-prism'
 import { math } from '@milkdown/plugin-math'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { Slice } from '@milkdown/kit/prose/model'
+import { Plugin as ProsePlugin } from '@milkdown/kit/prose/state'
+import { $prose } from '@milkdown/kit/utils'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import { mermaidPlugins } from './mermaid'
 import { pasteImage } from './paste-image'
@@ -192,11 +194,46 @@ export function getSourceView(): SourceView | null {
   return cmView
 }
 
-/** 刷新工具栏字数统计（去空白字符后的长度） */
-export function updateWordCount(markdown: string) {
-  const el = document.getElementById('word-count')
-  if (el) el.textContent = t('editor.wordCount', { count: markdown.replace(/\s/g, '').length })
+/** 工具栏字数文案（纯函数）：有选区时展示「已选 / 全文」双数字 */
+export function formatWordCount(total: number, selected = 0): string {
+  if (selected > 0) return t('editor.wordCountSelected', { selected, total })
+  return t('editor.wordCount', { count: total })
 }
+
+/** 刷新工具栏字数统计（去空白字符后的长度；selected 为选区去空白字符数） */
+export function updateWordCount(markdown: string, selected = 0) {
+  const el = document.getElementById('word-count')
+  if (el) el.textContent = formatWordCount(markdown.replace(/\s/g, '').length, selected)
+}
+
+// ---------------------------------------------------------------------------
+// 选区字数跟踪：选区/文档变化后 150ms 合并刷新一次工具栏（拖拽选择时
+// selectionchange 高频，直接刷会抖动）。空选区回落全文计数。
+// ---------------------------------------------------------------------------
+
+/** 待刷新的防抖句柄（插件实例内共享） */
+let selectionCountTimer: ReturnType<typeof setTimeout> | undefined
+
+const selectionWordCount = $prose(
+  () =>
+    new ProsePlugin({
+      view: () => ({
+        update: (view, prevState) => {
+          if (prevState.selection.eq(view.state.selection) && prevState.doc.eq(view.state.doc)) {
+            return
+          }
+          window.clearTimeout(selectionCountTimer)
+          selectionCountTimer = setTimeout(() => {
+            const { from, to, empty } = view.state.selection
+            const selected = empty
+              ? 0
+              : view.state.doc.textBetween(from, to, ' ', ' ').replace(/\s/g, '').length
+            updateWordCount(currentMarkdown(), selected)
+          }, 150)
+        },
+      }),
+    }),
+)
 
 /**
  * 创建 Milkdown 编辑器实例并挂载到 #editor。
@@ -259,6 +296,7 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(pipeBreakEscapingRemark)
       .use(history)
       .use(listener)
+      .use(selectionWordCount)
       .use(mermaidPlugins)
       .use(prism)
       .use(math)

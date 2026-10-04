@@ -97,7 +97,8 @@
     "untitled": "未命名.md"
   },
   "editor": {
-    "wordCount": "{count} 字"
+    "wordCount": "{count} 字",
+    "wordCountSelected": "已選 {selected} / 共 {total} 字"
   },
   "dialog": {
     "closeConfirm": "「{name}」有尚未儲存的變更，確定要關閉嗎？",
