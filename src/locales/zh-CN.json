@@ -216,6 +216,7 @@
     "presetSepia": "护眼米黄",
     "presetGreen": "护眼绿",
     "presetGlass": "液态玻璃",
+    "presetLiquid": "液态玻璃 Pro",
     "customCss": "自定义 CSS",
     "customCssHint": "即时生效，保存后全局持久",
     "customCssPlaceholder": "/* 自定义样式，例如：body { font-size: 18px; } */",

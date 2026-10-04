@@ -271,6 +271,23 @@
   background: rgba(255, 255, 255, 0.88);
 }
 
+/* 液态玻璃 Pro：同款壁纸彩光，玻璃条更通透、高光描边更立体（折射感） */
+.tp-liquid {
+  background: linear-gradient(135deg, #8fb4ff 0%, #c9a6ff 42%, #ffb6d9 72%, #8fe3e6 100%);
+}
+
+.tp-liquid i {
+  background: rgba(255, 255, 255, 0.42);
+  box-shadow:
+    inset 0 1.5px 1px -0.5px rgba(255, 255, 255, 0.95),
+    inset 1px 0 1px -0.5px rgba(255, 255, 255, 0.5),
+    inset -1px 0 1px -0.5px rgba(255, 255, 255, 0.5);
+}
+
+.tp-liquid i:first-child {
+  background: rgba(255, 255, 255, 0.9);
+}
+
 .theme-card-name {
   font-size: 12.5px;
   color: var(--fg);
