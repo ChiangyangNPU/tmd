@@ -108,6 +108,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │
 ├─ scripts/                      构建 / 测试 / 打包脚本
 │  ├─ trim-runtime.cjs           打包钩子：裁剪 Electron 运行时冗余文件（语言包、WebGL DLL）
+│  ├─ gen-lens-map.mjs           生成液态玻璃 Pro 的折射位移图（PNG data URI，改参数重跑后替换常量）
 │  ├─ desktop-app-check.mjs      主链路 + 可靠性 + 历史版本 + 分屏 + 查找映射 桌面 E2E（27 断言）
 │  ├─ desktop-export-check.mjs   导出 Word / 长图 桌面 E2E
 │  ├─ desktop-bench.mjs          大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
@@ -120,6 +121,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ mermaid.ts                 Mermaid 实时渲染插件（核心特性）
 │  ├─ tabs.ts                    多标签页状态机
 │  ├─ theme-presets.ts           主题预设、文件式主题与自定义 CSS 注入
+│  ├─ theme-preset-css.ts        预设 CSS 单一来源（零依赖常量：四个预设样式 + 液态玻璃 Pro 滤镜定义，运行时注入与构建期首帧静态注入共用）
 │  ├─ shortcuts.ts               快捷键配置（定义 / 读写 / 校验 / 显示格式化）
 │  ├─ 搜索相关：
 │  │  ├─ search.ts               跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
@@ -152,12 +154,18 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │     ├─ fs-path.ts              文件系统路径工具（规范化 / 取目录 / 同一性判断）
 │     └─ error-report.ts         渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
 │
-└─ docs/                         项目文档
-   ├─ 需求说明.md                功能清单与路线图
-   ├─ 架构设计.md                模块职责与数据流
-   ├─ 详细设计.md                关键模块实现细节
-   ├─ 打包发布.md                本地打包与 CI 发布流程
-   └─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
+├─ docs/                         项目文档
+│  ├─ 需求说明.md                功能清单与路线图
+│  ├─ 架构设计.md                模块职责与数据流
+│  ├─ 详细设计.md                关键模块实现细节
+│  ├─ 打包发布.md                本地打包与 CI 发布流程
+│  └─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
+│
+├─ dist/                         渲染层构建产物（vite build 输出；本地生成，git 忽略，可随时删除重建）
+├─ release/                      本地打包产物（electron-builder 输出：dmg / nsis 安装包与应用目录；本地生成，git 忽略，可随时删除）
+└─ releases/                     自动更新清单（latest.yml / latest-mac.yml，git 跟踪）：Gitee 更新源指向本目录
+                                 的 raw 地址，electron-updater 据此发现新版本并校验安装包 sha512；每次发版后
+                                 由 CI / 本地发布脚本重新生成并提交——勿手改、勿删除，删掉 Gitee 渠道自动更新即失效
 ```
 
 > 完整模块职责说明见 [docs/架构设计.md](docs/架构设计.md)。

@@ -108,6 +108,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │
 ├─ scripts/                      Build / test / pack scripts
 │  ├─ trim-runtime.cjs           Pack hook: trims redundant Electron runtime files (locales, WebGL DLLs)
+│  ├─ gen-lens-map.mjs           Generates the Liquid Glass Pro refraction displacement map (PNG data URI; tweak params, rerun, paste the constant)
 │  ├─ desktop-app-check.mjs      Main-flow, reliability, history & split-view desktop E2E (27 assertions)
 │  ├─ desktop-export-check.mjs   Word / long-image export desktop E2E
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
@@ -120,6 +121,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ mermaid.ts                 Mermaid real-time rendering plugin (core feature)
 │  ├─ tabs.ts                    Multi-tab state machine
 │  ├─ theme-presets.ts           Theme presets, file-based themes & custom CSS injection
+│  ├─ theme-preset-css.ts        Single source of preset CSS (zero-dependency constants: four preset styles + Liquid Glass Pro filter defs, shared by runtime injection and build-time first-paint injection)
 │  ├─ shortcuts.ts               Shortcut configuration (definitions / read-write / validation / display formatting)
 │  ├─ Search:
 │  │  ├─ search.ts               Cross-file search panel (debounce / grouped rendering / jump & locate)
@@ -152,12 +154,19 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │     ├─ fs-path.ts              Filesystem path utilities (normalize / dirname / identity check)
 │     └─ error-report.ts         Renderer uncaught-error / Promise-rejection capture & IPC reporting
 │
-└─ docs/                         Project documentation (Chinese)
-   ├─ 需求说明.md                Feature list & roadmap
-   ├─ 架构设计.md                Module responsibilities & data flow
-   ├─ 详细设计.md                Key module implementation details
-   ├─ 打包发布.md                Local packaging & CI release workflow
-   └─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
+├─ docs/                         Project documentation (Chinese)
+│  ├─ 需求说明.md                Feature list & roadmap
+│  ├─ 架构设计.md                Module responsibilities & data flow
+│  ├─ 详细设计.md                Key module implementation details
+│  ├─ 打包发布.md                Local packaging & CI release workflow
+│  └─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
+│
+├─ dist/                         Renderer build output (vite build; generated locally, git-ignored, safe to delete)
+├─ release/                      Local pack output (electron-builder: dmg / nsis installers and app bundle; generated locally, git-ignored, safe to delete)
+└─ releases/                     Auto-update manifests (latest.yml / latest-mac.yml, git-tracked): the Gitee update feed points
+                                 at this directory's raw URL; electron-updater discovers new versions and verifies the installer
+                                 sha512 from these files. Regenerated & committed by CI / the local release script after each
+                                 release — never hand-edit or delete, or Gitee-channel auto-update breaks
 ```
 
 > For the full module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese).
