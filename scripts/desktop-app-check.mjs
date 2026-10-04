@@ -629,9 +629,7 @@ async function main() {
     await clickExtBarButton(rendererCdp, 'keep')
     const extKeep = await waitEditorState(rendererCdp, KEEP_MINE_MARKER, true)
     const keptText = /** @type {string} */ (
-      await rendererCdp.evalJson(
-        `document.querySelector('#editor .ProseMirror')?.innerText || ''`,
-      )
+      await rendererCdp.evalJson(`document.querySelector('#editor .ProseMirror')?.innerText || ''`)
     )
     check(
       '场景5a4 保留我的版本不覆盖本地未保存内容',
@@ -987,7 +985,8 @@ async function main() {
       JSON.stringify({
         title: sourceDirtyState.title,
         tabLabel: sourceDirtyState.tabLabel,
-        recovered: typeof sourceRecovery === 'string' ? sourceRecovery.includes(SOURCE_MARKER) : null,
+        recovered:
+          typeof sourceRecovery === 'string' ? sourceRecovery.includes(SOURCE_MARKER) : null,
       }),
     )
 
@@ -1015,9 +1014,7 @@ async function main() {
       '# 项目说明\n\n拼音首字母匹配验证文档。\n',
       'utf-8',
     )
-    await rendererCdp.evalJson(
-      `document.getElementById('menu-files-btn')?.click()`,
-    )
+    await rendererCdp.evalJson(`document.getElementById('menu-files-btn')?.click()`)
     await rendererCdp.evalJson(`(() => {
       document.querySelector('.sidebar-subtitle-row') // 确保 files 面板 DOM 存在
     })()`)
@@ -1038,7 +1035,9 @@ async function main() {
 
     // 根行「＋文」→ 行内输入 → Enter：磁盘产出 .md 并自动打开为激活标签。
     // 提交偶发不生效（树重渲染竞态），文件未出现时补发一次 Enter（输入行仍在）
-    await rendererCdp.evalJson(`window.__dbg = { errs: [] }; window.addEventListener('error', (e) => window.__dbg.errs.push(e.message)); window.addEventListener('unhandledrejection', (e) => window.__dbg.errs.push('rej:' + (e.reason?.message || e.reason)))`)
+    await rendererCdp.evalJson(
+      `window.__dbg = { errs: [] }; window.addEventListener('error', (e) => window.__dbg.errs.push(e.message)); window.addEventListener('unhandledrejection', (e) => window.__dbg.errs.push('rej:' + (e.reason?.message || e.reason)))`,
+    )
     await rendererCdp.evalJson(`document.querySelector('.tree-dir-add-file')?.click()`)
     for (let i = 0; i < 20; i++) {
       if (await rendererCdp.evalJson(`!!document.querySelector('.tree-inline-input')`)) break
@@ -1090,9 +1089,7 @@ async function main() {
     })()`)
     let menuShown = false
     for (let i = 0; i < 20; i++) {
-      const has = await rendererCdp.evalJson(
-        `!!document.querySelector('.file-context-menu')`,
-      )
+      const has = await rendererCdp.evalJson(`!!document.querySelector('.file-context-menu')`)
       if (has) {
         menuShown = true
         break
@@ -1107,7 +1104,6 @@ async function main() {
       )
       item?.click()
     })()`)
-    })`))
     for (let i = 0; i < 20; i++) {
       if (await rendererCdp.evalJson(`!!document.querySelector('.tree-inline-input')`)) break
       await sleep(250)
@@ -1131,7 +1127,6 @@ async function main() {
       }
       return false
     }
-    })`))
     let renamedOk = await commitInlineRename()
     if (
       !renamedOk &&
@@ -1168,9 +1163,7 @@ async function main() {
     })
     let qsOpen = false
     for (let i = 0; i < 20; i++) {
-      const open = await rendererCdp.evalJson(
-        `!document.getElementById('qs-overlay')?.hidden`,
-      )
+      const open = await rendererCdp.evalJson(`!document.getElementById('qs-overlay')?.hidden`)
       if (open) {
         qsOpen = true
         break
