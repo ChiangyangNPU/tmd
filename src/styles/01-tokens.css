@@ -40,6 +40,14 @@ html.dark {
   --error-bg: #3a2426;
 }
 
+html {
+  /* 滚动条配色跟随主题：原生滚动条只随 color-scheme 深浅两态翻转，
+     不跟预设调色板（浅色预设页面上是一条白轨）。thumb 从前景色派生、
+     轨道透明融入所在表面——预设 / 文件主题 / 自定义 CSS 只需定义 --fg
+     即自动生效；scrollbar-color 可继承，全站滚动容器一处生效 */
+  scrollbar-color: color-mix(in srgb, var(--fg) 35%, transparent) transparent;
+}
+
 * {
   box-sizing: border-box;
 }
