@@ -403,9 +403,13 @@ function ensureMainCsp() {
  * 创建主窗口。
  *
  * 流程：先注入 CSP 响应头（阻断渲染层加载非预期外部资源，防 XSS），
- * 再按当前主题设置窗口底色（深色启动首帧即深色，杜绝白闪），
- * 并按平台选择标题栏样式——macOS 红绿灯沉浸、Windows/Linux 完全自绘，
- * 最后加载渲染层入口。
+ * 再按当前主题设置窗口底色，并按平台选择标题栏样式——macOS 红绿灯沉浸、
+ * Windows/Linux 完全自绘，最后加载渲染层入口。
+ *
+ * 窗口以隐藏创建，等 ready-to-show（渲染层首帧绘制完成）再上屏：首帧由
+ * boot.js 预挂 html.dark / data-theme-preset，本来就是主题外观；若创建即
+ * 显示，窗口底色只兜深浅两态，主题预设（纸黄/护眼绿/玻璃等）不落
+ * shell-state，必先闪一帧系统底色再切到选中主题。
  */
 function createWindow() {
   ensureMainCsp()
@@ -416,8 +420,10 @@ function createWindow() {
     minWidth: 860,
     minHeight: 560,
     title: 'TMD',
-    // 窗口底色跟随主题：深色启动时首帧即为深色底，杜绝白闪
+    // 窗口底色跟随主题：ready-to-show 前窗口不可见，此底色仅作兜底
+    // （如加载失败页），保证任何情况下露出的都是当前深浅色的底
     backgroundColor: shellThemeSource === 'dark' ? SHELL_BG.dark : SHELL_BG.light,
+    show: false,
     // Mac：隐藏标题栏文字，红绿灯浮在自定义工具栏上（Typora 式沉浸）
     // trafficLightPosition：hiddenInset 的默认垂直位置偏低，按 44px 工具栏手工居中
     // Windows/Linux：完全自绘标题栏（工具栏右侧 ─ □ ✕ 按钮）——原生标题栏由
@@ -448,6 +454,15 @@ function createWindow() {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'))
   }
+
+  // 首帧就绪再上屏：ready-to-show 正常先于 did-finish-load 触发；
+  // did-finish-load 兜底（重复 show 幂等，以可见性判定防双重触发）
+  const win = mainWindow
+  const showWhenPainted = () => {
+    if (!win.isDestroyed() && !win.isVisible()) win.show()
+  }
+  win.once('ready-to-show', showWhenPainted)
+  win.webContents.once('did-finish-load', showWhenPainted)
 
   // 窗口加载完成后，把排队中的待打开文件发给渲染层
   mainWindow.webContents.on('did-finish-load', () => {
