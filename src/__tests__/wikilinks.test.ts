@@ -110,9 +110,11 @@ describe('scanWikiLinks', () => {
     expect(byTarget.get('ghost#')?.resolved).toEqual({ kind: 'missing' })
     // 自文档（空 target）
     expect(byTarget.get('#sec')?.resolved).toEqual({ kind: 'ok', path: path.join(root, 'a.md') })
-    // 别名与行号随边携带
-    expect(byTarget.get('b#')?.alias).toBe('别名')
-    expect(byTarget.get('b#')?.line).toBe(1)
+    // 别名与行号随边携带（[[b]] 出现两处，按出现处分别断言）
+    const bAliased = aLinks.find((l) => l.target === 'b' && l.alias === '别名')
+    expect(bAliased?.line).toBe(8)
+    const bPlain = aLinks.find((l) => l.target === 'b' && !l.alias)
+    expect(bPlain?.line).toBe(1)
 
     // 多同名 → ambiguous（来自无同名文件的 sub2/e.md）
     const eLink = result.links.find((l) => l.source.endsWith('sub2' + path.sep + 'e.md'))
