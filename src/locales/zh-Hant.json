@@ -336,7 +336,8 @@
   },
   "wikilink": {
     "notFound": "未找到檔案「{target}」",
-    "ambiguous": "存在 {count} 個同名檔案，請用快速切換選擇"
+    "ambiguous": "存在 {count} 個同名檔案，請用快速切換選擇",
+    "rewritten": "已更新 {count} 個檔案中的連結"
   },
   "backlinks": {
     "title": "反向連結",

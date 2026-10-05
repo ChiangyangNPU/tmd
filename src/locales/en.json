@@ -336,7 +336,8 @@
   },
   "wikilink": {
     "notFound": "Note \"{target}\" not found",
-    "ambiguous": "{count} notes share this name — use Quick Switch to pick one"
+    "ambiguous": "{count} notes share this name — use Quick Switch to pick one",
+    "rewritten": "Updated links in {count} files"
   },
   "backlinks": {
     "title": "Backlinks",

@@ -40,7 +40,8 @@ import {
   type FolderMenuTarget,
 } from './filetree'
 import { normalizeEmptyTableCells } from './table-markdown'
-import { invalidateWikiIndex, wikiIndexOnSave } from './wikilink-index'
+import { invalidateWikiIndex, wikiIndexOnSave, getWikiLinks } from './wikilink-index'
+import { rewriteLinksForRename } from './link-rewrite'
 import { t } from './i18n'
 
 /** 已打开文件夹的目录树缓存（绝对路径 → 子节点）；重启后首次展开时懒加载 */
@@ -388,8 +389,10 @@ export async function createEntryIn(dir: string, kind: 'file' | 'dir', name: str
 export async function renameEntry(path: string, newName: string) {
   if (!native) return
   try {
+    // 改名前捕获双链索引快照：引用重写依据「改名前解析指向旧路径」的链接
+    const preScan = await getWikiLinks().catch(() => null)
     const result = await native.renamePath(path, newName)
-    // 路径变化使索引失效：立即重扫（Phase 5 的引用重写将基于新索引）
+    // 路径变化使索引失效：立即重扫
     invalidateWikiIndex(true)
     const tab = findByPath(path)
     if (tab) {
@@ -399,6 +402,15 @@ export async function renameEntry(path: string, newName: string) {
       syncFileWatchers()
     }
     await refreshTreeRootContaining(result.path)
+    // 自动重写全工作区引用（Obsidian 式行为）：toast 汇总更新文件数
+    if (preScan) {
+      const updated = await rewriteLinksForRename({
+        oldPath: path,
+        newPath: result.path,
+        preScan,
+      })
+      if (updated > 0) showToast(t('wikilink.rewritten', { count: updated }))
+    }
   } catch (err) {
     console.error('[tmd] 重命名失败', err)
     showToast(t('files.renameFailed'))

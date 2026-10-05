@@ -336,7 +336,8 @@
   },
   "wikilink": {
     "notFound": "未找到笔记「{target}」",
-    "ambiguous": "存在 {count} 个同名笔记，请用快速切换选择"
+    "ambiguous": "存在 {count} 个同名笔记，请用快速切换选择",
+    "rewritten": "已更新 {count} 个文件中的链接"
   },
   "backlinks": {
     "title": "反向链接",
