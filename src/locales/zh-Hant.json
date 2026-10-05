@@ -148,7 +148,8 @@
     "codeBlock": "程式碼區塊",
     "bulletList": "無序清單",
     "orderedList": "有序清單",
-    "settings": "設定…"
+    "settings": "設定…",
+    "backlinks": "反向連結"
   },
   "linkBar": {
     "placeholder": "輸入連結網址，按 Enter 確認",
@@ -336,5 +337,14 @@
   "wikilink": {
     "notFound": "未找到檔案「{target}」",
     "ambiguous": "存在 {count} 個同名檔案，請用快速切換選擇"
+  },
+  "backlinks": {
+    "title": "反向連結",
+    "refresh": "重新整理",
+    "loading": "正在掃描…",
+    "empty": "沒有筆記引用目前文件",
+    "untitled": "未儲存文件沒有反向連結——先儲存",
+    "summary": "{count} 處引用 · 來自 {files} 個檔案",
+    "truncated": "結果因檔案數上限截斷"
   }
 }

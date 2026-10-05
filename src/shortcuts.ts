@@ -142,6 +142,12 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
     default: 'CmdOrCtrl+Shift+E',
     group: 'editor',
   },
+  {
+    action: 'backlinks',
+    labelKey: 'menu.backlinks',
+    default: 'CmdOrCtrl+Shift+B',
+    group: 'editor',
+  },
 ]
 
 /** 快捷键分组展示顺序（显示文案由 settings.ts 按 i18n 映射，本模块保持纯逻辑无 i18n 依赖） */

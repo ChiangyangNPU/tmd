@@ -148,7 +148,8 @@
     "codeBlock": "Code Block",
     "bulletList": "Bullet List",
     "orderedList": "Ordered List",
-    "settings": "Settings…"
+    "settings": "Settings…",
+    "backlinks": "Backlinks"
   },
   "linkBar": {
     "placeholder": "Enter the link URL, press Enter to apply",
@@ -336,5 +337,14 @@
   "wikilink": {
     "notFound": "Note \"{target}\" not found",
     "ambiguous": "{count} notes share this name — use Quick Switch to pick one"
+  },
+  "backlinks": {
+    "title": "Backlinks",
+    "refresh": "Refresh",
+    "loading": "Scanning…",
+    "empty": "No notes link to this note",
+    "untitled": "Save the note first to collect backlinks",
+    "summary": "{count} links from {files} notes",
+    "truncated": "Results truncated (file limit)"
   }
 }

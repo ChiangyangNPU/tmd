@@ -148,7 +148,8 @@
     "codeBlock": "代码块",
     "bulletList": "无序列表",
     "orderedList": "有序列表",
-    "settings": "设置…"
+    "settings": "设置…",
+    "backlinks": "反向链接"
   },
   "linkBar": {
     "placeholder": "输入链接地址，回车确认",
@@ -336,5 +337,14 @@
   "wikilink": {
     "notFound": "未找到笔记「{target}」",
     "ambiguous": "存在 {count} 个同名笔记，请用快速切换选择"
+  },
+  "backlinks": {
+    "title": "反向链接",
+    "refresh": "刷新",
+    "loading": "正在扫描…",
+    "empty": "没有笔记引用当前文档",
+    "untitled": "未保存文档没有反向链接——先保存",
+    "summary": "{count} 处引用 · 来自 {files} 个文件",
+    "truncated": "结果因文件数上限截断"
   }
 }

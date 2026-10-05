@@ -49,6 +49,7 @@ export async function ensureWikiIndex(force = false): Promise<WikiScanResult | n
       cache = res
       nameIndex = null
       notifyWikilinkIndexChanged()
+      emitRefreshed()
       return res
     })
     .catch(() => null)
@@ -58,6 +59,18 @@ export async function ensureWikiIndex(force = false): Promise<WikiScanResult | n
   return inflight
 }
 
+/** 索引刷新监听（反链面板打开期间据此重渲染；返回退订函数） */
+const refreshedListeners = new Set<() => void>()
+
+export function onWikiIndexRefreshed(cb: () => void): () => void {
+  refreshedListeners.add(cb)
+  return () => refreshedListeners.delete(cb)
+}
+
+function emitRefreshed(): void {
+  for (const cb of refreshedListeners) cb()
+}
+
 let rescanTimer: ReturnType<typeof setTimeout> | undefined
 
 /** 丢弃缓存并按需调度重扫（下一次 ensure 时生效） */
@@ -65,6 +78,7 @@ export function invalidateWikiIndex(rescan = false): void {
   cache = null
   nameIndex = null
   notifyWikilinkIndexChanged()
+  emitRefreshed()
   if (rescan) scheduleRescan()
 }
 

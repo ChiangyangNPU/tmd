@@ -22,6 +22,8 @@
   #qs-overlay,
   #table-toolbar,
   #settings-overlay,
+  #backlinks-overlay,
+  #graph-overlay,
   #find-bar,
   #link-bar {
     display: none !important;

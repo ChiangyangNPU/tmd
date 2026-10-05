@@ -69,6 +69,7 @@ import {
 import { openSearch, closeSearch, wireSearch } from './search'
 import { wireSplit } from './split'
 import { openHistory, wireHistory } from './history'
+import { closeBacklinks, openBacklinks, wireBacklinks } from './backlinks'
 import { wireTableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
 import {
@@ -408,6 +409,11 @@ async function boot() {
       if (view && !isSourceMode()) insertToc(view)
       closeMoreMenu()
     })
+    // 反向链接：列出全工作区引用当前笔记的 [[..]]
+    document.getElementById('menu-backlinks-btn')?.addEventListener('click', () => {
+      closeMoreMenu()
+      void openBacklinks()
+    })
     // 分屏：低频的视图切换，放悬浮菜单而非工具栏（工具栏只留高频按钮）
     document.getElementById('menu-split-view-btn')?.addEventListener('click', () => {
       toggleSplitView()
@@ -506,6 +512,7 @@ async function boot() {
         closeQuickSwitch()
         closeCommandPalette()
         closeSearch()
+        closeBacklinks()
         // 焦点在编辑器里时也能用 Esc 收起查找栏（关闭后焦点归还编辑器）
         closeFindBar()
       }
@@ -537,6 +544,9 @@ async function boot() {
       } else if (isSameAccelerator(acc, shortcuts['search-files'])) {
         e.preventDefault()
         openSearch()
+      } else if (isSameAccelerator(acc, shortcuts['backlinks'])) {
+        e.preventDefault()
+        void openBacklinks()
       } else if (isSameAccelerator(acc, shortcuts['find']) && !isSourceMode()) {
         e.preventDefault()
         openFindBar()
@@ -573,6 +583,7 @@ async function boot() {
       save: () => void saveDocument(),
       'save-as': () => void saveDocument(true),
       history: () => void openHistory(),
+      backlinks: () => void openBacklinks(),
       'open-settings': () => openSettings(),
       'new-tab': () => createNewTab(),
       'close-tab': () => {
@@ -627,6 +638,7 @@ async function boot() {
       save: ['menu.save', 'save write disk'],
       'save-as': ['menu.saveAs', 'save as copy'],
       history: ['menu.history', 'history snapshot version'],
+      backlinks: ['menu.backlinks', 'backlinks who links here'],
       'open-settings': ['menu.settings', 'settings preferences options'],
       'new-tab': ['menu.newTab', 'new tab document'],
       'close-tab': ['menu.closeTab', 'close tab'],
@@ -724,6 +736,8 @@ async function boot() {
     wireCommandPalette()
     wireFontZoom()
     wireSearch()
+    // 反向链接面板：数据来自双链索引，索引刷新时自动重渲染
+    wireBacklinks()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
     wireSplit()
     // 侧边栏分隔条：拖拽调宽 / 双击复位
