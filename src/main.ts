@@ -488,7 +488,13 @@ async function boot() {
       [...folderList().map((f) => f.path), getActiveBaseDir()].filter((r): r is string => !!r),
     )
     setWikilinkContext({
-      resolve: (target) => resolveWikiTarget(target, getActiveBaseDir()),
+      resolve: (target) => {
+        const res = resolveWikiTarget(target, getActiveBaseDir())
+        // pending（缓存未就绪/根目录刚可用）时重新调度扫描：boot 时可能无
+        // 打开文件夹空跑一次，文件打开后由这里补扫，装饰随刷新落地
+        if (res.kind === 'pending') void ensureWikiIndex()
+        return res
+      },
       follow: (target, heading, res) => void followWikilink(target, heading, res),
     })
     void ensureWikiIndex()
