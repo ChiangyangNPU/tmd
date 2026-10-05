@@ -356,5 +356,8 @@
     "truncated": "笔记数超出上限，图谱已截断",
     "summary": "{count} 篇笔记 · {links} 条链接",
     "loadFailed": "图谱组件加载失败"
+  },
+  "common": {
+    "close": "关闭"
   }
 }

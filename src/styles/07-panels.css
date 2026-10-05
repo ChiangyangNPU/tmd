@@ -309,6 +309,25 @@
   white-space: nowrap;
 }
 
+/* 面板关闭按钮（图谱 / 反链面板共用，Esc 与遮罩点击之外的显式出口） */
+.panel-close {
+  flex: 0 0 auto;
+  min-width: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.panel-close:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
 /* ---------------- 关系图谱面板 ---------------- */
 
 /* 复用 .search-overlay / .search-panel 外壳，画布撑满面板剩余空间 */

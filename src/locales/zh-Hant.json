@@ -356,5 +356,8 @@
     "truncated": "筆記數超出上限，圖譜已截斷",
     "summary": "{count} 篇筆記 · {links} 條連結",
     "loadFailed": "圖譜元件載入失敗"
+  },
+  "common": {
+    "close": "關閉"
   }
 }

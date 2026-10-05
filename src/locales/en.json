@@ -356,5 +356,8 @@
     "truncated": "Note limit exceeded, graph truncated",
     "summary": "{count} notes · {links} links",
     "loadFailed": "Failed to load graph component"
+  },
+  "common": {
+    "close": "Close"
   }
 }

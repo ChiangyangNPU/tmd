@@ -169,6 +169,8 @@ export function wireBacklinks(): void {
   document.getElementById('backlinks-refresh-btn')?.addEventListener('click', () => {
     void refreshBacklinks()
   })
+  // 面板头部 ✕ 为显式出口
+  document.getElementById('backlinks-close-btn')?.addEventListener('click', () => closeBacklinks())
   // 点击遮罩空白处关闭（与搜索/历史面板同一交互）
   overlay.addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeBacklinks()

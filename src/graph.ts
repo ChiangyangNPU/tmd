@@ -389,8 +389,9 @@ export function wireGraph(): void {
   })
   // 窗口尺寸变化重绘（canvas 尺寸在 draw 内按容器自适应）
   window.addEventListener('resize', scheduleDraw)
-  // 点击遮罩空白处关闭
+  // 点击遮罩空白处关闭；面板头部 ✕ 为显式出口
   overlay.addEventListener('click', (e) => {
     if (e.target === e.currentTarget) closeGraph()
   })
+  document.getElementById('graph-close-btn')?.addEventListener('click', () => closeGraph())
 }
