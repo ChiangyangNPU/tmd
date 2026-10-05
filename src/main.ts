@@ -70,6 +70,7 @@ import { openSearch, closeSearch, wireSearch } from './search'
 import { wireSplit } from './split'
 import { openHistory, wireHistory } from './history'
 import { closeBacklinks, openBacklinks, wireBacklinks } from './backlinks'
+import { closeGraph, openGraph, wireGraph } from './graph'
 import { wireTableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
 import {
@@ -414,6 +415,11 @@ async function boot() {
       closeMoreMenu()
       void openBacklinks()
     })
+    // 关系图谱：力导向布局呈现全工作区双链关系
+    document.getElementById('menu-graph-btn')?.addEventListener('click', () => {
+      closeMoreMenu()
+      void openGraph()
+    })
     // 分屏：低频的视图切换，放悬浮菜单而非工具栏（工具栏只留高频按钮）
     document.getElementById('menu-split-view-btn')?.addEventListener('click', () => {
       toggleSplitView()
@@ -513,6 +519,7 @@ async function boot() {
         closeCommandPalette()
         closeSearch()
         closeBacklinks()
+        closeGraph()
         // 焦点在编辑器里时也能用 Esc 收起查找栏（关闭后焦点归还编辑器）
         closeFindBar()
       }
@@ -584,6 +591,7 @@ async function boot() {
       'save-as': () => void saveDocument(true),
       history: () => void openHistory(),
       backlinks: () => void openBacklinks(),
+      graph: () => void openGraph(),
       'open-settings': () => openSettings(),
       'new-tab': () => createNewTab(),
       'close-tab': () => {
@@ -639,6 +647,7 @@ async function boot() {
       'save-as': ['menu.saveAs', 'save as copy'],
       history: ['menu.history', 'history snapshot version'],
       backlinks: ['menu.backlinks', 'backlinks who links here'],
+      graph: ['menu.graph', 'graph view links map'],
       'open-settings': ['menu.settings', 'settings preferences options'],
       'new-tab': ['menu.newTab', 'new tab document'],
       'close-tab': ['menu.closeTab', 'close tab'],
@@ -738,6 +747,8 @@ async function boot() {
     wireSearch()
     // 反向链接面板：数据来自双链索引，索引刷新时自动重渲染
     wireBacklinks()
+    // 关系图谱：canvas + d3-force 力导向布局（面板打开时才加载数据）
+    wireGraph()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
     wireSplit()
     // 侧边栏分隔条：拖拽调宽 / 双击复位

@@ -309,6 +309,34 @@
   white-space: nowrap;
 }
 
+/* ---------------- 关系图谱面板 ---------------- */
+
+/* 复用 .search-overlay / .search-panel 外壳，画布撑满面板剩余空间 */
+.graph-panel {
+  width: min(880px, 94vw);
+  height: 76vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.graph-title {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 0;
+  color: var(--fg);
+  font-size: 14px;
+}
+
+.graph-canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 16px 16px;
+  background: var(--bg);
+  touch-action: none;
+}
+
 .history-restore {
   flex: 0 0 auto;
   padding: 5px 12px;

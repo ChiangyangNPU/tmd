@@ -149,7 +149,8 @@
     "bulletList": "Bullet List",
     "orderedList": "Ordered List",
     "settings": "Settings…",
-    "backlinks": "Backlinks"
+    "backlinks": "Backlinks",
+    "graph": "Graph view"
   },
   "linkBar": {
     "placeholder": "Enter the link URL, press Enter to apply",
@@ -347,5 +348,13 @@
     "untitled": "Save the note first to collect backlinks",
     "summary": "{count} links from {files} notes",
     "truncated": "Results truncated (file limit)"
+  },
+  "graph": {
+    "title": "Graph view",
+    "loading": "Building graph…",
+    "empty": "No notes to display — open a folder with notes first",
+    "truncated": "Note limit exceeded, graph truncated",
+    "summary": "{count} notes · {links} links",
+    "loadFailed": "Failed to load graph component"
   }
 }

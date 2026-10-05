@@ -14,6 +14,7 @@
 import barsHtml from './bars.html?raw'
 import backlinksHtml from './backlinks.html?raw'
 import commandPaletteHtml from './command-palette.html?raw'
+import graphHtml from './graph.html?raw'
 import historyHtml from './history.html?raw'
 import menusHtml from './menus.html?raw'
 import quickSwitchHtml from './quick-switch.html?raw'
@@ -29,6 +30,7 @@ const PARTIALS: Record<string, string> = {
   search: searchHtml,
   history: historyHtml,
   backlinks: backlinksHtml,
+  graph: graphHtml,
   'table-toolbar': tableToolbarHtml,
   settings: settingsHtml,
   bars: barsHtml,

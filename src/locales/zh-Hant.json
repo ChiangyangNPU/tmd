@@ -149,7 +149,8 @@
     "bulletList": "無序清單",
     "orderedList": "有序清單",
     "settings": "設定…",
-    "backlinks": "反向連結"
+    "backlinks": "反向連結",
+    "graph": "關係圖譜"
   },
   "linkBar": {
     "placeholder": "輸入連結網址，按 Enter 確認",
@@ -347,5 +348,13 @@
     "untitled": "未儲存文件沒有反向連結——先儲存",
     "summary": "{count} 處引用 · 來自 {files} 個檔案",
     "truncated": "結果因檔案數上限截斷"
+  },
+  "graph": {
+    "title": "關係圖譜",
+    "loading": "正在建構圖譜…",
+    "empty": "沒有可顯示的筆記——先開啟一個含筆記的資料夾",
+    "truncated": "筆記數超出上限，圖譜已截斷",
+    "summary": "{count} 篇筆記 · {links} 條連結",
+    "loadFailed": "圖譜元件載入失敗"
   }
 }
