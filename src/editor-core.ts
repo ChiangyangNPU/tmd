@@ -26,6 +26,7 @@ import { findPlugin, findClear, findState, findRefreshAfterReplace, findTextRang
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
 import { markPlugins } from './mark-ext'
+import { wikilinkPlugins } from './wikilink'
 import { frontmatterInputRule, frontmatterPlugins } from './frontmatter'
 import { imageSrcResolver } from './image-resolver'
 import { imageAttrsPlugins } from './image-attrs'
@@ -308,6 +309,9 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(tocPlugins)
       // 扩展行内标记：晚于 gfm（~x~ 纠正依赖 remark-gfm 的 delete 词法解析）
       .use(markPlugins)
+      // 双链语法：[[目标]] / [[目标|别名]] / [[目标#标题]]（晚于 gfm 注册，
+      // 依赖其 delete 词法与 footnote_reference 同款行内原子节点模式）
+      .use(wikilinkPlugins)
       // front matter 的 schema/remark/view（其输入规则已在最前面单独注册）
       .use(frontmatterPlugins)
       .use(imageSrcResolver)

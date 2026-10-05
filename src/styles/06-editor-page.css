@@ -100,6 +100,20 @@ sup[data-type='footnote_reference'] a {
   text-decoration: none;
 }
 
+/* ---- 双链：[[目标|别名]] 行内原子节点（src/wikilink.ts） ---- */
+a.wikilink {
+  color: var(--accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* 未解析（索引中无目标文件）：弱化呈现，与已解析链接区分 */
+a.wikilink.wikilink-unresolved {
+  color: var(--muted);
+  border-bottom: 1px dashed var(--border);
+  cursor: default;
+}
+
 dl[data-type='footnote_definition'] {
   margin: 0.4em 0;
   display: grid;
