@@ -104,6 +104,8 @@ export interface NativeFileAPI {
   syncShortcuts(shortcuts: Record<string, string>): void
   /** 跨文件全文搜索：在给定根目录下递归搜索关键词，返回按行汇总的命中列表 */
   searchFiles(roots: string[], query: string): Promise<SearchResult>
+  /** 双链索引：扫描工作区全部笔记的 [[..]]，返回节点与逐处解析后的链接边 */
+  wikiScan(roots: string[]): Promise<WikiScanResult>
   /** 文件式主题：列出主题目录（~/.tmd/themes）下全部 .css 主题及目录路径 */
   listThemes(): Promise<ThemeFileList>
   /** 文件式主题：按裸文件名读取主题 CSS 内容（主进程做路径穿越校验，失败 null） */
@@ -181,6 +183,45 @@ export interface SearchResult {
   truncated: boolean
   /** 耗时（毫秒） */
   elapsedMs: number
+}
+
+/** 双链索引的工作区笔记节点 */
+export interface WikiScanNote {
+  /** 绝对路径 */
+  path: string
+  /** 文件名 */
+  name: string
+}
+
+/** 双链解析结果（主进程按 相对路径→同目录同名→全工作区唯一名 三档解析） */
+export type WikiResolvedLink =
+  | { kind: 'ok'; path: string }
+  | { kind: 'ambiguous'; paths: string[] }
+  | { kind: 'missing' }
+
+/** 双链的单处出现（反向链接面板与图谱共用同一份扫描数据） */
+export interface WikiLinkRef {
+  /** 链接所在文档绝对路径 */
+  source: string
+  /** 链接目标原文（[[..]] 内 | 与 # 之前的部分） */
+  target: string
+  /** 标题锚（[[目标#标题]] 时非空） */
+  heading: string
+  /** 别名（[[目标|别名]] 时非空） */
+  alias: string
+  /** 所在行号（1 起） */
+  line: number
+  /** 所在行原文（超长截断） */
+  text: string
+  resolved: WikiResolvedLink
+}
+
+/** 双链索引扫描结果 */
+export interface WikiScanResult {
+  notes: WikiScanNote[]
+  links: WikiLinkRef[]
+  /** 是否因文件数上限而截断 */
+  truncated: boolean
 }
 
 /** 单条历史快照的元信息（正文按需再取，避免列举时搬运全部内容） */
@@ -314,6 +355,7 @@ export interface IpcChannels {
   savePicGoConfig: string
   syncShortcuts: string
   searchFiles: string
+  wikiScan: string
   themesList: string
   themesRead: string
   themesOpenDir: string

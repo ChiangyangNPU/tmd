@@ -38,6 +38,7 @@ const {
   SEARCH_MAX_FILES,
   SEARCH_MAX_MATCHES,
 } = require('./search.cjs')
+const { scanWikiLinks } = require('./wikilinks.cjs')
 const {
   listThemeFiles,
   readThemeFile,
@@ -1033,6 +1034,24 @@ ipcMain.handle(IPC.searchFiles, async (_event, roots, query) => {
     scannedFiles: collected.files.length,
     truncated: collected.truncated || searched.truncated,
     elapsedMs: Date.now() - started,
+  }
+})
+
+// ---------- 双链索引 ----------
+
+/** @param {unknown} _event @param {unknown} roots */
+ipcMain.handle(IPC.wikiScan, async (_event, roots) => {
+  /** @type {import('../src/native.ts').WikiScanResult} */
+  const empty = { notes: [], links: [], truncated: false }
+  if (!Array.isArray(roots)) return empty
+  const dirs = roots.filter((r) => typeof r === 'string' && r !== '')
+  if (!dirs.length) return empty
+  try {
+    return await scanWikiLinks(dirs, SEARCH_MAX_FILES)
+  } catch (err) {
+    // 扫描异常不中断应用：按空结果上报（面板/图谱呈现为空态）
+    console.error('[tmd] 双链扫描失败', err)
+    return empty
   }
 })
 

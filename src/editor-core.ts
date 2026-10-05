@@ -15,7 +15,7 @@ import { prism } from '@milkdown/plugin-prism'
 import { math } from '@milkdown/plugin-math'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { Slice } from '@milkdown/kit/prose/model'
-import { Plugin as ProsePlugin } from '@milkdown/kit/prose/state'
+import { Plugin as ProsePlugin, TextSelection } from '@milkdown/kit/prose/state'
 import { $prose } from '@milkdown/kit/utils'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import { mermaidPlugins } from './mermaid'
@@ -193,6 +193,47 @@ function notifyViewModeChange() {
 /** 源码侧 CodeMirror 实例（分屏滚动同步用；无源码栏时为 null） */
 export function getSourceView(): SourceView | null {
   return cmView
+}
+
+/**
+ * 跳到标题锚：双链 [[目标#标题]] 打开目标文档后调用。
+ * 所见即所得侧匹配 heading 节点文本（全等优先、前缀兜底，大小写不敏感）；
+ * 源码/分屏源码侧匹配 ATX 标题行。未找到返回 false（停留在文档顶部）。
+ */
+export function jumpToHeading(heading: string): boolean {
+  const key = heading.trim().toLowerCase()
+  if (!key) return false
+  if (viewMode === 'wysiwyg' || (viewMode === 'split' && activePane === 'pm')) {
+    const view = pmView
+    if (!view) return false
+    let found: number | null = null
+    view.state.doc.descendants((node, pos) => {
+      if (found != null || node.type.name !== 'heading') return
+      const text = node.textContent.trim().toLowerCase()
+      if (text === key || text.startsWith(key)) found = pos + 1
+    })
+    if (found == null) return false
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.near(view.state.doc.resolve(found)))
+        .scrollIntoView(),
+    )
+    return true
+  }
+  const cm = cmView
+  if (!cm) return false
+  const lines = cm.state.doc.toString().split('\n')
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^#{1,6}\s+(.+)$/.exec(lines[i])
+    if (!m) continue
+    const h = m[1].trim().toLowerCase()
+    if (h === key || h.startsWith(key)) {
+      const line = cm.state.doc.line(i + 1)
+      cm.dispatch({ selection: { anchor: line.from }, scrollIntoView: true })
+      return true
+    }
+  }
+  return false
 }
 
 /** 工具栏字数文案（纯函数）：有选区时展示「已选 / 全文」双数字 */

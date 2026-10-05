@@ -40,6 +40,7 @@ import {
   type FolderMenuTarget,
 } from './filetree'
 import { normalizeEmptyTableCells } from './table-markdown'
+import { invalidateWikiIndex, wikiIndexOnSave } from './wikilink-index'
 import { t } from './i18n'
 
 /** 已打开文件夹的目录树缓存（绝对路径 → 子节点）；重启后首次展开时懒加载 */
@@ -215,6 +216,8 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
     }
     // 另存为会改变标签关联路径：按新集合重同步外部修改监视
     syncFileWatchers()
+    // 写盘可能增删 wikilink：内容含 [[ 时调度防抖重扫（无双链文档零开销）
+    wikiIndexOnSave(markdown)
   } else {
     const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -251,6 +254,8 @@ export async function openFolder() {
   pushFolder(tree.path, tree.name)
   folderChildrenCache.set(tree.path, tree.children)
   expandedFolders.add(tree.path)
+  // 工作区根变化：双链索引按新根集合重扫
+  invalidateWikiIndex(true)
   renderFilesSidebar()
 }
 
@@ -329,6 +334,7 @@ export function removeRecentDocument(path: string) {
 /** 移除单个已打开文件夹：仅从侧边栏列表移除并清缓存，不删除磁盘文件 */
 export function removeFolderEntry(path: string) {
   removeFolder(path)
+  invalidateWikiIndex(true)
   folderChildrenCache.delete(path)
   expandedFolders.delete(path)
   renderFilesSidebar()
@@ -337,6 +343,7 @@ export function removeFolderEntry(path: string) {
 /** 清空全部已打开文件夹：仅清空侧边栏列表与缓存，不删除磁盘文件 */
 export function clearFolderEntries() {
   clearFolders()
+  invalidateWikiIndex(true)
   folderChildrenCache.clear()
   expandedFolders.clear()
   renderFilesSidebar()
@@ -368,6 +375,7 @@ export async function createEntryIn(dir: string, kind: 'file' | 'dir', name: str
   try {
     const result =
       kind === 'file' ? await native.createFile(dir, name) : await native.createDir(dir, name)
+    if (kind === 'file') invalidateWikiIndex(true)
     await refreshTreeRootContaining(dir)
     if (kind === 'file') await openPath(result.path)
   } catch (err) {
@@ -381,6 +389,8 @@ export async function renameEntry(path: string, newName: string) {
   if (!native) return
   try {
     const result = await native.renamePath(path, newName)
+    // 路径变化使索引失效：立即重扫（Phase 5 的引用重写将基于新索引）
+    invalidateWikiIndex(true)
     const tab = findByPath(path)
     if (tab) {
       tab.path = result.path

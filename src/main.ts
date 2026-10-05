@@ -56,6 +56,8 @@ import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
 import { wireTabMenu, closeTabMenu } from './tab-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
+import { setWikilinkContext, type WikiResolution } from './wikilink'
+import { ensureWikiIndex, resolveWikiTarget, setWikilinkRootsProvider } from './wikilink-index'
 import { openQuickSwitch, closeQuickSwitch, wireQuickSwitch } from './quick-switch'
 import {
   registerCommands,
@@ -82,6 +84,7 @@ import {
   canEditWysiwyg,
   setEditorHooks,
   flushMarkdownSync,
+  jumpToHeading,
 } from './editor-core'
 import { initAutosave, isAutosaveOn, setAutosaveOn, stopAutosave } from './autosave'
 import {
@@ -103,6 +106,7 @@ import {
   recentList,
   getSidebarWidth,
   setSidebarWidth,
+  folderList,
 } from './store'
 import { loadShortcuts, eventToAccelerator, isSameAccelerator } from './shortcuts'
 import { installErrorReport } from './error-report'
@@ -248,6 +252,27 @@ function wireSidebarResize() {
 // ---------------------------------------------------------------------------
 // 启动与全局装配
 // ---------------------------------------------------------------------------
+
+/** 双链点击跟随：打开目标文档（标题锚在打开后定位）；未解析/多同名 toast 提示 */
+async function followWikilink(target: string, heading: string, res: WikiResolution): Promise<void> {
+  if (res.kind === 'pending') {
+    // 索引未就绪：等扫描完成后按最新结果重试一次（仍是 pending 则放弃）
+    if (!(await ensureWikiIndex())) return
+    const retry = resolveWikiTarget(target, getActiveBaseDir())
+    if (retry.kind === 'ok') await followWikilink(target, heading, retry)
+    return
+  }
+  if (res.kind === 'missing') {
+    showToast(t('wikilink.notFound', { target }))
+    return
+  }
+  if (res.kind === 'ambiguous') {
+    showToast(t('wikilink.ambiguous', { count: res.paths.length }))
+    return
+  }
+  await openPath(res.path)
+  if (heading) jumpToHeading(heading)
+}
 
 /** 启动装配：i18n、平台类、主题恢复、编辑器挂载、工具栏/标签栏/快捷键/菜单事件绑定 */
 async function boot() {
@@ -444,6 +469,17 @@ async function boot() {
     // 链接跳转上下文：相对路径按当前标签页所在目录解析；悬停 Mod 键显示 pointer
     setLinkNavContext({ getBaseDir: () => getActiveBaseDir() })
     wireLinkNav()
+
+    // 双链上下文：解析基于索引缓存（未就绪返回 pending），点击跟随打开目标文档；
+    // 索引在 boot 预热一次，之后由保存/改名/新建/文件夹变更的失效钩子调度重扫
+    setWikilinkRootsProvider(() =>
+      [...folderList().map((f) => f.path), getActiveBaseDir()].filter((r): r is string => !!r),
+    )
+    setWikilinkContext({
+      resolve: (target) => resolveWikiTarget(target, getActiveBaseDir()),
+      follow: (target, heading, res) => void followWikilink(target, heading, res),
+    })
+    void ensureWikiIndex()
 
     /**
      * 焦点是否在「非编辑器的」文本输入控件内。

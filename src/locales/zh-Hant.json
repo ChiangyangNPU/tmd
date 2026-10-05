@@ -332,5 +332,9 @@
     "alignCenter": "置中",
     "alignRight": "靠右對齊",
     "alignReset": "重設尺寸與對齊"
+  },
+  "wikilink": {
+    "notFound": "未找到檔案「{target}」",
+    "ambiguous": "存在 {count} 個同名檔案，請用快速切換選擇"
   }
 }

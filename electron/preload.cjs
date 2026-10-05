@@ -126,6 +126,8 @@ const api = {
   syncShortcuts: (shortcuts) => ipcRenderer.send(IPC.syncShortcuts, shortcuts),
   /** 跨文件全文搜索：主进程递归扫描挂载目录并逐行匹配 */
   searchFiles: (roots, query) => ipcRenderer.invoke(IPC.searchFiles, roots, query),
+  /** 双链索引：扫描工作区全部笔记的 [[..]]，返回节点与逐处解析后的链接边 */
+  wikiScan: (roots) => ipcRenderer.invoke(IPC.wikiScan, roots),
   /** 文件式主题：列出 ~/.tmd/themes 下的全部 .css 主题（附目录绝对路径） */
   listThemes: () => ipcRenderer.invoke(IPC.themesList),
   /** 文件式主题：按裸文件名读取单个主题 CSS（主进程做路径穿越校验） */

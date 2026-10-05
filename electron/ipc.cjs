@@ -56,6 +56,8 @@ const channels = {
   syncShortcuts: 'tmd:sync-shortcuts',
   // 跨文件全文搜索：主进程递归扫描挂载目录并逐行匹配
   searchFiles: 'tmd:search-files',
+  // 双链索引：扫描工作区全部笔记的 [[..]]（反向链接面板与图谱共用）
+  wikiScan: 'tmd:wiki-scan',
   // 文件式主题：主题目录扫描 / 单文件读取 / 在系统文件管理器中打开目录
   themesList: 'tmd:themes-list',
   themesRead: 'tmd:themes-read',

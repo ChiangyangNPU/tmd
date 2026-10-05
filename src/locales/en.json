@@ -332,5 +332,9 @@
     "alignCenter": "Center",
     "alignRight": "Align right",
     "alignReset": "Reset size & alignment"
+  },
+  "wikilink": {
+    "notFound": "Note \"{target}\" not found",
+    "ambiguous": "{count} notes share this name — use Quick Switch to pick one"
   }
 }
