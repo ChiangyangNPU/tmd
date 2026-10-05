@@ -38,6 +38,7 @@ export function createExportMarkdownIt() {
     .use(subPlugin)
     .use(supPlugin)
   md.inline.ruler.before('text', 'tmd_math', mathRule)
+  md.inline.ruler.before('text', 'tmd_wikilink', wikilinkRule)
   md.core.ruler.push('tmdConvertImgHtml', (state) => convertImgTokens(state.tokens))
   return md
 }
@@ -46,6 +47,8 @@ const mdIt = createExportMarkdownIt()
 
 /** $ 的字符码 */
 const DOLLAR = 0x24
+/** [ 的字符码（双链起始） */
+const LBRACKET = 0x5b
 
 /**
  * 从 from 起查找未被反斜杠转义的 delim 位置；找不到返回 -1。
@@ -104,6 +107,48 @@ function mathRule(state: StateInline, silent: boolean): boolean {
 
 /** 匹配 text token 中的 <img ...> 标签（html:false 下 markdown-it 把行内 HTML 归为 text） */
 const IMG_TOKEN_RE = /<img\s[^<>]*>/gi
+
+/** [[..]] 内部解析（与 src/wikilink.ts 的 parseWikiInner 同构；导出管线不依赖 Milkdown，改动需两处同步） */
+function parseWikiInnerExport(inner: string): { target: string; alias: string; heading: string } {
+  const pipe = inner.indexOf('|')
+  const main = pipe === -1 ? inner : inner.slice(0, pipe)
+  const alias = pipe === -1 ? '' : inner.slice(pipe + 1).trim()
+  const hash = main.indexOf('#')
+  return {
+    target: (hash === -1 ? main : main.slice(0, hash)).trim(),
+    alias,
+    heading: hash === -1 ? '' : main.slice(hash + 1).trim(),
+  }
+}
+
+/**
+ * 双链内联规则：[[目标]] / [[目标|别名]] / [[目标#标题]] 解析为独立
+ * wikilink token（独立类型同样是防 text_join 合并丢 meta）。
+ * 内容不允许 [ ] 与换行；空内容 [[ ]] 不成节点。公式规则（tmd_math）
+ * 注册在前，$..$ 内的 [[..]] 已被公式保护吞并，不构成双重解释。
+ *
+ * 渲染策略（与 LaTeX「相对路径链接退化纯文本」先例一致）：导出为单文件
+ * HTML / Word / 长图时目标笔记并不在产物内，解析成链接必然是死链——
+ * 统一降级为带 wikilink 样式的 span 文本（别名||目标），accent 色区分。
+ */
+function wikilinkRule(state: StateInline, silent: boolean): boolean {
+  const start = state.pos
+  if (state.src.charCodeAt(start) !== LBRACKET) return false
+  if (state.src.charCodeAt(start + 1) !== LBRACKET) return false
+  const close = state.src.indexOf(']]', start + 2)
+  if (close < 0 || close + 2 > state.posMax) return false
+  const inner = state.src.slice(start + 2, close)
+  // 内容不允许 [ 与换行；空内容（[[]] / [[ ]]）不成节点
+  if (inner === '' || inner.includes('[') || inner.includes('\n')) return false
+  if (!silent) {
+    const parts = parseWikiInnerExport(inner)
+    const token = state.push('wikilink', '', 0)
+    token.content = state.src.slice(start, close + 2)
+    token.meta = { ...parts }
+  }
+  state.pos = close + 2
+  return true
+}
 
 /** 构造 markdown-it image token（markdown-it 15 不导出 Token 类，
  *  借同流真实 token 的原型挂方法，attrGet/attrIndex 随原型可用） */
@@ -191,6 +236,16 @@ export function convertImgTokens(tokens: Token[]): void {
 mdIt.renderer.rules.math_inline = (tokens, idx) => mdIt.utils.escapeHtml(tokens[idx].content)
 
 /**
+ * 双链渲染规则（HTML 路径）：降级为带样式的 span 文本（别名||目标），
+ * accent 色区分、不产出死链。Word / 长图经离屏页同管线自动一致。
+ */
+mdIt.renderer.rules.wikilink = (tokens, idx) => {
+  const token = tokens[idx]
+  const text = String(token.meta?.alias) || String(token.meta?.target) || token.content
+  return `<span class="wikilink">${mdIt.utils.escapeHtml(text)}</span>`
+}
+
+/**
  * 图片渲染混合规则：convertImgTokens 产出的合成 token 以 children === null 标记
  * （真实 image token 的 children 恒为数组），按 attrs 直接渲染——markdown-it 15
  * 默认 image 规则会无条件用 renderInlineAsText(children) 覆盖 alt，不能委托；
@@ -272,6 +327,7 @@ export const EXPORT_CSS = `
   .footnotes-list { padding-left: 1.6em; }
   .footnote-ref a, .footnote-backref { text-decoration: none; }
   .footnote-item p { margin: 0.3em 0; }
+  .wikilink { color: var(--accent, #4a7cd4); }
 `
 
 /**

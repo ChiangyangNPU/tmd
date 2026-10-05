@@ -183,6 +183,16 @@ function installLatexRules(md: ReturnType<typeof createExportMarkdownIt>, env: L
   rules.math_inline = (tokens, idx) => out(env, tokens[idx].content)
   rules.code_inline = (tokens, idx) => out(env, `\\texttt{${escapeLatex(tokens[idx].content)}}`)
 
+  // 双链：导出产物内不存在被引用的笔记，降级为纯文本（别名||目标）
+  // （与相对路径链接退化为纯文本的既有策略一致）
+  rules.wikilink = (tokens, idx) => {
+    const token = tokens[idx]
+    const text = String(token.meta?.alias) || String(token.meta?.target) || token.content
+    const escaped = escapeLatex(text)
+    out(env, escaped)
+    return escaped
+  }
+
   // ---- 代码块（fence 与缩进代码块）；含 \end{verbatim} 的内容改用 lstlisting ----
   const emitCode = (content: string): string => {
     const body = content.replace(/\n$/, '') // fence 内容的尾随换行由环境收口

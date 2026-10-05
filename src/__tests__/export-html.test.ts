@@ -186,3 +186,26 @@ describe('renderMarkdown 公式保护', () => {
     expect(html).toContain('$a^2$')
   })
 })
+
+describe('双链 [[..]] 导出降级（HTML）', () => {
+  it('降级为带样式的 span 文本（别名优先）', () => {
+    expect(renderMarkdown('see [[Note|别名]] here')).toContain('<span class="wikilink">别名</span>')
+  })
+
+  it('无别名时显示目标，标题锚不显示', () => {
+    expect(renderMarkdown('see [[Note#第二章]] here')).toContain(
+      '<span class="wikilink">Note</span>',
+    )
+  })
+
+  it('空内容 [[]] 保持字面文本', () => {
+    expect(renderMarkdown('a [[]] b')).toContain('[[]]')
+    expect(renderMarkdown('a [[]] b')).not.toContain('wikilink')
+  })
+
+  it('行内代码内的 [[..]] 保持字面', () => {
+    const html = renderMarkdown('code `[[Note]]` done')
+    expect(html).toContain('<code>[[Note]]</code>')
+    expect(html).not.toContain('wikilink')
+  })
+})

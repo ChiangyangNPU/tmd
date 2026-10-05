@@ -233,3 +233,17 @@ describe('assembleLatexDocument', () => {
     expect(tex).toContain('\\begin{document}\n\\section{x}\n\\end{document}')
   })
 })
+
+describe('双链 [[..]] 导出降级（LaTeX）', () => {
+  it('降级为纯文本（别名优先，不含双方括号）', () => {
+    const tex = bodyOf(renderLatexDocument('see [[Note|别名]] here', 't.md'))
+    expect(tex).toContain('别名')
+    expect(tex).not.toContain('[[Note')
+  })
+
+  it('无别名时输出目标名', () => {
+    const tex = bodyOf(renderLatexDocument('see [[Note#sec]] here', 't.md'))
+    expect(tex).toContain('Note')
+    expect(tex).not.toContain('[[Note')
+  })
+})
