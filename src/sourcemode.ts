@@ -11,7 +11,46 @@
 import { EditorView as CMView, basicSetup } from 'codemirror'
 import { markdown as cmMarkdown } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
-import { tags as t } from '@lezer/highlight'
+import type { InlineContext, MarkdownExtension } from '@lezer/markdown'
+import { Tag, tags as t } from '@lezer/highlight'
+
+/** 双链着色 tag（独立定义，不与普通链接共用样式规则） */
+const wikiTag = Tag.define()
+
+/**
+ * 双链行内解析扩展：[[目标]] / [[目标|别名]] / [[目标#标题]] 整体着色。
+ *
+ * 现状 cmMarkdown() 无参 = CommonMark base，不识别 [[..]]，双链会按普通
+ * 文本着色。此扩展在行内单趟解析中识别双方括号到最近 "]]" 的区段（行内
+ * 换行终止）；行内代码 span 由内置解析器先消费，内容天然免疫。行内公式
+ * $..$ 在 CommonMark 词法层不存在，$[[a]]$ 内会着色（与 remark 侧同一
+ * 已知限制）。
+ */
+const wikilinkExtension: MarkdownExtension = {
+  defineNodes: [{ name: 'WikiLink', style: wikiTag }],
+  parseInline: [
+    {
+      name: 'WikiLink',
+      parse(cx: InlineContext, next: number, pos: number): number {
+        if (next !== 91 /* [ */ || cx.char(pos + 1) !== 91) return -1
+        const end = findWikiEnd(cx, pos + 2)
+        if (end < 0) return -1
+        cx.addElement(cx.elt('WikiLink', pos, end))
+        return end
+      },
+    },
+  ],
+}
+
+/** 从内容起点向后找 "]]"，行内换行终止；返回闭括号之后的位置 */
+function findWikiEnd(cx: InlineContext, from: number): number {
+  for (let i = from; i < cx.end - 1; i++) {
+    const code = cx.char(i)
+    if (code === 10 /* \n */) return -1
+    if (code === 93 /* ] */ && cx.char(i + 1) === 93) return i + 2
+  }
+  return -1
+}
 
 /**
  * 源码模式语法高亮。
@@ -42,6 +81,8 @@ const sourceHighlightStyle = HighlightStyle.define([
   // 围栏代码块的语言标识（```js）
   { tag: t.labelName, color: 'var(--muted)' },
   { tag: t.invalid, color: 'var(--error-fg)' },
+  // 双链 [[..]]（与所见即所得侧 a.wikilink 同为 accent 色）
+  { tag: wikiTag, color: 'var(--accent)' },
 ])
 
 /**
@@ -63,7 +104,7 @@ export function createSourceEditor(
     doc: markdown,
     extensions: [
       basicSetup,
-      cmMarkdown(),
+      cmMarkdown({ extensions: [wikilinkExtension] }),
       syntaxHighlighting(sourceHighlightStyle),
       editable ? [] : CMView.editable.of(false),
       onDocChange
