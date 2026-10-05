@@ -23,6 +23,7 @@ const {
   dialog,
   ipcMain,
   nativeTheme,
+  screen,
   session,
   shell,
 } = require('electron')
@@ -414,9 +415,12 @@ function ensureMainCsp() {
 function createWindow() {
   ensureMainCsp()
 
+  // 恢复上次窗口几何（shell-state 的 winState）：无记录/坐标悬空时回落默认尺寸
+  const winState = restoreWinState()
   mainWindow = new BrowserWindow({
-    width: 1000,
-    height: 800,
+    width: winState?.width ?? 1000,
+    height: winState?.height ?? 800,
+    ...(winState?.x != null ? { x: winState.x, y: winState.y } : {}),
     minWidth: 860,
     minHeight: 560,
     title: 'TMD',
@@ -441,6 +445,11 @@ function createWindow() {
       sandbox: false,
     },
   })
+
+  // 上次关闭时为最大化：隐藏态先恢复最大化，ready-to-show 一并显示无跳变
+  if (winState?.maximized) mainWindow.maximize()
+  // 记录窗口几何：移动/缩放防抖落盘，关闭时同步兜底（见 shell-state 段）
+  wireWinStatePersistence(mainWindow)
 
   // Windows/Linux：隐藏原生菜单栏（Mac 的应用菜单在屏幕顶部系统菜单栏，
   // 窗口内本就不显示），使窗口只留自定义工具栏一行，跨平台观感统一。
@@ -1526,9 +1535,10 @@ app.on('open-file', (event, filePath) => {
 })
 
 // ---------- 壳层持久化状态 ----------
-// 目前仅存主题。存于 userData/shell-state.json（随应用卸载清理）。
-// 启动时在 createWindow() 之前恢复，使两平台的启动外观从第一帧起就正确——
-// 纯统一实现，不含平台分支。
+// 存主题来源（themeSource）与窗口状态（winState：尺寸/位置/最大化标记），
+// 存于 userData/shell-state.json（随应用卸载清理）。启动时在 createWindow()
+// 之前恢复，使两平台的启动外观与窗口几何从第一帧起就正确——纯统一实现，
+// 不含平台分支。
 
 /** 壳层状态文件路径 */
 const shellStateFile = path.join(app.getPath('userData'), 'shell-state.json')
@@ -1571,6 +1581,79 @@ function saveShellState(patch) {
   }).catch(() => {
     // 写失败静默：壳层状态只影响下次启动的主题外观，清理残留临时文件
     fs.unlink(`${shellStateFile}.tmp`).catch(() => {})
+  })
+}
+
+/**
+ * 归一化持久化的窗口状态：宽高钳制到最小值；仅当左上角落在某个屏幕的
+ * 工作区内才恢复位置（显示器拔插/换机后旧坐标可能悬空），否则交给系统
+ * 默认摆放。无记录或字段不合法返回 null。
+ * @returns {{ width: number, height: number, x?: number, y?: number, maximized?: boolean } | null}
+ */
+function restoreWinState() {
+  const s = /** @type {Record<string, unknown> | null | undefined} */ (
+    readShellState().winState
+  )
+  if (!s || typeof s !== 'object') return null
+  const num = (/** @type {unknown} */ v) =>
+    Number.isFinite(Number(v)) ? Math.round(Number(v)) : null
+  const width = num(s.width)
+  const height = num(s.height)
+  if (!width || !height) return null
+  /** @type {{ width: number, height: number, x?: number, y?: number, maximized?: boolean }} */
+  const out = {
+    width: Math.max(860, width),
+    height: Math.max(560, height),
+  }
+  const x = num(s.x)
+  const y = num(s.y)
+  if (x == null || y == null) return out
+  const onScreen = screen.getAllDisplays().some(
+    (d) =>
+      x >= d.workArea.x &&
+      x < d.workArea.x + d.workArea.width &&
+      y >= d.workArea.y &&
+      y < d.workArea.y + d.workArea.height,
+  )
+  if (onScreen) {
+    out.x = x
+    out.y = y
+  }
+  if (s.maximized === true) out.maximized = true
+  return out
+}
+
+/**
+ * 窗口几何持久化：移动/缩放防抖 500ms 异步落盘（高频事件不刷盘），
+ * 最大化/还原即时记录；关闭时同步落盘兜底——退出路径上异步写链不保证
+ * 执行完。尺寸取 getNormalBounds()：最大化时记录的仍是还原后的几何，
+ * 配合 maximized 标记下次启动先最大化再显示，无二次跳变。
+ */
+function wireWinStatePersistence(/** @type {import('electron').BrowserWindow} */ win) {
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timer
+  const patch = () => ({
+    winState: { ...win.getNormalBounds(), maximized: win.isMaximized() },
+  })
+  const debounced = () => {
+    clearTimeout(timer)
+    timer = setTimeout(() => saveShellState(patch()), 500)
+  }
+  win.on('resize', debounced)
+  win.on('move', debounced)
+  win.on('maximize', () => saveShellState(patch()))
+  win.on('unmaximize', () => saveShellState(patch()))
+  win.on('close', () => {
+    clearTimeout(timer)
+    if (win.isDestroyed()) return
+    try {
+      const state = { ...readShellState(), ...patch() }
+      const tmp = `${shellStateFile}.tmp`
+      fsSync.writeFileSync(tmp, JSON.stringify(state, null, 2), 'utf-8')
+      fsSync.renameSync(tmp, shellStateFile)
+    } catch {
+      // 同步兜底失败静默：还有防抖路径的异步写，最坏丢最后一次微调
+    }
   })
 }
 
