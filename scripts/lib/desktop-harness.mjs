@@ -270,14 +270,34 @@ export function waitExit(child, timeoutMs = 15000) {
  * @param {import('node:child_process').ChildProcess} child
  */
 export function killTree(child) {
+  const pgid = -child.pid
+  // 先 SIGTERM 优雅退出：SIGKILL 强杀会被 macOS 记为「意外退出」，下次启动
+  // 同一开发态 Electron 会弹「重新打开它的窗口吗」恢复框（困扰开发体验）。
+  // 宽限 0.6s 后仍存活（卡在 ready 前的残留实例不响应 SIGTERM）再 SIGKILL
+  // 兜底；组已退出则跳过。
   try {
-    process.kill(-child.pid, 'SIGKILL')
+    process.kill(pgid, 'SIGTERM')
   } catch {
     try {
-      child.kill('SIGKILL')
+      child.kill('SIGTERM')
     } catch {
-      /* 忽略 */
+      /* 已退出 */
     }
+  }
+  spawnSync('sleep', ['0.6'])
+  try {
+    process.kill(pgid, 0) // 探活：信号 0 仅检测存活性
+    try {
+      process.kill(pgid, 'SIGKILL')
+    } catch {
+      try {
+        child.kill('SIGKILL')
+      } catch {
+        /* 忽略 */
+      }
+    }
+  } catch {
+    /* 进程组已退出 */
   }
 }
 
