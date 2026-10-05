@@ -1,10 +1,11 @@
-# 发布工作流：push tag (v*) 触发，双平台打包并发布到 GitHub Release。
+# 发布工作流：push tag (v*) 触发，双平台打包并发布到 GitHub + Gitee 双 Release。
 #
-# 分工（方案 C）：CI 只负责 GitHub；Gitee 由本地手动发布（详见 docs/打包发布.md §9）
-# - 为什么 Gitee 不放在 CI：GitHub Actions runner 在海外，到 Gitee 的跨国链路
-#   实测传输 170MB 附件需 1 小时以上（本地网络仅需分钟级），且 Gitee 对海外
-#   IP 的 contents API 有 405 反爬拦截。CI 直推 Gitee master 还会造成仓库分叉
-#   （远程多出元数据提交，本地 push 被拒），本地手动提交则天然双端一致
+# 分工：publish job 先发 GitHub Release（分钟级），再自动上传 Gitee——
+# 创建/复用 Gitee Release、推 releases/ 元数据提交、传附件。Gitee 跨国
+# 链路慢（实测约 3.7 小时），步骤超时取 355 分钟（job 硬上限 6 小时）；
+# 失败/超时时用本地快速通道补发：npm run release:gitee（docs/打包发布.md §9）。
+# （2026-09-21 曾短暂改「CI 只发 GitHub、Gitee 本地手动」的方案 C，同日恢复
+# 自动上传——53e72d4；本头注释曾在那次恢复时漏改，2026-10-04 校正。）
 #
 # - macOS arm64 + Windows x64 并行构建（--publish never，只构建不发布）
 # - mac job 构建后把 dmg 转 ULMO 压缩（实测约 103MB → 85MB，
@@ -16,8 +17,8 @@
 #
 # 注意：
 # - 发版前把 CHANGELOG 的 [未发布] 转正（CI 以 --strict 强制校验，缺失即失败）
-# - Gitee 发布由本地执行：npm run dist 打包后运行 scripts/prepare-gitee-release.mjs
-#   生成待上传清单与元数据，按 docs/打包发布.md §9 操作
+# - Gitee 元数据经 CI 推到 Gitee master：远端会多出一个元数据提交，
+#   本地下次 pushall 前先 git pull gitee master --no-rebase 合并（§9）
 
 name: Release
 
