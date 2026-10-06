@@ -13,7 +13,15 @@
  * @author chiangyang
  */
 import { native } from './native'
-import { activeTab, findByPath, isTabOpen, syncDirtyWith, normalizeForDirtyCompare, renderTabs, type DocTab } from './tabs'
+import {
+  activeTab,
+  findByPath,
+  isTabOpen,
+  syncDirtyWith,
+  normalizeForDirtyCompare,
+  renderTabs,
+  type DocTab,
+} from './tabs'
 import { replaceEditor, currentMarkdown } from './editor-core'
 import { showToast, syncFileWatchers } from './files'
 import { t } from './i18n'
