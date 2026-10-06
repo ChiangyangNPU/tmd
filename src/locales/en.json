@@ -355,7 +355,17 @@
     "empty": "No notes to display — open a folder with notes first",
     "truncated": "Note limit exceeded, graph truncated",
     "summary": "{count} notes · {links} links",
-    "loadFailed": "Failed to load graph component"
+    "loadFailed": "Failed to load graph component",
+    "settings": "Graph settings",
+    "showGhosts": "Show unresolved links",
+    "showArrows": "Direction arrows",
+    "showOrphans": "Show orphans",
+    "colorByFolder": "Color by folder",
+    "filter": "Filter notes…",
+    "repel": "Repel",
+    "linkDistance": "Link distance",
+    "center": "Center force",
+    "resetLayout": "Reset layout"
   },
   "common": {
     "close": "Close"

@@ -355,7 +355,17 @@
     "empty": "沒有可顯示的筆記——先開啟一個含筆記的資料夾",
     "truncated": "筆記數超出上限，圖譜已截斷",
     "summary": "{count} 篇筆記 · {links} 條連結",
-    "loadFailed": "圖譜元件載入失敗"
+    "loadFailed": "圖譜元件載入失敗",
+    "settings": "圖譜設定",
+    "showGhosts": "顯示未解析連結",
+    "showArrows": "方向箭頭",
+    "showOrphans": "顯示孤立筆記",
+    "colorByFolder": "按資料夾著色",
+    "filter": "過濾筆記名…",
+    "repel": "斥力",
+    "linkDistance": "連線距離",
+    "center": "居中力",
+    "resetLayout": "重設版面"
   },
   "common": {
     "close": "關閉"

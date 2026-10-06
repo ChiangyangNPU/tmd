@@ -426,3 +426,61 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* 图谱设置弹层（面板内右上浮层） */
+.graph-panel {
+  position: relative;
+}
+
+.graph-settings {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  z-index: 2;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.graph-settings[hidden] {
+  display: none;
+}
+
+.graph-set-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.graph-set-row input[type='range'] {
+  width: 120px;
+}
+
+.graph-filter {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+}
+
+.graph-reset {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.graph-reset:hover {
+  background: var(--bg-hover);
+}

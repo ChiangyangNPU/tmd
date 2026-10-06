@@ -3,8 +3,51 @@
     <div class="search-head">
       <span class="graph-title" data-i18n="graph.title">关系图谱</span>
       <span id="graph-status" class="search-status"></span>
+      <button id="graph-settings-btn" class="panel-close" data-i18n-title="graph.settings">
+        ⚙
+      </button>
       <button id="graph-close-btn" class="panel-close" data-i18n="common.close">×</button>
     </div>
     <canvas id="graph-canvas" class="graph-canvas"></canvas>
+    <div id="graph-settings-pop" class="graph-settings" hidden>
+      <label class="graph-set-row">
+        <input type="checkbox" id="graph-opt-ghosts" />
+        <span data-i18n="graph.showGhosts">显示未解析链接</span>
+      </label>
+      <label class="graph-set-row">
+        <input type="checkbox" id="graph-opt-arrows" />
+        <span data-i18n="graph.showArrows">方向箭头</span>
+      </label>
+      <label class="graph-set-row">
+        <input type="checkbox" id="graph-opt-orphans" />
+        <span data-i18n="graph.showOrphans">显示孤立笔记</span>
+      </label>
+      <label class="graph-set-row">
+        <input type="checkbox" id="graph-opt-color" />
+        <span data-i18n="graph.colorByFolder">按文件夹着色</span>
+      </label>
+      <input
+        id="graph-filter"
+        class="graph-filter"
+        type="text"
+        data-i18n-placeholder="graph.filter"
+        placeholder="过滤笔记名…"
+      />
+      <label class="graph-set-row">
+        <span data-i18n="graph.repel">斥力</span>
+        <input type="range" id="graph-repel" min="-200" max="-50" step="5" />
+      </label>
+      <label class="graph-set-row">
+        <span data-i18n="graph.linkDistance">连线距离</span>
+        <input type="range" id="graph-link-dist" min="20" max="200" step="5" />
+      </label>
+      <label class="graph-set-row">
+        <span data-i18n="graph.center">居中力</span>
+        <input type="range" id="graph-center" min="0" max="0.5" step="0.05" />
+      </label>
+      <button id="graph-reset-layout" class="graph-reset" data-i18n="graph.resetLayout">
+        重置布局
+      </button>
+    </div>
   </div>
 </div>

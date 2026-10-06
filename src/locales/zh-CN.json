@@ -355,7 +355,17 @@
     "empty": "没有可显示的笔记——先打开一个含笔记的文件夹",
     "truncated": "笔记数超出上限，图谱已截断",
     "summary": "{count} 篇笔记 · {links} 条链接",
-    "loadFailed": "图谱组件加载失败"
+    "loadFailed": "图谱组件加载失败",
+    "settings": "图谱设置",
+    "showGhosts": "显示未解析链接",
+    "showArrows": "方向箭头",
+    "showOrphans": "显示孤立笔记",
+    "colorByFolder": "按文件夹着色",
+    "filter": "过滤笔记名…",
+    "repel": "斥力",
+    "linkDistance": "连线距离",
+    "center": "居中力",
+    "resetLayout": "重置布局"
   },
   "common": {
     "close": "关闭"

@@ -280,3 +280,53 @@ export function getTypewriterMode(): boolean {
 export function setTypewriterModeStorage(enabled: boolean) {
   localStorage.setItem(TYPEWRITER_MODE_KEY, enabled ? 'true' : 'false')
 }
+
+// ---------- 关系图谱设置 ----------
+
+export const GRAPH_SETTINGS_KEY = 'tmd:graph-settings'
+
+export interface GraphSettings {
+  /** 显示未解析的 [[目标]] 幽灵节点 */
+  showGhosts: boolean
+  /** 连线绘制方向箭头 */
+  showArrows: boolean
+  /** 显示无任何引用关系的孤立笔记 */
+  showOrphans: boolean
+  /** 节点按所属挂载文件夹着色 */
+  colorByFolder: boolean
+  /** 笔记名/路径子串过滤（空 = 不过滤；非匹配节点淡化仍占位） */
+  query: string
+  /** 斥力（负值，越负越散） */
+  repel: number
+  /** 连线理想距离 */
+  linkDistance: number
+  /** 居中力强度（0–0.5） */
+  centerStrength: number
+}
+
+export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
+  showGhosts: true,
+  showArrows: true,
+  showOrphans: true,
+  colorByFolder: true,
+  query: '',
+  repel: -140,
+  linkDistance: 60,
+  centerStrength: 0.1,
+}
+
+/** 读取图谱设置（缺项回落默认；解析失败整体回落） */
+export function getGraphSettings(): GraphSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(GRAPH_SETTINGS_KEY) ?? '{}')
+    return { ...DEFAULT_GRAPH_SETTINGS, ...parsed }
+  } catch {
+    return { ...DEFAULT_GRAPH_SETTINGS }
+  }
+}
+
+/** 增量持久化图谱设置 */
+export function setGraphSettings(patch: Partial<GraphSettings>) {
+  const next = { ...getGraphSettings(), ...patch }
+  localStorage.setItem(GRAPH_SETTINGS_KEY, JSON.stringify(next))
+}
