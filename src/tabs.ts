@@ -149,10 +149,23 @@ export function markDirty() {
  * 序列化成本——复用该回调已算好的 markdown 串。因此清脏有约 800ms
  * 延迟（与 Typora 同样异步，可接受）。
  */
+/**
+ * 脏比对用规范化：空表格占位归一 + 尾随换行剥离。
+ *
+ * 尾随换行剥离的原因：milkdown 序列化恒定以单个 \n 结尾（remark-stringify
+ * 的文档级行为），文件本身无尾随换行时，编辑回原状后的序列化串与基线
+ * 永远差一个 \n——内容比对永不相等，撤销回原状后脏圆点永不清（真机探针
+ * 实测复现）。markdown 语义下尾随换行差异无意义，比对两侧统一剥离。
+ * 导出供 files.ts / external-change.ts 的同款比对复用。
+ */
+export function normalizeForDirtyCompare(md: string): string {
+  return normalizeEmptyTableCells(md).replace(/\n+$/, '')
+}
+
 export function syncDirtyWith(md: string) {
   const tab = activeTab()
   if (!tab) return
-  const dirty = normalizeEmptyTableCells(md) !== normalizeEmptyTableCells(tab.markdown)
+  const dirty = normalizeForDirtyCompare(md) !== normalizeForDirtyCompare(tab.markdown)
   if (tab.dirty === dirty) return
   tab.dirty = dirty
   renderTabs()

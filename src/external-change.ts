@@ -13,9 +13,8 @@
  * @author chiangyang
  */
 import { native } from './native'
-import { activeTab, findByPath, isTabOpen, syncDirtyWith, renderTabs, type DocTab } from './tabs'
+import { activeTab, findByPath, isTabOpen, syncDirtyWith, normalizeForDirtyCompare, renderTabs, type DocTab } from './tabs'
 import { replaceEditor, currentMarkdown } from './editor-core'
-import { normalizeEmptyTableCells } from './table-markdown'
 import { showToast, syncFileWatchers } from './files'
 import { t } from './i18n'
 
@@ -52,8 +51,10 @@ async function handleFileChanged(info: import('./native').FileChangeInfo) {
     showReloadBar(tab)
     return
   }
-  // 干净标签：磁盘内容与内存一致（自身写入回声、元数据噪声）→ 静默跳过
-  if (normalizeEmptyTableCells(content) === normalizeEmptyTableCells(tab.markdown)) return
+  // 干净标签：磁盘内容与内存一致（自身写入回声、元数据噪声）→ 静默跳过。
+  // 比对用 normalizeForDirtyCompare：尾随换行差异（milkdown 序列化恒补 \n）
+  // 不构成外部修改，否则无尾随换行的文件会被误判为外部改动弹重载
+  if (normalizeForDirtyCompare(content) === normalizeForDirtyCompare(tab.markdown)) return
   await applyExternalContent(tab, content)
   showToast(t('extchange.reloaded', { name: tab.name }))
 }

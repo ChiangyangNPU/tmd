@@ -17,6 +17,7 @@ import {
   hasDirty,
   isTabOpen,
   syncDirtyWith,
+  normalizeForDirtyCompare,
   listTabs,
   setOnTabsSetChanged,
   type DocTab,
@@ -39,7 +40,6 @@ import {
   beginRename,
   type FolderMenuTarget,
 } from './filetree'
-import { normalizeEmptyTableCells } from './table-markdown'
 import { invalidateWikiIndex, wikiIndexOnSave, getWikiLinks } from './wikilink-index'
 import { rewriteLinksForRename } from './link-rewrite'
 import { t } from './i18n'
@@ -236,7 +236,7 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
   } else {
     // 已切走的标签：tab.markdown 是切走时的内容暂存（重新激活时加载），不能覆盖；
     // 只按暂存内容与落盘内容比对重算脏标记。基准推进留给重新激活后的下一次保存
-    tab.dirty = normalizeEmptyTableCells(tab.markdown) !== normalizeEmptyTableCells(markdown)
+    tab.dirty = normalizeForDirtyCompare(tab.markdown) !== normalizeForDirtyCompare(markdown)
   }
   // 另存为会改标签名：脏标记未变时 syncDirtyWith 会早退，这里无条件重绘
   renderTabs()
