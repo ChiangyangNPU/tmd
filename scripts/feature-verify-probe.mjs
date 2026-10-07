@@ -271,15 +271,13 @@ try {
     const r = p.getBoundingClientRect()
     return { x: Math.round(r.left + 12), y: Math.round(r.top + r.height / 2) }
   })()`)
-  // 双击选词（有选区才能看到完整格式化组）；CDP 双击后用 DOM 选区兜底确认
-  await click(pmPoint.x, pmPoint.y, { clickCount: 2 })
+  // 选区建立（确定性）：JS 直接设置 DOM 选区（PM 经 selectionchange 同步），
+  // 不依赖合成双击的选词成功与否
   await ev(`(() => {
-    const sel = getSelection()
-    if (sel && sel.toString().length > 0) return true
     const p = document.querySelector('.page-scroll p')
     const textNode = p.firstChild
-    sel.setBaseAndExtent(textNode, 0, textNode, 2)
-    return true
+    getSelection().setBaseAndExtent(textNode, 0, textNode, 2)
+    return getSelection().toString()
   })()`)
   const selText = await ev(`getSelection().toString()`)
   console.log('  [probe] 选区文本:', JSON.stringify(selText))
