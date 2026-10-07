@@ -336,7 +336,8 @@
     "fontTimes": "Times",
     "fontCharter": "Charter",
     "fontSegoe": "Segoe UI",
-    "fontHelvetica": "Helvetica"
+    "fontHelvetica": "Helvetica",
+    "fontDetail": "Typeface"
   },
   "image": {
     "alignLeft": "Align left",

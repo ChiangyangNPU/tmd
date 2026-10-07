@@ -336,7 +336,8 @@
     "fontTimes": "Times",
     "fontCharter": "Charter",
     "fontSegoe": "Segoe 正黑",
-    "fontHelvetica": "Helvetica"
+    "fontHelvetica": "Helvetica",
+    "fontDetail": "具體字體"
   },
   "image": {
     "alignLeft": "靠左對齊",

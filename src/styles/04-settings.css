@@ -622,3 +622,25 @@
     display: none;
   }
 }
+
+/* 二级字体选择 chips（选中字体类别后出现，点击切换栈首主字体） */
+.settings-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.settings-chip:hover {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+.settings-chip.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}

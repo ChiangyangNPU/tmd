@@ -232,6 +232,10 @@ export interface Typography {
   pageWidth: string
   /** 自动换行：'on'（默认，长行软换行）| 'off'（长行横向滚动） */
   wrap: string
+  /** 选中的字体预设 id（与 font 栈配对存储，供设置面板回显二级字体选择） */
+  fontPresetId?: string
+  /** 预设内选中的主字体（置于栈首；缺省 = 预设默认顺序） */
+  fontPrimary?: string
 }
 
 /** 默认排版配置（全部跟随内置样式） */
@@ -250,6 +254,8 @@ export function getTypography(): Typography {
       lineHeight: typeof raw.lineHeight === 'string' ? raw.lineHeight : base.lineHeight,
       pageWidth: typeof raw.pageWidth === 'string' ? raw.pageWidth : base.pageWidth,
       wrap: raw.wrap === 'off' ? 'off' : base.wrap,
+      fontPresetId: typeof raw.fontPresetId === 'string' ? raw.fontPresetId : undefined,
+      fontPrimary: typeof raw.fontPrimary === 'string' ? raw.fontPrimary : undefined,
     }
   } catch {
     return base
