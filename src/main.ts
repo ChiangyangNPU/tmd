@@ -69,8 +69,8 @@ import {
 import { openSearch, closeSearch, wireSearch } from './search'
 import { wireSplit } from './split'
 import { openHistory, wireHistory } from './history'
-import { closeBacklinks, openBacklinks, wireBacklinks } from './backlinks'
-import { closeGraph, openGraph, wireGraph } from './graph'
+import { closeBacklinks, openBacklinks, toggleBacklinks, wireBacklinks } from './backlinks'
+import { closeGraph, openGraph, toggleGraph, wireGraph } from './graph'
 import {
   closeLocalGraph,
   notifyLocalGraphDocChanged,
@@ -584,7 +584,14 @@ async function boot() {
         openSearch()
       } else if (isSameAccelerator(acc, shortcuts['backlinks'])) {
         e.preventDefault()
-        void openBacklinks()
+        toggleBacklinks()
+      } else if (isSameAccelerator(acc, shortcuts['graph'])) {
+        e.preventDefault()
+        toggleGraph()
+      } else if (isSameAccelerator(acc, shortcuts['local-graph'])) {
+        e.preventDefault()
+        // 侧边栏面板本身即开关式（再点一次收起）
+        toggleSidebar('relations')
       } else if (isSameAccelerator(acc, shortcuts['find']) && !isSourceMode()) {
         e.preventDefault()
         openFindBar()

@@ -141,6 +141,38 @@ try {
     ),
   )
 
+  // 快捷键双向开关：Cmd+Shift+G 再开 → 再按关闭
+  const pressGraphShortcut = async () => {
+    await renderer.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      key: 'g',
+      code: 'KeyG',
+      windowsVirtualKeyCode: 71,
+      modifiers: 12,
+    })
+    await renderer.send('Input.dispatchKeyEvent', {
+      type: 'keyUp',
+      key: 'g',
+      code: 'KeyG',
+      windowsVirtualKeyCode: 71,
+      modifiers: 12,
+    })
+  }
+  await pressGraphShortcut()
+  check(
+    '快捷键 Cmd+Shift+G 再开图谱',
+    await waitFor(
+      `(() => { const o = document.getElementById('graph-overlay'); return o && !o.hidden })()`,
+    ),
+  )
+  await pressGraphShortcut()
+  check(
+    '快捷键再按关闭图谱（双向开关）',
+    await waitFor(
+      `(() => { const o = document.getElementById('graph-overlay'); return o && o.hidden })()`,
+    ),
+  )
+
   // ---------- ② 局部图谱侧边栏 ----------
   await ev(`document.getElementById('menu-localgraph-btn').click()`)
   check(

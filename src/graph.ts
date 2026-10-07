@@ -256,6 +256,18 @@ export function closeGraph(): void {
   }
 }
 
+/** 图谱面板是否打开 */
+export function isGraphOpen(): boolean {
+  const overlay = document.getElementById('graph-overlay')
+  return !!overlay && !overlay.hidden
+}
+
+/** 开关式切换：开着则关，关着则开（快捷键双向触发） */
+export function toggleGraph(): void {
+  if (isGraphOpen()) closeGraph()
+  else void openGraph()
+}
+
 /** 打开图谱面板：拉取索引、构建图、启动力导向模拟 */
 export async function openGraph(): Promise<void> {
   const overlay = document.getElementById('graph-overlay')

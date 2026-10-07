@@ -38,6 +38,18 @@ export async function openBacklinks(): Promise<void> {
   await refreshBacklinks()
 }
 
+/** 反向链接面板是否打开 */
+export function isBacklinksOpen(): boolean {
+  const overlay = document.getElementById('backlinks-overlay')
+  return !!overlay && !overlay.hidden
+}
+
+/** 开关式切换：开着则关，关着则开（快捷键双向触发） */
+export function toggleBacklinks(): void {
+  if (isBacklinksOpen()) closeBacklinks()
+  else void openBacklinks()
+}
+
 /** 拉取索引并渲染（打开与索引刷新共用） */
 async function refreshBacklinks(): Promise<void> {
   const overlay = document.getElementById('backlinks-overlay')
