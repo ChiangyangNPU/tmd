@@ -208,10 +208,11 @@ function setStatus(text: string): void {
   if (el) el.textContent = text
 }
 
-/** 关闭面板并停止模拟 */
+/** 关闭面板并停止模拟（面板互斥：关闭后整个侧边栏一并收起） */
 export function closeLocalGraph(): void {
   const panel = document.getElementById('relations-panel')
   if (panel) panel.setAttribute('hidden', '')
+  document.getElementById('sidebar')?.setAttribute('hidden', '')
   state?.sim.stop()
   state = null
   if (raf) {
@@ -444,6 +445,11 @@ export function wireLocalGraph(): void {
   for (const btn of panel.querySelectorAll<HTMLButtonElement>('[data-depth]')) {
     btn.classList.toggle('active', Number(btn.dataset.depth) === depth)
   }
+
+  // 面板头部 ✕ 为显式出口（关闭时整个侧边栏一并收起）
+  document
+    .getElementById('localgraph-close-btn')
+    ?.addEventListener('click', () => closeLocalGraph())
 
   // 画布交互：悬停放大节点 / 点击跳转（命中测试与绘制共用自动适配变换）
   const hit = (e: MouseEvent): MiniNode | null => {
