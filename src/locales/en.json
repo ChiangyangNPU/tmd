@@ -328,7 +328,15 @@
     "aboutHomepage": "Homepage",
     "aboutLicense": "License",
     "aboutThirdParty": "Third-Party Components",
-    "fontZoom": "Font size {size}"
+    "fontZoom": "Font size {size}",
+    "fontMono": "Monospace",
+    "fontFangsong": "Fangsong",
+    "fontLxgw": "LXGW WenKai",
+    "fontSourceHan": "Source Han Serif",
+    "fontTimes": "Times",
+    "fontCharter": "Charter",
+    "fontSegoe": "Segoe UI",
+    "fontHelvetica": "Helvetica"
   },
   "image": {
     "alignLeft": "Align left",

@@ -30,6 +30,38 @@ export const FONT_PRESETS: FontPreset[] = [
     stack: `'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif`,
   },
   { id: 'kai', stack: `'Kaiti SC', KaiTi, STKaiti, serif` },
+  {
+    id: 'mono',
+    stack: `'SF Mono', Menlo, Consolas, 'Courier New', monospace`,
+  },
+  {
+    id: 'fangsong',
+    stack: `'Fangsong SC', FangSong, STFangsong, serif`,
+  },
+  {
+    id: 'lxgw',
+    stack: `'LXGW WenKai', 'Kaiti SC', KaiTi, serif`,
+  },
+  {
+    id: 'sourcehan',
+    stack: `'Source Han Serif SC', 'Noto Serif CJK SC', 'Songti SC', serif`,
+  },
+  {
+    id: 'times',
+    stack: `'Times New Roman', 'Songti SC', SimSun, serif`,
+  },
+  {
+    id: 'charter',
+    stack: `Charter, Georgia, 'Songti SC', serif`,
+  },
+  {
+    id: 'segoe',
+    stack: `'Segoe UI', 'Microsoft YaHei', 'Microsoft JhengHei', sans-serif`,
+  },
+  {
+    id: 'helvetica',
+    stack: `'Helvetica Neue', Helvetica, Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif`,
+  },
 ]
 
 /** 应用排版设置：非默认项注入 CSS 变量（空值不注入，回落 style.css 默认） */

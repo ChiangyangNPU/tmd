@@ -328,7 +328,15 @@
     "aboutHomepage": "首頁",
     "aboutLicense": "授權條款",
     "aboutThirdParty": "第三方元件",
-    "fontZoom": "字號 {size}"
+    "fontZoom": "字號 {size}",
+    "fontMono": "等寬寫作",
+    "fontFangsong": "仿宋",
+    "fontLxgw": "霞鶩文楷",
+    "fontSourceHan": "思源宋體",
+    "fontTimes": "Times",
+    "fontCharter": "Charter",
+    "fontSegoe": "Segoe 正黑",
+    "fontHelvetica": "Helvetica"
   },
   "image": {
     "alignLeft": "靠左對齊",
