@@ -71,6 +71,12 @@ import { wireSplit } from './split'
 import { openHistory, wireHistory } from './history'
 import { closeBacklinks, openBacklinks, wireBacklinks } from './backlinks'
 import { closeGraph, openGraph, wireGraph } from './graph'
+import {
+  closeLocalGraph,
+  notifyLocalGraphDocChanged,
+  refreshLocalGraph,
+  wireLocalGraph,
+} from './local-graph'
 import { wireTableToolbar } from './table-toolbar'
 import { normalizeEmptyTableCells } from './table-markdown'
 import {
@@ -162,21 +168,32 @@ function toggleSplitView() {
 }
 
 /** 切换侧边栏面板（大纲 / 文件二选一，互斥展开收起） */
-function toggleSidebar(which: 'outline' | 'files') {
+function toggleSidebar(which: 'outline' | 'files' | 'relations') {
   const sidebar = document.getElementById('sidebar')
   const outlinePanel = document.getElementById('outline-panel')
   const filesPanel = document.getElementById('files-panel')
-  if (!sidebar || !outlinePanel || !filesPanel) return
+  const relationsPanel = document.getElementById('relations-panel')
+  if (!sidebar || !outlinePanel || !filesPanel || !relationsPanel) return
 
-  const showOutline = which === 'outline'
-  const targetPanel = showOutline ? outlinePanel : filesPanel
-  const otherPanel = showOutline ? filesPanel : outlinePanel
-  otherPanel.hidden = true
-  targetPanel.hidden = !targetPanel.hidden
-  sidebar.hidden = targetPanel.hidden && otherPanel.hidden
+  const panels: Record<string, HTMLElement> = {
+    outline: outlinePanel,
+    files: filesPanel,
+    relations: relationsPanel,
+  }
+  let target: HTMLElement | null = null
+  for (const [name, panel] of Object.entries(panels)) {
+    if (name === which) {
+      panel.hidden = !panel.hidden
+      if (!panel.hidden) target = panel
+    } else {
+      panel.hidden = true
+    }
+  }
+  sidebar.hidden = !target
   // 展开大纲时立即刷新一次：大纲改为低优拍点刷新后，展开瞬间可能带着
   // 上一次收起以来的陈旧内容
-  if (showOutline && !outlinePanel.hidden) refreshOutline()
+  if (which === 'outline' && target) refreshOutline()
+  if (which === 'relations' && target) void refreshLocalGraph()
 }
 
 /** 按当前文档重建大纲（面板不可见时跳过；编辑期间由低优拍点驱动） */
@@ -328,6 +345,8 @@ async function boot() {
         syncDirtyWith(clean)
         if (activeTab()?.dirty) saveDoc(clean)
         refreshOutline()
+        // 局部图谱面板打开时随编辑节拍刷新（未保存的新出链即时可见）
+        notifyLocalGraphDocChanged()
       },
       // 此前大纲在这里每事务同步刷新：全文档遍历 + slugify + 全量 DOM 重建，
       // 是序列化防抖优化漏掉的同级 O(n) 消费者（且源码模式完全不更新）。
@@ -361,6 +380,11 @@ async function boot() {
     // ⋯ 溢出菜单
     document.getElementById('menu-files-btn')?.addEventListener('click', () => {
       toggleSidebar('files')
+      closeMoreMenu()
+    })
+    // 局部图谱：侧边栏「关系」面板，当前笔记的邻域迷你力导向图
+    document.getElementById('menu-localgraph-btn')?.addEventListener('click', () => {
+      toggleSidebar('relations')
       closeMoreMenu()
     })
     document.getElementById('menu-find-btn')?.addEventListener('click', () => {
@@ -526,6 +550,7 @@ async function boot() {
         closeSearch()
         closeBacklinks()
         closeGraph()
+        closeLocalGraph()
         // 焦点在编辑器里时也能用 Esc 收起查找栏（关闭后焦点归还编辑器）
         closeFindBar()
       }
@@ -598,6 +623,7 @@ async function boot() {
       history: () => void openHistory(),
       backlinks: () => void openBacklinks(),
       graph: () => void openGraph(),
+      'local-graph': () => toggleSidebar('relations'),
       'open-settings': () => openSettings(),
       'new-tab': () => createNewTab(),
       'close-tab': () => {
@@ -654,6 +680,7 @@ async function boot() {
       history: ['menu.history', 'history snapshot version'],
       backlinks: ['menu.backlinks', 'backlinks who links here'],
       graph: ['menu.graph', 'graph view links map'],
+      'local-graph': ['menu.localGraph', 'local graph neighbors current note'],
       'open-settings': ['menu.settings', 'settings preferences options'],
       'new-tab': ['menu.newTab', 'new tab document'],
       'close-tab': ['menu.closeTab', 'close tab'],
@@ -755,6 +782,8 @@ async function boot() {
     wireBacklinks()
     // 关系图谱：canvas + d3-force 力导向布局（面板打开时才加载数据）
     wireGraph()
+    // 局部图谱侧边栏面板：当前笔记邻域迷你力导向图
+    wireLocalGraph()
     // 分屏交互：分隔条拖拽 / 点选可编辑侧 / 两侧滚动近似同步
     wireSplit()
     // 侧边栏分隔条：拖拽调宽 / 双击复位

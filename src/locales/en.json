@@ -150,7 +150,8 @@
     "orderedList": "Ordered List",
     "settings": "Settings…",
     "backlinks": "Backlinks",
-    "graph": "Graph view"
+    "graph": "Graph view",
+    "localGraph": "Local graph"
   },
   "linkBar": {
     "placeholder": "Enter the link URL, press Enter to apply",
@@ -369,5 +370,13 @@
   },
   "common": {
     "close": "Close"
+  },
+  "localGraph": {
+    "title": "Local graph",
+    "depth": "Depth",
+    "loading": "Computing…",
+    "empty": "No linked notes",
+    "untitled": "Save the note first to build its neighborhood",
+    "summary": "{count} linked notes"
   }
 }

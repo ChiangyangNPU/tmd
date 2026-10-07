@@ -150,7 +150,8 @@
     "orderedList": "有序清單",
     "settings": "設定…",
     "backlinks": "反向連結",
-    "graph": "關係圖譜"
+    "graph": "關係圖譜",
+    "localGraph": "局部圖譜"
   },
   "linkBar": {
     "placeholder": "輸入連結網址，按 Enter 確認",
@@ -369,5 +370,13 @@
   },
   "common": {
     "close": "關閉"
+  },
+  "localGraph": {
+    "title": "局部圖譜",
+    "depth": "層數",
+    "loading": "正在計算…",
+    "empty": "沒有相鄰筆記",
+    "untitled": "未儲存文件沒有鄰域——先儲存",
+    "summary": "{count} 篇相鄰筆記"
   }
 }

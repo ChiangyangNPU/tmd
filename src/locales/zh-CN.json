@@ -150,7 +150,8 @@
     "orderedList": "有序列表",
     "settings": "设置…",
     "backlinks": "反向链接",
-    "graph": "关系图谱"
+    "graph": "关系图谱",
+    "localGraph": "局部图谱"
   },
   "linkBar": {
     "placeholder": "输入链接地址，回车确认",
@@ -369,5 +370,13 @@
   },
   "common": {
     "close": "关闭"
+  },
+  "localGraph": {
+    "title": "局部图谱",
+    "depth": "层数",
+    "loading": "正在计算…",
+    "empty": "没有相邻笔记",
+    "untitled": "未保存文档没有邻域——先保存",
+    "summary": "{count} 篇相邻笔记"
   }
 }

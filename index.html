@@ -144,6 +144,18 @@
           </div>
           <div id="folder-tree" class="file-list"></div>
         </div>
+        <div id="relations-panel" class="sidebar-panel" hidden>
+          <div class="sidebar-title">
+            <span data-i18n="localGraph.title">局部图谱</span>
+          </div>
+          <div class="localgraph-depth-row">
+            <span data-i18n="localGraph.depth">层数</span>
+            <button type="button" class="localgraph-depth-btn active" data-depth="1">1</button>
+            <button type="button" class="localgraph-depth-btn" data-depth="2">2</button>
+          </div>
+          <canvas id="localgraph-canvas" class="localgraph-canvas"></canvas>
+          <div id="localgraph-status" class="localgraph-status"></div>
+        </div>
       </aside>
 
       <!-- 侧边栏分隔条：拖拽调整侧边栏与编辑区的宽度分配（随侧边栏显隐，样式层控制） -->

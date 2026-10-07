@@ -484,3 +484,45 @@
 .graph-reset:hover {
   background: var(--bg-hover);
 }
+
+/* ---------------- 局部图谱侧边栏面板 ---------------- */
+
+/* 层数切换行（1/2 层胶囊按钮） */
+.localgraph-depth-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.localgraph-depth-btn {
+  min-width: 26px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.localgraph-depth-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* 迷你图谱画布 */
+.localgraph-canvas {
+  width: 100%;
+  height: 260px;
+  background: var(--bg);
+  touch-action: none;
+}
+
+.localgraph-status {
+  padding: 6px 12px 10px;
+  color: var(--muted);
+  font-size: 11px;
+}
