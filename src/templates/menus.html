@@ -1,4 +1,5 @@
 <div id="more-menu" class="more-menu" hidden>
+  <!-- 文件与视图 -->
   <button id="menu-files-btn" class="menu-item" data-i18n="toolbar.files">文件</button>
   <button id="menu-find-btn" class="menu-item" data-i18n="toolbar.find">查找</button>
   <button
@@ -9,6 +10,8 @@
   >
     分屏
   </button>
+  <div class="menu-sep"></div>
+  <!-- 导出 -->
   <button id="menu-export-html-btn" class="menu-item" data-i18n="menu.exportHtml">导出 HTML</button>
   <!-- Word / 长图需离屏渲染（仅 Electron 环境可用），浏览器下由 main.ts 隐藏 -->
   <button id="menu-export-word-btn" class="menu-item" data-i18n="menu.exportWord">导出 Word</button>
@@ -18,6 +21,8 @@
   <button id="menu-export-latex-btn" class="menu-item" data-i18n="menu.exportLatex">
     导出 LaTeX
   </button>
+  <div class="menu-sep"></div>
+  <!-- 文档工具：插入与双链 -->
   <button id="menu-insert-toc-btn" class="menu-item" data-i18n="menu.insertToc">插入目录</button>
   <button id="menu-backlinks-btn" class="menu-item" data-i18n="menu.backlinks">反向链接</button>
   <button id="menu-graph-btn" class="menu-item" data-i18n="menu.graph">关系图谱</button>
