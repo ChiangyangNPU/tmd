@@ -137,8 +137,10 @@
   color: var(--accent);
 }
 
-/* 最近文件行：文件名省略号 + hover 出现单条移除 × */
-.tree-recent {
+/* 文件夹行（根行 / 各层子目录行）：折叠箭头 + 名称横向排列；
+   tree-recent 额外承载 hover × 等操作按钮的显隐 */
+.tree-recent,
+.tree-folder {
   display: flex;
   align-items: center;
   gap: 4px;

@@ -39,26 +39,39 @@ import {
   beginInlineCreate,
   beginRename,
   type FolderMenuTarget,
+  type FileEntry,
 } from './filetree'
 import { invalidateWikiIndex, wikiIndexOnSave, getWikiLinks } from './wikilink-index'
 import { rewriteLinksForRename } from './link-rewrite'
 import { t } from './i18n'
 
-/** 已打开文件夹的目录树缓存（绝对路径 → 子节点）；重启后首次展开时懒加载 */
-const folderChildrenCache = new Map<string, import('./filetree').FileEntry[]>()
+/** 已打开文件夹的目录列表缓存（绝对路径 → 该目录的直接子项）；每个目录首次展开时懒加载 */
+const folderChildrenCache = new Map<string, FileEntry[]>()
 
-/** 当前展开的文件夹路径集合（仅内存态，重启后全部折叠） */
+/** 当前展开的文件夹路径集合（根与任意层级子目录共用；仅内存态，重启后全部折叠） */
 const expandedFolders = new Set<string>()
 
-/** 当前已打开且目录树已加载的文件夹（快速切换面板枚举用；未展开加载的不含） */
+/**
+ * 把懒加载缓存递归注入目录树：已展开读过的目录用缓存子项替换占位空数组，
+ * 未加载的目录保持空 children（渲染层显示为折叠态）。
+ */
+function withCachedChildren(entries: FileEntry[]): FileEntry[] {
+  return entries.map((entry) => {
+    if (!entry.children) return entry
+    const cached = folderChildrenCache.get(entry.path)
+    return { ...entry, children: withCachedChildren(cached ?? entry.children) }
+  })
+}
+
+/** 当前已打开且目录树已加载的文件夹（快速切换枚举用；子项含全部已懒加载过的目录） */
 export function getFolderTrees(): {
   path: string
   name: string
-  children: import('./filetree').FileEntry[]
+  children: FileEntry[]
 }[] {
   return folderList().flatMap((f) => {
     const children = folderChildrenCache.get(f.path)
-    return children ? [{ path: f.path, name: f.name, children }] : []
+    return children ? [{ path: f.path, name: f.name, children: withCachedChildren(children) }] : []
   })
 }
 
@@ -245,7 +258,7 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
   updateTitle()
 }
 
-/** 打开文件夹：追加到工作区列表并展开（同路径去重），目录树缓存到内存（仅 Electron） */
+/** 打开文件夹：追加到工作区列表并展开（同路径去重），第一层列表缓存到内存（仅 Electron） */
 export async function openFolder() {
   if (!native) return
   const dir = await native.openFolder()
@@ -260,7 +273,7 @@ export async function openFolder() {
   renderFilesSidebar()
 }
 
-/** 展开/收起文件夹：重启后恢复的条目首次展开时懒加载目录树，失败提示而不是抛异常 */
+/** 展开/收起目录：根或任意层级子目录首次展开时懒加载该层列表，失败提示而不是抛异常 */
 async function toggleFolder(path: string) {
   if (expandedFolders.has(path)) {
     expandedFolders.delete(path)
@@ -283,11 +296,11 @@ async function toggleFolder(path: string) {
 }
 
 /**
- * 重载已加载的文件夹树（切换界面语言后调用）。
+ * 重载已展开的目录列表（切换界面语言后调用）。
  *
- * 目录树由主进程按界面语言排序（中文文件名走当地排序规则），缓存里仍是旧序，
- * 需重新读盘；未加载过的条目本就在首次展开时才读取，无需处理。单个文件夹
- * 读取失败时保留旧缓存（不提示，避免切换语言时弹无关错误）。
+ * 每个展开过的目录（根与各层级子目录）都在缓存中持有一份直接子项，主进程按
+ * 界面语言排序（中文文件名走当地排序规则），切语言后需逐个重读该层；未展开
+ * 的目录本就在首次展开时才读取，无需处理。单个目录读取失败时保留旧缓存。
  */
 export async function reloadFolderTrees() {
   if (!native) return
@@ -336,8 +349,15 @@ export function removeRecentDocument(path: string) {
 export function removeFolderEntry(path: string) {
   removeFolder(path)
   invalidateWikiIndex(true)
-  folderChildrenCache.delete(path)
-  expandedFolders.delete(path)
+  // 懒加载后根下各层子目录也持有缓存键，一并清除，避免重新打开同根时注入旧数据
+  for (const key of [...folderChildrenCache.keys()]) {
+    if (key === path || key.startsWith(path + '/') || key.startsWith(path + '\\'))
+      folderChildrenCache.delete(key)
+  }
+  for (const key of [...expandedFolders]) {
+    if (key === path || key.startsWith(path + '/') || key.startsWith(path + '\\'))
+      expandedFolders.delete(key)
+  }
   renderFilesSidebar()
 }
 
@@ -352,16 +372,19 @@ export function clearFolderEntries() {
 
 // ---------- 侧边栏文件管理（新建 / 重命名 / 在系统中显示；桌面端专属） ----------
 
-/** 重读包含 dir 的（最近的）已挂载根目录并重渲染；都读不到时仅重渲染 */
-async function refreshTreeRootContaining(dir: string) {
+/**
+ * 重读 targetPath 自身及其祖先中已缓存的目录并重渲染。
+ * 新建 / 重命名只改变所在目录的直接列表，因此无需重读整棵树；
+ * 祖先目录（含工作区根）缓存了该层条目，也需一并刷新。
+ */
+async function refreshTreeRootContaining(targetPath: string) {
   if (native) {
-    const root = [...folderList()]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((f) => dir === f.path || dir.startsWith(f.path + '/') || dir.startsWith(f.path + '\\'))
-    if (root) {
+    const isSelfOrAncestor = (dir: string) =>
+      targetPath === dir || targetPath.startsWith(dir + '/') || targetPath.startsWith(dir + '\\')
+    for (const dir of [...folderChildrenCache.keys()].filter(isSelfOrAncestor)) {
       try {
-        const tree = await native.readDir(root.path)
-        if (tree) folderChildrenCache.set(root.path, tree.children)
+        const tree = await native.readDir(dir)
+        if (tree) folderChildrenCache.set(dir, tree.children)
       } catch {
         /* 目录读取失败：保留旧缓存 */
       }
@@ -394,6 +417,16 @@ export async function renameEntry(path: string, newName: string) {
     const result = await native.renamePath(path, newName)
     // 路径变化使索引失效：立即重扫
     invalidateWikiIndex(true)
+    // 目录改名后旧路径下各层的懒加载缓存与展开态全部失效：移除旧子树，
+    // 新目录以未加载态出现，用户重新展开即可（文件路径不会命中目录缓存键）
+    for (const key of [...folderChildrenCache.keys()]) {
+      if (key === path || key.startsWith(path + '/') || key.startsWith(path + '\\'))
+        folderChildrenCache.delete(key)
+    }
+    for (const key of [...expandedFolders]) {
+      if (key === path || key.startsWith(path + '/') || key.startsWith(path + '\\'))
+        expandedFolders.delete(key)
+    }
     const tab = findByPath(path)
     if (tab) {
       tab.path = result.path
@@ -468,10 +501,18 @@ function showFolderMenu(target: FolderMenuTarget) {
   if (isDir && subVisible) {
     const createIn = target.subContainer as HTMLElement
     add(t('files.newFile'), () => {
-      beginInlineCreate(createIn, 1, (name) => void createEntryIn(target.entry.path, 'file', name))
+      beginInlineCreate(
+        createIn,
+        target.depth + 1,
+        (name) => void createEntryIn(target.entry.path, 'file', name),
+      )
     })
     add(t('files.newFolder'), () => {
-      beginInlineCreate(createIn, 1, (name) => void createEntryIn(target.entry.path, 'dir', name))
+      beginInlineCreate(
+        createIn,
+        target.depth + 1,
+        (name) => void createEntryIn(target.entry.path, 'dir', name),
+      )
     })
   }
   add(t('files.rename'), () => {
@@ -509,11 +550,15 @@ export function renderFilesSidebar() {
     )
   const treeEl = document.getElementById('folder-tree')
   if (treeEl) {
-    const folders = folderList().map((f) => ({
-      ...f,
-      expanded: expandedFolders.has(f.path),
-      children: folderChildrenCache.get(f.path),
-    }))
+    const folders = folderList().map((f) => {
+      const cached = folderChildrenCache.get(f.path)
+      return {
+        ...f,
+        expanded: expandedFolders.has(f.path),
+        // 注入各层已懒加载的子项；未加载的根（重启恢复折叠态）为 undefined
+        children: cached ? withCachedChildren(cached) : undefined,
+      }
+    })
     // 文件夹「清空」按钮仅在列表非空时显示
     const clearFolderBtn = document.getElementById('clear-folder-btn')
     if (clearFolderBtn) clearFolderBtn.hidden = folders.length === 0
@@ -521,7 +566,7 @@ export function renderFilesSidebar() {
       treeEl,
       folders,
       (p) => void openPath(p),
-      (p) => void toggleFolder(p),
+      (p) => toggleFolder(p),
       (p) => removeFolderEntry(p),
       native
         ? {
@@ -531,6 +576,7 @@ export function renderFilesSidebar() {
             onMenu: (target) => showFolderMenu(target),
           }
         : undefined,
+      expandedFolders,
     )
   }
 }

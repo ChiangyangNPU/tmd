@@ -27,22 +27,37 @@ export interface FolderMenuTarget {
   subContainer: HTMLElement | null
   /** 整棵树容器（重命名按路径在其中定位行） */
   treeContainer: HTMLElement
+  /** 该行在树中的缩进层级（根行为 0，行内新建输入框据此计算缩进） */
+  depth: number
 }
 
-/** 递归渲染目录树：目录行点击展开/收起，文件行点击触发 onOpen 回调。
- *  onMenu：行右键菜单（文件管理），不传则无右键行为 */
+/** 递归渲染目录树：目录行点击经 onToggleDir 展开/收起（子树由调用方懒加载后重渲染），
+ *  文件行点击触发 onOpen 回调。
+ *  onMenu：行右键菜单（文件管理），不传则无右键行为
+ *  expandedPaths：当前已展开的目录路径集合；未传时目录行不可展开（只读静态树场景） */
 export function renderFileTree(
   container: HTMLElement,
   entries: FileEntry[],
   onOpen: (path: string) => void,
   depth = 0,
   onMenu?: (target: FolderMenuTarget) => void,
+  expandedPaths?: Set<string>,
+  onToggleDir?: (path: string) => void | Promise<void>,
 ) {
   for (const item of entries) {
+    const isDir = !!item.children
     const row = document.createElement('div')
-    row.className = item.children ? 'tree-folder' : 'tree-file'
+    row.className = isDir ? 'tree-folder' : 'tree-file'
     row.style.paddingLeft = `${8 + depth * 14}px`
     row.title = item.path
+    if (isDir) {
+      // 折叠箭头：展开状态完全由 expandedPaths 驱动（重渲染后保持）
+      const caret = document.createElement('span')
+      caret.className = 'tree-caret'
+      const expanded = expandedPaths?.has(item.path) ?? false
+      caret.textContent = expanded ? '▾' : '▸'
+      row.appendChild(caret)
+    }
     // 名称放 .tree-file-name 标签：行内重命名靠它替换输入框（与根行/最近行同构）
     const label = document.createElement('span')
     label.className = 'tree-file-name'
@@ -60,19 +75,31 @@ export function renderFileTree(
           y: e.clientY,
           subContainer: sub,
           treeContainer: container,
+          depth,
         })
       })
     }
     container.appendChild(row)
 
-    if (item.children) {
-      const sub = document.createElement('div')
-      sub.hidden = true
+    if (isDir) {
+      // 展开/收起与懒加载统一交调用方处理：本函数只反映 expandedPaths 的状态
       row.addEventListener('click', () => {
-        sub.hidden = !sub.hidden
+        void onToggleDir?.(item.path)
       })
-      container.appendChild(sub)
-      renderFileTree(sub, item.children, onOpen, depth + 1, onMenu)
+      if (expandedPaths?.has(item.path)) {
+        const sub = document.createElement('div')
+        sub.className = 'folder-sub'
+        container.appendChild(sub)
+        renderFileTree(
+          sub,
+          item.children ?? [],
+          onOpen,
+          depth + 1,
+          onMenu,
+          expandedPaths,
+          onToggleDir,
+        )
+      }
     } else {
       row.addEventListener('click', () => onOpen(item.path))
     }
@@ -227,9 +254,11 @@ export function renderFolders(
   container: HTMLElement,
   folders: FolderRow[],
   onOpen: (path: string) => void,
-  onToggle: (path: string) => void,
+  onToggle: (path: string) => void | Promise<void>,
   onRemove?: (path: string) => void,
   manage?: FolderManageCallbacks,
+  /** 当前展开的目录路径集合（根 + 各层级子目录共用），透传给子树控制展开状态 */
+  expandedPaths?: Set<string>,
 ) {
   container.textContent = ''
   if (!folders.length) {
@@ -239,6 +268,15 @@ export function renderFolders(
     container.appendChild(empty)
     return
   }
+  /** 按根路径在当前渲染结果中定位其子树容器（重渲染后旧引用失效，需重新查找） */
+  const findSubOf = (rootPath: string): HTMLElement | null => {
+    const rootRow = [...container.querySelectorAll<HTMLElement>('.tree-folder')].find(
+      (el) => el.title === rootPath,
+    )
+    const next = rootRow?.nextElementSibling
+    return next?.classList.contains('folder-sub') ? (next as HTMLElement) : null
+  }
+
   for (const folder of folders) {
     const row = document.createElement('div')
     // 复用 tree-recent 的 flex 布局与 hover × 显隐；tree-folder 提供强调色
@@ -260,19 +298,16 @@ export function renderFolders(
         addBtn.className = `tree-file-remove tree-dir-add tree-dir-add-${kind}`
         addBtn.title = kind === 'file' ? t('files.newFile') : t('files.newFolder')
         addBtn.textContent = kind === 'file' ? '＋文' : '＋夹'
-        addBtn.addEventListener('click', (e) => {
+        addBtn.addEventListener('click', async (e) => {
           e.stopPropagation()
-          // 已展开：输入行插入本根的子树顶部（紧跟本行的兄弟 sub 容器）；
-          // 未展开：先展开（重渲染后子树出现）再在树容器顶部插入输入行
-          const sub = row.nextElementSibling?.classList.contains('folder-sub')
-            ? (row.nextElementSibling as HTMLElement)
-            : null
-          if (sub) {
-            beginInlineCreate(sub, 1, (name) => manage.onCreate(folder.path, kind, name))
-          } else {
-            onToggle(folder.path)
-            beginInlineCreate(container, 0, (name) => manage.onCreate(folder.path, kind, name))
+          let sub = findSubOf(folder.path)
+          // 未展开：先等懒加载展开与重渲染完成，再重新定位子树容器。
+          // 不能在旧容器上预插输入行——异步 readDir 回来后的整树重渲染会把它清掉
+          if (!sub) {
+            await onToggle(folder.path)
+            sub = findSubOf(folder.path)
           }
+          if (sub) beginInlineCreate(sub, 1, (name) => manage.onCreate(folder.path, kind, name))
         })
         row.appendChild(addBtn)
       }
@@ -287,6 +322,7 @@ export function renderFolders(
           y: e.clientY,
           subContainer: sub,
           treeContainer: container,
+          depth: 0,
         })
       })
     }
@@ -303,14 +339,14 @@ export function renderFolders(
       })
       row.appendChild(removeBtn)
     }
-    row.addEventListener('click', () => onToggle(folder.path))
+    row.addEventListener('click', () => void onToggle(folder.path))
     container.appendChild(row)
 
     // 展开子树：children 已加载时渲染（未加载的条目保持折叠，首次展开时懒加载）
     if (folder.expanded && folder.children) {
       const sub = document.createElement('div')
       sub.className = 'folder-sub'
-      renderFileTree(sub, folder.children, onOpen, 1, manage?.onMenu)
+      renderFileTree(sub, folder.children, onOpen, 1, manage?.onMenu, expandedPaths, onToggle)
       container.appendChild(sub)
     }
   }

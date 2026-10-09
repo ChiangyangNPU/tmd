@@ -979,16 +979,13 @@ ipcMain.handle(IPC.readFile, async (_event, filePath) => {
   return { path: filePath, name: path.basename(filePath), content }
 })
 
-// 列出文件夹内的 Markdown 文件与子文件夹（两层），用于文件树侧边栏
+// 列出文件夹内一层 Markdown 文件与子文件夹，用于文件树侧边栏。
+// 子文件夹统一返回空 children 占位：是否继续读取由渲染层在用户展开时懒加载，
+// 避免打开超大目录时一次性递归整棵树（任意层级均可逐层展开，没有深度上限）。
 /** @param {unknown} _event @param {string} dirPath */
 ipcMain.handle(IPC.readDir, async (_event, dirPath) => {
-  /**
-   * @param {string} dir
-   * @param {number} depth
-   * @returns {Promise<import('../src/filetree.ts').FileEntry[]>}
-   */
-  async function walk(dir, depth) {
-    const entries = await fs.readdir(dir, { withFileTypes: true })
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true })
     /** @type {import('../src/filetree.ts').FileEntry[]} */
     const folders = []
     /** @type {import('../src/filetree.ts').FileEntry[]} */
@@ -997,18 +994,15 @@ ipcMain.handle(IPC.readDir, async (_event, dirPath) => {
       a.name.localeCompare(b.name, sortLocale || app.getLocale()),
     )) {
       if (entry.name.startsWith('.')) continue
-      const full = path.join(dir, entry.name)
+      const full = path.join(dirPath, entry.name)
       if (entry.isDirectory()) {
-        if (depth > 0)
-          folders.push({ name: entry.name, path: full, children: await walk(full, depth - 1) })
+        // 空数组 = 「是目录但子项未加载」，渲染层首次展开时再按路径发 readDir
+        folders.push({ name: entry.name, path: full, children: [] })
       } else if (/\.(md|markdown)$/i.test(entry.name)) {
         files.push({ name: entry.name, path: full })
       }
     }
-    return [...folders, ...files]
-  }
-  try {
-    return { path: dirPath, name: path.basename(dirPath), children: await walk(dirPath, 1) }
+    return { path: dirPath, name: path.basename(dirPath), children: [...folders, ...files] }
   } catch {
     return null
   }
