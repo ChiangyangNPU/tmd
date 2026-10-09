@@ -42,6 +42,9 @@
   flex: none;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
+  /* 标题栏即拖拽把手 */
+  cursor: move;
+  user-select: none;
 }
 
 .settings-body {

@@ -463,10 +463,73 @@ function wireSettingsNav() {
   })
 }
 
+/**
+ * 设置面板拖拽移动：按住标题栏拖动（关闭按钮不作为拖拽把手）。
+ * 首次拖动时把面板从 overlay 的 flex 居中切换为 fixed 定位，此后由 left/top 控制；
+ * 位置始终约束在视口内，每次重新打开时清除内联样式恢复居中。
+ */
+function wireSettingsDrag() {
+  const overlay = document.getElementById('settings-overlay')
+  const modal = overlay?.querySelector('.settings-modal') as HTMLElement | null
+  const header = overlay?.querySelector('.settings-header') as HTMLElement | null
+  if (!overlay || !modal || !header) return
+  let dragging = false
+  let startX = 0
+  let startY = 0
+  let startLeft = 0
+  let startTop = 0
+
+  header.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return
+    // 关闭按钮照常点击，不触发拖拽
+    if (e.target instanceof HTMLElement && e.target.closest('#settings-close')) return
+    const rect = modal.getBoundingClientRect()
+    modal.style.position = 'fixed'
+    modal.style.margin = '0'
+    modal.style.left = `${rect.left}px`
+    modal.style.top = `${rect.top}px`
+    dragging = true
+    startX = e.clientX
+    startY = e.clientY
+    startLeft = rect.left
+    startTop = rect.top
+    // 指针捕获：拖动经过编辑器等区域时事件仍保持在标题栏上
+    header.setPointerCapture(e.pointerId)
+    e.preventDefault()
+  })
+  header.addEventListener('pointermove', (e) => {
+    if (!dragging) return
+    const left = Math.min(
+      Math.max(startLeft + e.clientX - startX, 0),
+      Math.max(window.innerWidth - modal.offsetWidth, 0),
+    )
+    const top = Math.min(
+      Math.max(startTop + e.clientY - startY, 0),
+      Math.max(window.innerHeight - modal.offsetHeight, 0),
+    )
+    modal.style.left = `${left}px`
+    modal.style.top = `${top}px`
+  })
+  const endDrag = () => {
+    dragging = false
+  }
+  header.addEventListener('pointerup', endDrag)
+  header.addEventListener('pointercancel', endDrag)
+}
+
 /** 打开设置面板并反映当前配置值 */
 export function openSettings() {
   const overlay = document.getElementById('settings-overlay')
   if (!overlay) return
+
+  // 每次打开恢复居中：清除上次拖拽遗留的内联定位
+  const modal = overlay.querySelector('.settings-modal') as HTMLElement | null
+  if (modal) {
+    modal.style.position = ''
+    modal.style.margin = ''
+    modal.style.left = ''
+    modal.style.top = ''
+  }
 
   const langRadio = overlay.querySelector(
     `input[name="set-lang"][value="${getLocale()}"]`,
@@ -544,9 +607,8 @@ export function wireSettings() {
   // 分类导航：点击定位 + 滚动高亮跟随
   wireSettingsNav()
   document.getElementById('settings-close')?.addEventListener('click', closeSettings)
-  document.getElementById('settings-overlay')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeSettings()
-  })
+  // 面板只能通过关闭按钮或 ESC 关闭：点击面板外空白区域不关闭
+  wireSettingsDrag()
   document.querySelectorAll('input[name="set-lang"]').forEach((input) => {
     input.addEventListener('change', () => {
       setLocale((input as HTMLInputElement).value)
