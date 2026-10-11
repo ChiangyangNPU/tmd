@@ -1213,14 +1213,33 @@ ipcMain.handle(IPC.exportAs, async (_event, options) => {
   return { path: result.filePath, name: path.basename(result.filePath) }
 })
 
-// 打印 / 导出 PDF（走系统打印对话框）
-ipcMain.handle(IPC.print, async () => {
+// 导出 PDF：printToPDF 程序化生成（跟随 @media print 样式与 @page 页边距）
+// + 保存对话框落盘。不走 webContents.print 的系统打印对话框——Electron 44
+// 在 macOS 上该对话框会静默失败（点击无反应），且「选存储为 PDF」的间接
+// 路径体验也差于直接出文件。
+ipcMain.handle(IPC.print, async (_event, name) => {
   const win = mainWindow
   if (!win || win.isDestroyed()) return false
-  // 等打印流程回调后再回结果：用户取消/无打印机时渲染层可据此提示
-  return new Promise((resolve) => {
-    win.webContents.print({ printBackground: true }, (success) => resolve(success))
-  })
+  try {
+    const data = await win.webContents.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true, // 打印样式里的 @page 18mm 页边距生效
+      pageSize: 'A4',
+    })
+    const raw = typeof name === 'string' && name.trim() ? name.trim() : '导出'
+    const safe = raw.replace(/[\\/:*?"<>|]/g, '_')
+    const result = await showSaveDialogSafe({
+      title: '导出 PDF',
+      defaultPath: `${safe}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    })
+    if (!result || result.canceled || !result.filePath) return false
+    await fs.writeFile(result.filePath, data)
+    return true
+  } catch (err) {
+    console.error('[tmd] PDF 导出失败', err)
+    return false
+  }
 })
 
 // 选择文件夹（文件树）

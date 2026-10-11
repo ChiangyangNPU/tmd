@@ -39,7 +39,7 @@ const api = {
   /** 通用导出：按过滤器弹保存对话框并写入 */
   exportAs: (options) => ipcRenderer.invoke(IPC.exportAs, options),
   /** 调起系统打印（导出 PDF 走此路径） */
-  print: () => ipcRenderer.invoke(IPC.print),
+  print: (name) => ipcRenderer.invoke(IPC.print, name),
   /** 向主进程同步未保存状态（用于关闭确认） */
   setDirty: (dirty) => ipcRenderer.send(IPC.setDirty, dirty),
   /** 订阅主进程菜单项动作（参数为 action 标识） */

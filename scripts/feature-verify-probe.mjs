@@ -249,6 +249,20 @@ try {
   const texNoCode = tex.replace(/\\begin\{verbatim\}[\s\S]*?\\end\{verbatim\}/g, '')
   check('LaTeX 导出：双链无 [[ 残留（代码块字面除外）', !texNoCode.includes('[['))
 
+  // PDF 导出：printToPDF 程序化生成 + 保存框 stub 落盘
+  await ev(`document.getElementById('menu-export-pdf-btn').click()`)
+  let pdfPath = null
+  for (let i = 0; i < 40 && !pdfPath; i++) {
+    await sleep(250)
+    for (const f of await readdir(workDir)) if (f.endsWith('.pdf')) pdfPath = path.join(workDir, f)
+  }
+  check('PDF 导出产出文件（printToPDF 不再静默失败）', pdfPath !== null)
+  if (pdfPath) {
+    const pdfHead = (await readFile(pdfPath)).subarray(0, 5).toString()
+    check('PDF 文件头合法（%PDF-）', pdfHead === '%PDF-', pdfHead)
+    check('PDF 体积合理（> 20KB，含渲染内容）', (await readFile(pdfPath)).length > 20 * 1024)
+  }
+
   // ---------- ③ 分屏右键菜单 ----------
   await ev(`document.getElementById('menu-split-view-btn').click()`)
   check(

@@ -33,7 +33,7 @@ export interface NativeFileAPI {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
   }): Promise<{ path: string; name: string } | null>
-  print(): Promise<boolean>
+  print(name?: string): Promise<boolean>
   /** 向主进程同步未保存状态（用于关闭确认） */
   setDirty(dirty: boolean): void
   onMenu(callback: (action: string) => void): void

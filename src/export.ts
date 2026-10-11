@@ -133,10 +133,10 @@ export async function exportLatex(markdown: string, currentName: string, baseDir
   )
 }
 
-/** 导出 PDF：经打印对话框完成（Electron 走主进程打印，浏览器走 window.print） */
-export async function exportPdf() {
+/** 导出 PDF：主进程 printToPDF 生成 + 保存对话框落盘（浏览器走 window.print） */
+export async function exportPdf(name?: string) {
   if (native) {
-    await native.print()
+    await native.print(name)
   } else {
     window.print()
   }

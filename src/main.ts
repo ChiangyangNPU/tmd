@@ -392,7 +392,7 @@ async function boot() {
       closeMoreMenu()
     })
     document.getElementById('menu-export-pdf-btn')?.addEventListener('click', () => {
-      runExport((m) => m.exportPdf())
+      runExport((m) => m.exportPdf(activeTab()?.name))
       closeMoreMenu()
     })
     document.getElementById('menu-export-html-btn')?.addEventListener('click', () => {
@@ -643,7 +643,7 @@ async function boot() {
       },
       'export-html': () =>
         runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'))),
-      'export-pdf': () => runExport((m) => m.exportPdf()),
+      'export-pdf': () => runExport((m) => m.exportPdf(activeTab()?.name)),
       'export-word': () =>
         runExport((m) =>
           m.exportWord(
