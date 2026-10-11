@@ -391,6 +391,10 @@ async function boot() {
       openFindBar()
       closeMoreMenu()
     })
+    document.getElementById('menu-export-pdf-btn')?.addEventListener('click', () => {
+      runExport((m) => m.exportPdf())
+      closeMoreMenu()
+    })
     document.getElementById('menu-export-html-btn')?.addEventListener('click', () => {
       runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')))
       closeMoreMenu()
