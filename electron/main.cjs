@@ -1227,7 +1227,9 @@ ipcMain.handle(IPC.print, async (_event, name) => {
       pageSize: 'A4',
     })
     const raw = typeof name === 'string' && name.trim() ? name.trim() : '导出'
-    const safe = raw.replace(/[\\/:*?"<>|]/g, '_')
+    // 笔记名自带 .md 扩展名,落盘为 PDF 时剥掉(否则得到 笔记A.md.pdf)
+    const base = raw.replace(/\.(md|markdown)$/i, '').trim() || '导出'
+    const safe = base.replace(/[\\/:*?"<>|]/g, '_')
     const result = await showSaveDialogSafe({
       title: '导出 PDF',
       defaultPath: `${safe}.pdf`,

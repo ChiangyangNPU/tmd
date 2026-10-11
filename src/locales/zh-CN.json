@@ -123,7 +123,7 @@
     "export": "导出",
     "exportHtml": "导出 HTML",
     "insertToc": "插入目录",
-    "exportPdf": "打印 / 导出 PDF",
+    "exportPdf": "导出 PDF",
     "exportWord": "导出 Word",
     "exportLongimage": "导出长图",
     "exportLatex": "导出 LaTeX",
