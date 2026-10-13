@@ -208,9 +208,15 @@ const tocViews = new Set<TocView>()
  *
  * @param view ProseMirror 视图
  * @param pos 目标文档位置（已完成选区设置）
+ * @param align 'nearest'（默认）目标已在可视区内则不滚动，否则贴最近边缘；
+ *              'top' 始终滚动到目标行位于可视区顶部（大纲点击跳转用）
  * @author chiangyang
  */
-export function scrollEditorPosIntoView(view: EditorView, pos: number): void {
+export function scrollEditorPosIntoView(
+  view: EditorView,
+  pos: number,
+  align: 'nearest' | 'top' = 'nearest',
+): void {
   const coords = view.coordsAtPos(pos)
   if (!coords) return
   // 从编辑器 DOM 向上找第一个内容溢出的祖先作为滚动容器
@@ -221,6 +227,11 @@ export function scrollEditorPosIntoView(view: EditorView, pos: number): void {
   if (!scroller) return
   const box = scroller.getBoundingClientRect()
   const margin = 16
+  if (align === 'top') {
+    // 顶对齐：差值为负时浏览器自动按 0 钳制（目标本就靠近文档开头）
+    scroller.scrollTop += coords.top - (box.top + margin)
+    return
+  }
   if (coords.top < box.top + margin) {
     // 目标在可视区上方：向上滚
     scroller.scrollTop += coords.top - (box.top + margin)

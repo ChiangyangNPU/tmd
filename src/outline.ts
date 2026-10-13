@@ -23,7 +23,7 @@ export function collectOutline(doc: ProseNode): OutlineItem[] {
     .map(({ level, text, pos }) => ({ level, text, pos }))
 }
 
-/** 渲染大纲面板；点击条目选中对应标题并滚动到可视区 */
+/** 渲染大纲面板；点击条目选中对应标题并将其滚动到可视区顶部 */
 export function renderOutline(container: HTMLElement, items: OutlineItem[], view: EditorView) {
   container.textContent = ''
   if (!items.length) {
@@ -42,8 +42,9 @@ export function renderOutline(container: HTMLElement, items: OutlineItem[], view
       const selection = TextSelection.near($pos, 1)
       view.dispatch(view.state.tr.setSelection(selection))
       view.focus()
-      // 选区落位后按实际坐标滚动（不依赖 ProseMirror 的 scrollIntoView）
-      scrollEditorPosIntoView(view, selection.from)
+      // 选区落位后按实际坐标滚动（不依赖 ProseMirror 的 scrollIntoView）；
+      // 顶对齐：标题始终滚到可视区最上方，已可见时也会重新定位
+      scrollEditorPosIntoView(view, selection.from, 'top')
     })
     container.appendChild(row)
   }
