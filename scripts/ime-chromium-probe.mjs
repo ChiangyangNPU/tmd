@@ -7,7 +7,7 @@
  * 安全：按键注入前验证前台进程 unix id == 本实例 pid，不匹配立即中止。
  * 应用名独立（tmd-ime-mini）→ userData 独立 → 与用户正在运行的 TMD 无锁冲突。
  */
-import { mkdtemp, writeFile, rm, mkdir } from 'node:fs/promises'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { execFileSync, spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
@@ -130,11 +130,6 @@ try {
     process.exit(2)
   }
   console.log(`  [safety] 前台校验通过（unix id ${frontPid}）`)
-
-  const press = async (code) => {
-    osa(`tell application "System Events" to key code ${code}`)
-    await sleep(500)
-  }
 
   /** 单次按键追踪：清事件记录、按一个物理键、读内容与增量 */
   const trace = async (readExpr, code, label) => {
