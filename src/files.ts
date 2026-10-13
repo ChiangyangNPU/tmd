@@ -479,12 +479,9 @@ function ensureFolderMenuCloser() {
   })
 }
 
-/** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示 */
-function showFolderMenu(target: FolderMenuTarget) {
-  hideFolderMenu()
-  ensureFolderMenuCloser()
-  const isDir = target.entry.children != null
-  const subVisible = !!target.subContainer && !target.subContainer.hidden
+/** 新建右键菜单容器与「追加项」工厂（文件树行 / 最近文件行共用）：
+ *  菜单项点击后先关菜单再执行动作，避免回调重渲染把菜单留在屏上 */
+function buildMenu() {
   const menu = document.createElement('div')
   menu.className = 'more-menu file-context-menu'
   const add = (label: string, fn: () => void) => {
@@ -498,6 +495,28 @@ function showFolderMenu(target: FolderMenuTarget) {
     })
     menu.appendChild(item)
   }
+  return { menu, add }
+}
+
+/** 挂载菜单并按光标位置钳位到视口内（两种行右键菜单共用） */
+function mountMenu(menu: HTMLElement, x: number, y: number) {
+  document.body.appendChild(menu)
+  // 视口钳制：先挂载量尺寸再定位，避免超出右/下边缘
+  const rect = menu.getBoundingClientRect()
+  menu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 8))}px`
+  menu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 8))}px`
+  folderMenu = menu
+  // 右键本身不产生 click；等当前事件循环结束再挂一次性关闭监听
+  setTimeout(() => document.addEventListener('click', hideFolderMenu, { once: true }), 0)
+}
+
+/** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示 */
+function showFolderMenu(target: FolderMenuTarget) {
+  hideFolderMenu()
+  ensureFolderMenuCloser()
+  const isDir = target.entry.children != null
+  const subVisible = !!target.subContainer && !target.subContainer.hidden
+  const { menu, add } = buildMenu()
   if (isDir && subVisible) {
     const createIn = target.subContainer as HTMLElement
     add(t('files.newFile'), () => {
@@ -524,14 +543,16 @@ function showFolderMenu(target: FolderMenuTarget) {
     if (!ok) showToast(t('files.renameFailed'))
   })
   add(t('files.reveal'), () => void native?.revealInFolder(target.entry.path))
-  document.body.appendChild(menu)
-  // 视口钳制：先挂载量尺寸再定位，避免超出右/下边缘
-  const rect = menu.getBoundingClientRect()
-  menu.style.left = `${Math.max(4, Math.min(target.x, window.innerWidth - rect.width - 8))}px`
-  menu.style.top = `${Math.max(4, Math.min(target.y, window.innerHeight - rect.height - 8))}px`
-  folderMenu = menu
-  // 右键本身不产生 click；等当前事件循环结束再挂一次性关闭监听
-  setTimeout(() => document.addEventListener('click', hideFolderMenu, { once: true }), 0)
+  mountMenu(menu, target.x, target.y)
+}
+
+/** 最近文件行右键菜单：仅「在系统中显示」（最近条目无重命名/新建语义） */
+function showRecentMenu(path: string, x: number, y: number) {
+  hideFolderMenu()
+  ensureFolderMenuCloser()
+  const { menu, add } = buildMenu()
+  add(t('files.reveal'), () => void native?.revealInFolder(path))
+  mountMenu(menu, x, y)
 }
 
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
@@ -547,6 +568,7 @@ export function renderFilesSidebar() {
       recent,
       (p) => void openPath(p),
       (p) => removeRecentDocument(p),
+      native ? showRecentMenu : undefined,
     )
   const treeEl = document.getElementById('folder-tree')
   if (treeEl) {

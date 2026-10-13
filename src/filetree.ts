@@ -107,12 +107,14 @@ export function renderFileTree(
 }
 
 /** 渲染最近打开文件列表；列表为空时显示占位文案。
- *  onRemove：行内 hover × 单条移除（不传则不渲染按钮） */
+ *  onRemove：行内 hover × 单条移除（不传则不渲染按钮）
+ *  onMenu：行右键菜单（不传则无右键菜单，浏览器降级即此形态） */
 export function renderRecent(
   container: HTMLElement,
   recent: RecentEntry[],
   onOpen: (path: string) => void,
   onRemove?: (path: string) => void,
+  onMenu?: (path: string, x: number, y: number) => void,
 ) {
   container.textContent = ''
   if (!recent.length) {
@@ -144,6 +146,12 @@ export function renderRecent(
       row.appendChild(removeBtn)
     }
     row.addEventListener('click', () => onOpen(item.path))
+    if (onMenu) {
+      row.addEventListener('contextmenu', (e) => {
+        e.preventDefault()
+        onMenu(item.path, e.clientX, e.clientY)
+      })
+    }
     container.appendChild(row)
   }
 }
