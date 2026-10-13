@@ -89,6 +89,10 @@ export function applyTypography(): void {
   if (t.fontSize) lines.push(`  --editor-font-size: ${safeCssValue(t.fontSize)}px;`)
   if (t.lineHeight) lines.push(`  --editor-line-height: ${safeCssValue(t.lineHeight)};`)
   if (t.pageWidth === 'full') lines.push('  --editor-page-width: 100%;')
+  // 自适应：跟随可用空间（窗口宽度 − 侧边栏）伸缩——宽时最多 1120px 避免超宽屏
+  // 一行过长，窄时（侧边栏打开/窗口调小）两侧各留 32px 自动收缩
+  else if (t.pageWidth === 'auto')
+    lines.push('  --editor-page-width: min(1120px, calc(100% - 64px));')
   else if (t.pageWidth) lines.push(`  --editor-page-width: ${safeCssValue(t.pageWidth)}px;`)
   if (t.wrap === 'off') {
     lines.push('  --editor-white-space: pre;')

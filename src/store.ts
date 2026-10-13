@@ -228,7 +228,7 @@ export interface Typography {
   fontSize: string
   /** 正文行距：'' = 默认 1.75；否则为如 '1.5' / '2' */
   lineHeight: string
-  /** 编辑区宽度（px 数字字符串）：'' = 默认 860；'full' = 全宽 */
+  /** 编辑区宽度：'auto' = 自适应（默认）；'full' = 全宽；'' 或 px 数字字符串 = 固定宽度（空串回落 CSS 默认 860px） */
   pageWidth: string
   /** 自动换行：'on'（默认，长行软换行）| 'off'（长行横向滚动） */
   wrap: string
@@ -240,7 +240,7 @@ export interface Typography {
 
 /** 默认排版配置（全部跟随内置样式） */
 export function defaultTypography(): Typography {
-  return { font: '', fontSize: '', lineHeight: '', pageWidth: '', wrap: 'on' }
+  return { font: '', fontSize: '', lineHeight: '', pageWidth: 'auto', wrap: 'on' }
 }
 
 /** 读取排版设置（解析失败或字段缺失时逐项回落默认值） */
