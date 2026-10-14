@@ -27,7 +27,7 @@ export interface NativeFileAPI {
   ): Promise<{ path: string; name: string; children: import('./filetree').FileEntry[] } | null>
   openFolder(): Promise<string | null>
   saveFile(filePath: string, content: string): Promise<boolean>
-  saveFileAs(content: string): Promise<{ path: string; name: string } | null>
+  saveFileAs(content: string, defaultName?: string): Promise<{ path: string; name: string } | null>
   exportAs(options: {
     content: string
     defaultName: string
@@ -195,9 +195,7 @@ export interface WikiScanNote {
 
 /** 双链解析结果（主进程按 相对路径→同目录同名→全工作区唯一名 三档解析） */
 export type WikiResolvedLink =
-  | { kind: 'ok'; path: string }
-  | { kind: 'ambiguous'; paths: string[] }
-  | { kind: 'missing' }
+  { kind: 'ok'; path: string } | { kind: 'ambiguous'; paths: string[] } | { kind: 'missing' }
 
 /** 双链的单处出现（反向链接面板与图谱共用同一份扫描数据） */
 export interface WikiLinkRef {

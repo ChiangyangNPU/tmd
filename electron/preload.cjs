@@ -35,7 +35,8 @@ const api = {
   /** 把内容写入指定路径 */
   saveFile: (filePath, content) => ipcRenderer.invoke(IPC.saveFile, filePath, content),
   /** 另存为：弹对话框选路径后写入 */
-  saveFileAs: (content) => ipcRenderer.invoke(IPC.saveFileAs, content),
+  saveFileAs: (content, defaultName) =>
+    ipcRenderer.invoke(IPC.saveFileAs, content, defaultName),
   /** 通用导出：按过滤器弹保存对话框并写入 */
   exportAs: (options) => ipcRenderer.invoke(IPC.exportAs, options),
   /** 调起系统打印（导出 PDF 走此路径） */

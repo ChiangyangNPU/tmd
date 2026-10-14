@@ -1,7 +1,7 @@
 /**
  * 拖拽打开文件
  *
- * - 拖 .md / .markdown 进窗口：新标签打开（Electron 经磁盘读取，
+ * - 拖 .md / .markdown / .txt 进窗口：新标签打开（Electron 经磁盘读取，
  *   享受同路径去重与最近列表；浏览器降级为直接读 File 内容）
  * - 拖图片进文档：按粘贴图片策略插入（inline / assets，见 paste-image.ts）
  * - 两者混合拖入时各自处理
@@ -19,7 +19,7 @@ import { insertImageFiles } from './paste-image'
 import { getPmView, isSourceMode } from './editor-core'
 import { t } from './i18n'
 
-const MD_EXTS = ['.md', '.markdown']
+const MD_EXTS = ['.md', '.markdown', '.txt']
 
 /** 拖入文件分类：markdown 待打开，图片待插入；其余忽略 */
 export function classifyDroppedFiles(files: File[]): { markdown: File[]; images: File[] } {

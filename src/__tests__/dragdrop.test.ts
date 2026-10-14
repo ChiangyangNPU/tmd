@@ -4,9 +4,9 @@ import { classifyDroppedFiles } from '../dragdrop'
 const file = (name: string, type = ''): File => new File([''], name, { type })
 
 describe('classifyDroppedFiles', () => {
-  it('markdown 文件按扩展名识别（大小写不敏感）', () => {
-    const { markdown } = classifyDroppedFiles([file('a.md'), file('B.MARKDOWN')])
-    expect(markdown.map((f) => f.name)).toEqual(['a.md', 'B.MARKDOWN'])
+  it('markdown 与 txt 文件按扩展名识别（大小写不敏感）', () => {
+    const { markdown } = classifyDroppedFiles([file('a.md'), file('B.MARKDOWN'), file('c.TXT')])
+    expect(markdown.map((f) => f.name)).toEqual(['a.md', 'B.MARKDOWN', 'c.TXT'])
   })
 
   it('图片按 MIME 类型识别', () => {
@@ -18,7 +18,10 @@ describe('classifyDroppedFiles', () => {
   })
 
   it('其他文件忽略', () => {
-    const r = classifyDroppedFiles([file('a.txt', 'text/plain'), file('b.pdf', 'application/pdf')])
+    const r = classifyDroppedFiles([
+      file('a.json', 'application/json'),
+      file('b.pdf', 'application/pdf'),
+    ])
     expect(r.markdown).toHaveLength(0)
     expect(r.images).toHaveLength(0)
   })

@@ -2,6 +2,16 @@
 
 本文件记录 TMD 的版本发布历史，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [未发布]
+
+### 新增
+
+- **支持打开 .txt 文件**：打开对话框 / 文件树 / 拖拽进窗口 / 启动参数全链路放行 txt（`electron/main.cjs` 打开对话框拆出 `OPEN_FILTERS`，`readDir` 与单实例 argv 过滤同步加 txt；`src/dragdrop.ts` 扩展名白名单加 `.txt`；浏览器降级 `input.accept` 同步）。txt 按 Markdown 解析渲染（纯文本不受影响），`Cmd+S` 直接写回原 `.txt` 路径；不声明系统文件关联（双击 txt 不唤起 TMD），双链 / 图谱索引仍只扫 `.md`
+
+### 修复
+
+- **另存为默认名硬编码**：此前任何标签「另存为」的默认名都是 `未命名.md`，打开 txt 后另存为会丢失原扩展名；现 `saveFileAs` IPC 增加可选 `defaultName` 参数，渲染层传当前标签名，txt 标签另存为默认保留 `.txt` 扩展名
+
 ## [0.1.3] - 2026-10-14
 
 ### 新增

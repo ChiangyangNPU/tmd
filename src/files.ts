@@ -129,7 +129,7 @@ export async function openDocument() {
   }
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = '.md,.markdown,text/markdown'
+  input.accept = '.md,.markdown,.txt,text/markdown,text/plain'
   input.onchange = () => {
     const file = input.files?.[0]
     if (!file) return
@@ -216,7 +216,8 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
       if (tab.path && !saveAs) {
         await native.saveFile(tab.path, markdown)
       } else {
-        const result = await native.saveFileAs(markdown)
+        // 传当前标签名作对话框默认名：txt 标签另存为时保留原扩展名
+        const result = await native.saveFileAs(markdown, tab.name)
         if (!result) return
         tab.path = result.path
         tab.name = result.name

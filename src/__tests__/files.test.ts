@@ -134,7 +134,8 @@ describe('saveDocument 基准推进语义', () => {
 
     await saveDocument(true)
 
-    expect(mocked.saveAs).toHaveBeenCalledWith('NEW')
+    // 另存为对话框默认名取当前标签名（txt 标签保留原扩展名）
+    expect(mocked.saveAs).toHaveBeenCalledWith('NEW', 'a.md')
     expect(tab.markdown).toBe('OLD')
     expect(mocked.clearDoc).not.toHaveBeenCalled()
   })

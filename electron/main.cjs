@@ -959,10 +959,12 @@ function setupAutoUpdater() {
 
 /** @type {import('electron').FileFilter[]} */
 const MD_FILTERS = [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+/** 打开对话框另放行 .txt（保存对话框仍只用 MD_FILTERS，新建/另存为默认产出 .md） */
+const OPEN_FILTERS = [{ name: 'Markdown / 文本文档', extensions: ['md', 'markdown', 'txt'] }]
 
 ipcMain.handle(IPC.openFile, async () => {
   const result = await showOpenDialogSafe({
-    filters: MD_FILTERS,
+    filters: OPEN_FILTERS,
     properties: ['openFile'],
   })
   if (result.canceled || !result.filePaths[0]) return null
@@ -998,7 +1000,7 @@ ipcMain.handle(IPC.readDir, async (_event, dirPath) => {
       if (entry.isDirectory()) {
         // 空数组 = 「是目录但子项未加载」，渲染层首次展开时再按路径发 readDir
         folders.push({ name: entry.name, path: full, children: [] })
-      } else if (/\.(md|markdown)$/i.test(entry.name)) {
+      } else if (/\.(md|markdown|txt)$/i.test(entry.name)) {
         files.push({ name: entry.name, path: full })
       }
     }
@@ -1125,11 +1127,13 @@ ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
   return true
 })
 
-/** @param {unknown} _event @param {string} content */
-ipcMain.handle(IPC.saveFileAs, async (_event, content) => {
+/** @param {unknown} _event @param {string} content @param {unknown} defaultName */
+ipcMain.handle(IPC.saveFileAs, async (_event, content, defaultName) => {
   if (typeof content !== 'string') return null
   const result = await showSaveDialogSafe({
-    defaultPath: '未命名.md',
+    // 渲染层传当前标签名：txt 标签另存为时默认名保留原扩展名，未命名标签兜底 .md
+    defaultPath:
+      typeof defaultName === 'string' && defaultName ? defaultName : '未命名.md',
     filters: MD_FILTERS,
   })
   if (result.canceled || !result.filePath) return null
@@ -1553,7 +1557,7 @@ if (!gotSingleInstanceLock) {
 
 app.on('second-instance', (_event, argv) => {
   // 拖多个文件到任务栏图标 / 选中多个 .md 打开时逐个入队（渲染层有多标签承载）
-  for (const filePath of argv.filter((arg) => /\.(md|markdown)$/i.test(arg))) {
+  for (const filePath of argv.filter((arg) => /\.(md|markdown|txt)$/i.test(arg))) {
     queueOpenPath(filePath)
   }
   if (mainWindow) {
@@ -1712,7 +1716,7 @@ app.whenReady().then(() => {
   setupAutoUpdater()
 
   // Windows：文件路径在启动参数里
-  const argvFile = process.argv.slice(1).find((arg) => /\.(md|markdown)$/i.test(arg))
+  const argvFile = process.argv.slice(1).find((arg) => /\.(md|markdown|txt)$/i.test(arg))
   if (argvFile) queueOpenPath(argvFile)
 
   // 启动后 5 秒自动检查更新：仅当渲染层已同步开关为 true。
