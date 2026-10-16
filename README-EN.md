@@ -51,12 +51,13 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - Quick switch panel (Ctrl/Cmd+P): fuzzy-search open tabs, all expanded folders and recent files, Enter to open; Chinese-named files support **pinyin-initial matching** (e.g. `xmsm` → 项目说明.md; the dictionary lazy-loads on first panel open, zero overhead for pure-Latin workspaces)
 - **Command palette** (Ctrl/Cmd+Shift+A, remappable): fuzzy-search and run every menu action (file / export / version history / settings), formatting commands and view toggles (source / split / autosave) — commands share the exact same handlers as the menus, searchable by Chinese and English keywords
 - **Cross-file search** (Ctrl/Cmd+Shift+F): line-by-line search across the folders mounted in the sidebar; results are grouped by file with line numbers and context (keyword highlighting) — ↑↓ to select, Enter to open and jump to the match. Dependency folders are skipped and per-file/result limits are enforced, so large workspaces never freeze the UI
+- **Wiki-link ecosystem**: `[[target]]` / `[[target|alias]]` / `[[target#heading]]` triple (rendered in both WYSIWYG and source mode; unresolved targets are dimmed with a hint and stay clickable); a **backlinks panel** (Cmd/Ctrl+Shift+B) lists every workspace reference to the current note; a **relation graph** (canvas + d3-force force layout, hover to highlight neighbours, click to open) and a **local graph** (sidebar mini-map of the current note's neighbourhood, 1/2 hops); renaming a note rewrites references across the whole workspace automatically; all shortcuts are remappable in the settings
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - **Sidebar file management** (desktop): folder root rows show hover buttons "＋file / ＋folder" for inline creation (auto .md extension, duplicate names rejected, new files open immediately); right-click any row for "New / Rename / Reveal in Finder" — renaming syncs the associated path of open tabs, so later saves write to the new path
 - Resizable sidebar: drag the divider between the sidebar and the editor to adjust the width (hover highlight, width remembered, double-click to reset; clamped automatically when the window narrows)
 - Drag & drop: drop a .md file onto the window to open it (new tab); drop images to insert them per the paste strategy
 - Formatting shortcuts & Format menu: headings 1–6 (Ctrl/Cmd+1–6), bold/italic (Ctrl/Cmd+B/I), link (Ctrl/Cmd+K), blockquote, lists, code block — all undoable
-- **Custom shortcuts**: the settings panel lists 31 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
+- **Custom shortcuts**: the settings panel lists 34 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
 - Syntax extensions: footnotes `[^1]`, highlight `==text==`, superscript/subscript (both `^x^`/`~x~` and `^{x}`/`_{x}` are recognized; saving normalizes to the Pandoc single-symbol style), YAML front matter (a leading `---` fence renders as a key-value property table, click to edit the YAML source, written back byte-for-byte on save, stripped automatically from HTML/PDF export). Shortcuts: highlight Ctrl/Cmd+Shift+H, superscript Ctrl/Cmd+Shift+=, subscript Ctrl/Cmd+Shift+-
 - Right-click context menu in the editor: cut/copy/paste plus selection-aware format items (including remove link)
 - Link following: Ctrl/Cmd+click opens external URLs in the browser; relative-path links resolve against the document directory and open with the system app (hold Mod while hovering for a pointer hint)
@@ -73,7 +74,9 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - Multilingual UI (Simplified Chinese / Traditional Chinese / English, follows the system, switchable in the settings panel)
 - Settings panel with category navigation: widened to a two-pane layout (Appearance / Typography / Editor / Files & Images / Shortcuts / System / About on the left, content on the right); click to jump with scroll-synced highlighting, color-swatch theme previews; open via File → "Settings…" or `Cmd/Ctrl+,`
 - **Ctrl/Cmd+wheel font zoom**: ±1px steps inside the editor (clamped 12–28), trackpad pinch works the same; a bottom HUD shows the size in place, persisted via typography settings and applied to both WYSIWYG and source mode
-- Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 13 third-party components (collapsed by default, expand to view)
+- **Typography settings**: 12 font presets (Default / Song / Hei / Kai / Mono / FangSong / LXGW WenKai / Source Han Serif / Times / Charter / Segoe YaHei / Helvetica, with cross-platform fallback stacks); after choosing a category you can **pick a primary font** from within its stack; font size / line height / editor width / word wrap all apply instantly and persist
+- **Window memory**: window size / position / maximized state persist and restore on restart (falls back to a default placement when monitors are plugged or unplugged)
+- Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 15 third-party components (collapsed by default, expand to view)
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
 - **Local crash capture & logs (zero telemetry)**: crashReporter writes minidumps only to `~/.tmd/crash-dumps` (no upload, no server, no crash dialog); JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
 - **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
@@ -126,7 +129,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ extract-release-notes.mjs  Extracts the current version's notes from CHANGELOG into .release-notes.md
 │  ├─ prepare-gitee-release.mjs  Generates / recomputes the Gitee auto-update manifest and upload list
 │  ├─ cleanup-old-app.sh         Cleans up old local app builds
-│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history & split-view desktop E2E (49 assertions)
+│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history, split-view & find-mapping desktop E2E (49 assertions)
 │  ├─ desktop-export-check.mjs   Word / long-image / LaTeX export desktop E2E (37 assertions)
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 │  ├─ *-probe.mjs / ime-*.mjs    One-off real-machine diagnostic probes (IME / wiki-links / graph alignment / mindmap / dirty marker / input profiling)
@@ -216,7 +219,8 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ 路线图.md                  Version plan & capability-gap analysis
 │  ├─ 打包发布.md                Local packaging & CI release workflow
 │  ├─ mac安装后启动报错解决方案.md  Gatekeeper allow-through guide
-│  └─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
+│  ├─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
+│  └─ archive/                   Archived historical development plans (not current docs)
 │
 ├─ build/                        Packaging assets (icons, dmg background, NSIS custom scripts)
 ├─ .github/workflows/            CI (build / release workflows)
@@ -234,4 +238,4 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 
 This software is released under the [MIT License](LICENSE), Copyright (c) 2026 chiangyang.
 
-License declarations and links for third-party components (Electron, Chromium, Node.js, Milkdown, CodeMirror, Markdown-It, Mermaid, KaTeX, Refractor, remark-frontmatter, PicGo-Core, electron-updater, dom-docx) are available in the app's Settings → About panel.
+License declarations and links for third-party components (Electron, Chromium, Node.js, Milkdown, CodeMirror, Markdown-It, Mermaid, KaTeX, Refractor, remark-frontmatter, PicGo-Core, electron-updater, dom-docx, mathml2omml, fflate) are available in the app's Settings → About panel.
