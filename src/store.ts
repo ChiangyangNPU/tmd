@@ -26,9 +26,15 @@ export const TYPOGRAPHY_KEY = 'tmd:typography'
 export const FOCUS_MODE_KEY = 'tmd:focus-mode'
 export const TYPEWRITER_MODE_KEY = 'tmd:typewriter-mode'
 
-/** 文档内容写入恢复副本 */
+/** 文档内容写入恢复副本。
+ *  超出 localStorage 配额（QuotaExceededError）或隐私模式拒绝写入时静默降级——
+ *  副本丢失优于崩溃：调用方在编辑器 onChange 节流链路里，任一路径上抛都会打断输入。 */
 export function saveDoc(markdown: string) {
-  localStorage.setItem(DOC_KEY, markdown)
+  try {
+    localStorage.setItem(DOC_KEY, markdown)
+  } catch (err) {
+    console.warn('[tmd] saveDoc failed', err)
+  }
 }
 
 /** 读取恢复副本；无则返回 null */
