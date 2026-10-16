@@ -6,7 +6,7 @@
 
 A cross-platform (macOS / Windows) WYSIWYG Markdown editor with Typora-like interactions. Its core feature is real-time rendering of Mermaid diagrams.
 
-For the scope of requirements, see [docs/需求说明.md](docs/需求说明.md) (Chinese). For architecture and module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese). For packaging and release, see [docs/打包发布.md](docs/打包发布.md) (Chinese).
+For the scope of requirements, see [docs/需求说明.md](docs/需求说明.md) (Chinese). For architecture and module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese). For key implementation details, see [docs/详细设计.md](docs/详细设计.md) (Chinese). For the version plan, see [docs/路线图.md](docs/路线图.md) (Chinese). For packaging and release, see [docs/打包发布.md](docs/打包发布.md) (Chinese).
 
 ## Quick Start
 
@@ -91,7 +91,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 
 ## Tech Stack
 
-Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core + dom-docx.
+Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it (with footnote / mark / sub / sup plugins) + PicGo-Core + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate.
 
 ## Directory Structure
 
@@ -202,6 +202,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  │  ├─ external-change.ts      External-change detection & reload banner
 │  │  ├─ error-report.ts         Renderer uncaught-error / Promise-rejection capture & IPC reporting
 │  │  └─ fs-path.ts              Filesystem path utilities (normalize / dirname / identity check)
+│  ├─ *.d.ts                     Type declarations (katex-auto-render / markdown-it-plugins / vite-env)
 │  ├─ locales/                   Locale packs (zh-CN / zh-Hant / en)
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)

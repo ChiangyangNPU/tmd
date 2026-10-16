@@ -6,7 +6,7 @@
 
 跨平台（macOS / Windows）的 Markdown 所见即所得编辑器，交互对标 Typora，核心特性是 Mermaid 图表的实时渲染。
 
-需求范围见 [docs/需求说明.md](docs/需求说明.md)，架构与模块职责见 [docs/架构设计.md](docs/架构设计.md)，打包发布见 [docs/打包发布.md](docs/打包发布.md)。
+需求范围见 [docs/需求说明.md](docs/需求说明.md)，架构与模块职责见 [docs/架构设计.md](docs/架构设计.md)，关键实现细节见 [docs/详细设计.md](docs/详细设计.md)，版本规划见 [docs/路线图.md](docs/路线图.md)，打包发布见 [docs/打包发布.md](docs/打包发布.md)。
 
 ## 快速开始
 
@@ -94,7 +94,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 
 ## 技术栈
 
-Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + PicGo-Core + dom-docx。
+Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + PicGo-Core + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate。
 
 ## 目录结构
 
@@ -205,6 +205,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  │  ├─ external-change.ts      外部修改检测与重载提示条
 │  │  ├─ error-report.ts         渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
 │  │  └─ fs-path.ts              文件系统路径工具（规范化 / 取目录 / 同一性判断）
+│  ├─ *.d.ts                     类型声明（katex-auto-render / markdown-it-plugins / vite-env）
 │  ├─ locales/                   语言包（zh-CN / zh-Hant / en）
 │  ├─ templates/                 index.html 浮层 / 面板 HTML 分块（?raw 内联）
 │  ├─ styles/                    样式分块（01 设计令牌 → 15 打印，编号即级联顺序）
