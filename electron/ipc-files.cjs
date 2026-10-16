@@ -31,6 +31,10 @@ const MD_FILTERS = [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
 /** 打开对话框另放行 .txt（保存对话框仍只用 MD_FILTERS，新建/另存为默认产出 .md） */
 const OPEN_FILTERS = [{ name: 'Markdown / 文本文档', extensions: ['md', 'markdown', 'txt'] }]
 
+/** 单文件读取上限（50MB）：Markdown 文档实际场景很少超过几 MB，
+ *  更大的多为日志/数据 dump——直接读入会让主进程 OOM 或长时间无响应 */
+const MAX_READ_FILE_BYTES = 50 * 1024 * 1024
+
 /**
  * 注册文件与目录相关的全部 IPC。
  * @param {{
@@ -61,6 +65,23 @@ function registerFileIpc({
   const historyRoot = historyDir(tmdRoot)
 
   /**
+   * 读取文本文件并做大小上限校验（openFile/readFile 共用）。
+   * 先用 fs.stat 预检而非读入后再截断：避免大文件撑爆主进程内存。
+   * @param {string} filePath
+   * @returns {Promise<string>} UTF-8 文本内容
+   * @throws {Error} 文件超过 MAX_READ_FILE_BYTES 时抛出，消息含实际大小与上限
+   */
+  async function readFileCapped(filePath) {
+    const stat = await fs.stat(filePath)
+    if (stat.size > MAX_READ_FILE_BYTES) {
+      const actualMB = (stat.size / 1024 / 1024).toFixed(1)
+      const limitMB = Math.round(MAX_READ_FILE_BYTES / 1024 / 1024)
+      throw new Error(`file too large: ${actualMB} MB (limit ${limitMB} MB)`)
+    }
+    return fs.readFile(filePath, 'utf-8')
+  }
+
+  /**
    * 写盘前的历史快照：读取即将被覆盖的旧内容存入历史目录。
    * 快照是纯附加能力，任何失败（文件首次创建、权限、磁盘）都必须静默，
    * 绝不能反过来阻断用户的保存动作；去重与剪枝由 history.cjs 内部处理。
@@ -86,7 +107,7 @@ function registerFileIpc({
     })
     if (result.canceled || !result.filePaths[0]) return null
     const filePath = result.filePaths[0]
-    const content = await fs.readFile(filePath, 'utf-8')
+    const content = await readFileCapped(filePath)
     return { path: filePath, name: path.basename(filePath), content }
   })
 
@@ -94,7 +115,7 @@ function registerFileIpc({
   ipcMain.handle(IPC.readFile, async (_event, filePath) => {
     // IPC 入参不可信：非字符串/空路径直接拒绝，避免 fs 错误直穿渲染层
     if (typeof filePath !== 'string' || !filePath) throw new Error('invalid path')
-    const content = await fs.readFile(filePath, 'utf-8')
+    const content = await readFileCapped(filePath)
     return { path: filePath, name: path.basename(filePath), content }
   })
 
