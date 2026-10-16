@@ -105,7 +105,14 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  └─ boot.js                    首帧引导脚本（主题 / 平台类，防启动白闪）
 │
 ├─ electron/                     Electron 桌面壳（主进程 + preload）
-│  ├─ main.cjs                   主进程入口（窗口创建、IPC 编排、图床上传、自动更新）
+│  ├─ main.cjs                   主进程入口（窗口 / 菜单生命周期、文件关联、各领域模块装配）
+│  ├─ app-state.cjs              跨模块共享状态 store（主窗口 / 脏标记 / 菜单文案 / 主题来源，纯 JS 可单测）
+│  ├─ updater.cjs                自动更新（Gitee / GitHub 双源、macOS dmg 自行下载安装）
+│  ├─ shell-state.cjs            壳层状态持久化（主题来源 + 窗口几何，随 userData 清理）
+│  ├─ recent.cjs                 最近文件镜像 + 系统最近文档注册（Jump List / Dock 菜单）
+│  ├─ ipc-files.cjs              文件 / 目录 / 搜索 / 双链 / 主题 / 日志 / 历史 / 导出 / 打印 IPC
+│  ├─ ipc-app.cjs                应用级 IPC（状态同步 / 窗口控制 / 图片落盘 / 链接跳转）
+│  ├─ picgo.cjs                  图床上传（PicGo-Core 实例懒加载 + 配置读写）
 │  ├─ menu.cjs                   应用菜单模板工厂（纯数据工厂，零 Electron 依赖，可独立单测）
 │  ├─ exporter.cjs               离屏导出服务（隐藏窗口、串行任务队列、截图与读图原语）
 │  ├─ preload.cjs                受控 API 暴露（contextBridge）
@@ -130,7 +137,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ prepare-gitee-release.mjs  生成 / 重算 Gitee 自动更新清单与待上传清单
 │  ├─ cleanup-old-app.sh         清理本地旧应用构建
 │  ├─ desktop-app-check.mjs      主链路 + 可靠性 + 外部修改检测 + 历史版本 + 分屏 + 查找映射 桌面 E2E（49 断言）
-│  ├─ desktop-export-check.mjs   导出 Word / 长图 / LaTeX 桌面 E2E（37 断言）
+│  ├─ desktop-export-check.mjs   导出 Word / 长图 / LaTeX 桌面 E2E（36 断言）
 │  ├─ desktop-bench.mjs          大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
 │  ├─ *-probe.mjs / ime-*.mjs    一次性真机诊断探针（输入法 / 双链 / 图谱对齐 / 思维导图 / 脏标记 / 输入剖析）
 │  └─ lib/
@@ -210,7 +217,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ templates/                 index.html 浮层 / 面板 HTML 分块（?raw 内联）
 │  ├─ styles/                    样式分块（01 设计令牌 → 15 打印，编号即级联顺序）
 │  ├─ style.css                  样式入口：仅按原级联顺序 @import styles/*.css
-│  └─ __tests__/                 vitest 纯函数单元测试（53 个测试文件 / 671 用例）
+│  └─ __tests__/                 vitest 纯函数单元测试（54 个测试文件 / 687 用例）
 │
 ├─ docs/                         项目文档
 │  ├─ 需求说明.md                功能清单与路线图

@@ -105,7 +105,14 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  └─ boot.js                    First-frame bootstrap script (theme / platform classes, prevents white flash)
 │
 ├─ electron/                     Electron desktop shell (main process + preload)
-│  ├─ main.cjs                   Main process entry (window creation, IPC orchestration, image hosting, auto-update)
+│  ├─ main.cjs                   Main process entry (window / menu lifecycle, file association, module wiring)
+│  ├─ app-state.cjs              Cross-module shared-state store (main window / dirty flag / menu labels / theme source, unit-testable)
+│  ├─ updater.cjs                Auto-update (Gitee / GitHub dual source, self-downloaded macOS dmg)
+│  ├─ shell-state.cjs            Shell state persistence (theme source + window geometry)
+│  ├─ recent.cjs                 Recent-files mirror + system recent-documents registration
+│  ├─ ipc-files.cjs              File / directory / search / wiki-link / theme / log / history / export / print IPC
+│  ├─ ipc-app.cjs                App-level IPC (state sync / window controls / image saving / link opening)
+│  ├─ picgo.cjs                  Image hosting (lazy PicGo-Core instance + config read/write)
 │  ├─ menu.cjs                   App menu template factory (pure data factory, zero Electron deps, unit-testable)
 │  ├─ exporter.cjs               Offscreen export service (hidden window, serial task queue, capture & read-image primitives)
 │  ├─ preload.cjs                Controlled API exposure (contextBridge)
@@ -130,7 +137,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ prepare-gitee-release.mjs  Generates / recomputes the Gitee auto-update manifest and upload list
 │  ├─ cleanup-old-app.sh         Cleans up old local app builds
 │  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history, split-view & find-mapping desktop E2E (49 assertions)
-│  ├─ desktop-export-check.mjs   Word / long-image / LaTeX export desktop E2E (37 assertions)
+│  ├─ desktop-export-check.mjs   Word / long-image / LaTeX export desktop E2E (36 assertions)
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 │  ├─ *-probe.mjs / ime-*.mjs    One-off real-machine diagnostic probes (IME / wiki-links / graph alignment / mindmap / dirty marker / input profiling)
 │  └─ lib/
@@ -210,7 +217,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
 │  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
-│  └─ __tests__/                 vitest pure-function unit tests (53 files / 671 cases)
+│  └─ __tests__/                 vitest pure-function unit tests (54 files / 687 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap

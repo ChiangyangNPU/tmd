@@ -7,10 +7,16 @@
 ### 新增
 
 - **支持打开 .txt 文件**：打开对话框 / 文件树 / 拖拽进窗口 / 启动参数全链路放行 txt（`electron/main.cjs` 打开对话框拆出 `OPEN_FILTERS`，`readDir` 与单实例 argv 过滤同步加 txt；`src/dragdrop.ts` 扩展名白名单加 `.txt`；浏览器降级 `input.accept` 同步）。txt 按 Markdown 解析渲染（纯文本不受影响），`Cmd+S` 直接写回原 `.txt` 路径；不声明系统文件关联（双击 txt 不唤起 TMD），双链 / 图谱索引仍只扫 `.md`
+- **Windows 安装向导自选目录即时显示 `\TMD`**：新增 `build/installer.nsh`（经 `nsis.include` 引入，同时把 `nsis.allowToChangeInstallationDirectory` 置 false 关闭模板内置页），用 nsDialogs 自绘目录页替换 MUI 内置页——点「浏览」选定文件夹后路径框立即回写 `<所选目录>\TMD` 并刷新磁盘空间信息，手工输入路径离开页面时做同样兜底修正；布局对齐内置页（目标文件夹分组框 + 所需/可用空间），文案复用 NSIS/MUI 预置语言字符串随向导语言自动切换，升级安装（`--updated`）仍按原行为跳过该页
 
 ### 修复
 
 - **另存为默认名硬编码**：此前任何标签「另存为」的默认名都是 `未命名.md`，打开 txt 后另存为会丢失原扩展名；现 `saveFileAs` IPC 增加可选 `defaultName` 参数，渲染层传当前标签名，txt 标签另存为默认保留 `.txt` 扩展名
+- **安装路径含 `TMD` 子串时文件平铺**：electron-builder 模板内置目录页的追加逻辑用 StrContains 在整条路径里查找产品名，`D:\MyTMDTools` 这类路径被误判为已经带上产品子目录、不再追加，文件直接平铺进所选目录；自绘页的 `tmdFixInstallDir` 只比较路径最后一段且幂等，误判随之消除
+
+### 重构（无功能变化）
+
+- **主进程 main.cjs 按域拆分**：1748 行 → 539 行，拆出 7 个领域模块，主文件只留窗口 / 菜单生命周期、文件关联与装配。新模块全部沿用既有「工厂 + 依赖注入」模式（零顶层 `require('electron')`，与 exporter.cjs / menu.cjs 同构）、可脱离 Electron 单测：`app-state.cjs`（跨模块共享状态 store：mainWindow / rendererDirty / autosaveEnabled / menuLabels / customShortcuts / sortLocale / shellThemeSource 的 getter/setter）、`updater.cjs`（自动更新双源 + macOS dmg 自行下载安装 + 4 条 IPC + 启动 5s 自动检查）、`shell-state.cjs`（主题来源与窗口几何持久化）、`recent.cjs`（最近文件镜像 + 系统最近文档注册 + 4 条 IPC）、`ipc-files.cjs`（文件 / 目录 / 搜索 / 双链 / 主题 / 日志 / 历史 / 导出 / 打印，22 条通道）、`ipc-app.cjs`（状态同步 / 窗口控制 / 图片落盘 / 链接跳转，12 条通道）、`picgo.cjs`（PicGo 实例懒加载 + 配置读写，3 条通道）。模块间回调（buildMenu / flushPendingOpenPaths / sendToRenderer 等）经装配注入，模块不反向 require main。**46 条 IPC 通道与拆分前逐一比对一致**（31 handle + 14 on + 1 once），`npx tsc` / `npm test` / `npm run lint` 全过，桌面 E2E 主链路 49 断言 + 导出 36 断言全过，`npm run dist:dir` 产物模块齐全。顺带收敛少量 IPC 边界行为：`watchFiles` 过滤非字符串入参、`saveFileAs` 非字符串内容由返回 null 改为抛错（渲染层 catch 后 toast，等价）、`saveFile` 校验错误消息拆分、`dialogParent` 去掉不可达的可见窗口兜底——渲染层现有调用点均不受影响。新增 `app-state.cjs` 单测 7 例（加载默认值 / 进程内单例契约 / 布尔入参 `!!` 收窄 / 取值即取引用约定 / SHELL_BG 常量）
 
 ## [0.1.3] - 2026-10-14
 
