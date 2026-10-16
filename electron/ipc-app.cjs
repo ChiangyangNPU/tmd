@@ -106,8 +106,9 @@ function registerAppIpc({
   // 入参做白名单校验（与 themes.cjs 的「IPC 入参不可信」口径对齐）：name 必须
   // 是非隐藏裸文件名（path.basename 校验拒绝路径分隔与 .. 穿越），非法时抛错
   // ——调用方（paste-image）catch 后降级为内联图片
-  /** @param {unknown} _event @param {unknown} options */
-  ipcMain.handle(IPC.saveImage, async (_event, options) => {
+  /** @param {unknown} event @param {unknown} options */
+  ipcMain.handle(IPC.saveImage, async (event, options) => {
+    state.assertMainWindow(event)
     const opts = /** @type {{ dir?: unknown, name?: unknown, base64?: unknown }} */ (options)
     const dir = typeof opts?.dir === 'string' ? opts.dir : ''
     const name = typeof opts?.name === 'string' ? opts.name : ''
@@ -122,8 +123,9 @@ function registerAppIpc({
     return { name }
   })
 
-  /** @param {unknown} _event @param {unknown} url */
-  ipcMain.handle(IPC.openExternal, (_event, url) => {
+  /** @param {unknown} event @param {unknown} url */
+  ipcMain.handle(IPC.openExternal, (event, url) => {
+    state.assertMainWindow(event)
     if (!isSafeExternalUrl(url)) return false
     return shell.openExternal(url).then(
       () => true,
@@ -132,8 +134,9 @@ function registerAppIpc({
   })
 
   // 本地文件：交给系统默认应用打开（路径由渲染层按当前文档目录解析为绝对路径）
-  /** @param {unknown} _event @param {unknown} filePath */
-  ipcMain.handle(IPC.openLocalFile, (_event, filePath) => {
+  /** @param {unknown} event @param {unknown} filePath */
+  ipcMain.handle(IPC.openLocalFile, (event, filePath) => {
+    state.assertMainWindow(event)
     if (typeof filePath !== 'string' || !filePath) return 'invalid path'
     return shell.openPath(filePath)
   })

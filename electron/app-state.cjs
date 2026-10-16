@@ -118,6 +118,21 @@ function setShellThemeSource(source) {
   shellThemeSource = source
 }
 
+/**
+ * 校验 IPC 调用方是主窗口的 webContents（敏感 handler 的纵深防御）。
+ * CSP 已限定渲染层只能加载 self，但万一未来出现 XSS 注入，攻击者也无法
+ * 从注入脚本走到主进程写盘/外链等敏感通道。
+ * @param {unknown} event IPC 事件对象（须为 IpcMainInvokeEvent / IpcMainEvent）
+ * @throws {Error} 非主窗口调用时抛出 'forbidden'
+ */
+function assertMainWindow(event) {
+  const e = /** @type {{ sender?: unknown } | null | undefined} */ (event)
+  const mainWindow = getMainWindow()
+  if (!mainWindow || mainWindow.isDestroyed() || e?.sender !== mainWindow.webContents) {
+    throw new Error('forbidden')
+  }
+}
+
 module.exports = {
   SHELL_BG,
   getMainWindow,
@@ -134,4 +149,5 @@ module.exports = {
   setSortLocale,
   getShellThemeSource,
   setShellThemeSource,
+  assertMainWindow,
 }

@@ -253,8 +253,9 @@ function registerFileIpc({
 
   // ---------- 保存与另存为 ----------
 
-  /** @param {unknown} _event @param {string} filePath @param {string} content */
-  ipcMain.handle(IPC.saveFile, async (_event, filePath, content) => {
+  /** @param {unknown} event @param {string} filePath @param {string} content */
+  ipcMain.handle(IPC.saveFile, async (event, filePath, content) => {
+    state.assertMainWindow(event)
     if (typeof filePath !== 'string' || !filePath) throw new Error('invalid path')
     if (typeof content !== 'string') throw new Error('invalid content')
     await snapshotBeforeWrite(filePath)
@@ -264,8 +265,9 @@ function registerFileIpc({
     return true
   })
 
-  /** @param {unknown} _event @param {string} content @param {string} defaultName */
-  ipcMain.handle(IPC.saveFileAs, async (_event, content, defaultName) => {
+  /** @param {unknown} event @param {string} content @param {string} defaultName */
+  ipcMain.handle(IPC.saveFileAs, async (event, content, defaultName) => {
+    state.assertMainWindow(event)
     if (typeof content !== 'string') throw new Error('invalid content')
     const result = await showSaveDialogSafe({
       defaultPath: typeof defaultName === 'string' ? defaultName : undefined,
@@ -289,8 +291,9 @@ function registerFileIpc({
   // 名称经 fsops.cjs 清洗 + 路径二次校验；已存在时抛错（wx / recursive:false），
   // 渲染层捕获后 toast，不覆盖任何现有文件。
 
-  /** @param {unknown} _event @param {string} dirPath @param {unknown} name */
-  ipcMain.handle(IPC.createFile, async (_event, dirPath, name) => {
+  /** @param {unknown} event @param {string} dirPath @param {unknown} name */
+  ipcMain.handle(IPC.createFile, async (event, dirPath, name) => {
+    state.assertMainWindow(event)
     const safe = sanitizeFileName(name)
     const target = childPath(dirPath, ensureMarkdownExt(safe ?? ''))
     if (!target) throw new Error('invalid file name')
@@ -298,16 +301,18 @@ function registerFileIpc({
     return { path: target, name: path.basename(target) }
   })
 
-  /** @param {unknown} _event @param {string} dirPath @param {unknown} name */
-  ipcMain.handle(IPC.createDir, async (_event, dirPath, name) => {
+  /** @param {unknown} event @param {string} dirPath @param {unknown} name */
+  ipcMain.handle(IPC.createDir, async (event, dirPath, name) => {
+    state.assertMainWindow(event)
     const target = childPath(dirPath, name)
     if (!target) throw new Error('invalid folder name')
     await fs.mkdir(target, { recursive: false })
     return { path: target, name: path.basename(target) }
   })
 
-  /** @param {unknown} _event @param {string} oldPath @param {unknown} name */
-  ipcMain.handle(IPC.renamePath, async (_event, oldPath, name) => {
+  /** @param {unknown} event @param {string} oldPath @param {unknown} name */
+  ipcMain.handle(IPC.renamePath, async (event, oldPath, name) => {
+    state.assertMainWindow(event)
     if (typeof oldPath !== 'string' || !oldPath) throw new Error('invalid path')
     const target = childPath(path.dirname(oldPath), name)
     if (!target || target === oldPath) throw new Error('invalid rename target')
@@ -315,8 +320,9 @@ function registerFileIpc({
     return { path: target, name: path.basename(target) }
   })
 
-  /** @param {unknown} _event @param {unknown} targetPath */
-  ipcMain.handle(IPC.revealInFolder, (_event, targetPath) => {
+  /** @param {unknown} event @param {unknown} targetPath */
+  ipcMain.handle(IPC.revealInFolder, (event, targetPath) => {
+    state.assertMainWindow(event)
     if (typeof targetPath !== 'string' || !targetPath) return false
     shell.showItemInFolder(targetPath)
     return true
@@ -340,10 +346,11 @@ function registerFileIpc({
 
   // 通用导出（HTML 等）：弹出另存为对话框并写入
   /**
-   * @param {unknown} _event
+   * @param {unknown} event
    * @param {{ content: string, defaultName: string, filters: { name: string, extensions: string[] }[] }} options
    */
-  ipcMain.handle(IPC.exportAs, async (_event, options) => {
+  ipcMain.handle(IPC.exportAs, async (event, options) => {
+    state.assertMainWindow(event)
     // IPC 入参不可信：缺 content 直接取消，其余字段做类型收敛后再交给对话框
     if (!options || typeof options.content !== 'string') return null
     const { content, defaultName, filters } = options

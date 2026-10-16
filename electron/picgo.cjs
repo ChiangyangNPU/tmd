@@ -13,6 +13,7 @@ const path = require('node:path')
 const fs = require('node:fs/promises')
 const os = require('node:os')
 const { randomUUID } = require('node:crypto')
+const state = require('./app-state.cjs')
 
 /** 图床上传允许的图片扩展名（渲染层按 MIME 推导后传入，白名单外回落 .png） */
 const UPLOAD_EXT_ALLOWED = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'])
@@ -52,7 +53,8 @@ function createPicGo({ ipcMain, IPC, app, PicGo }) {
      * @param {unknown} base64  纯 base64 字符串（不含 data:image/...;base64, 前缀）
      * @param {unknown} ext     图片扩展名（如 '.png'，由渲染层按 MIME 推导）
      */
-    ipcMain.handle(IPC.uploadImage, async (_event, base64, ext) => {
+    ipcMain.handle(IPC.uploadImage, async (event, base64, ext) => {
+      state.assertMainWindow(event)
       if (typeof base64 !== 'string' || !base64) return null
       // PicGo 按扩展名判定 mime，故由渲染层传入并在此校验；缺省/非法一律按 png
       const safeExt =
@@ -97,8 +99,9 @@ function createPicGo({ ipcMain, IPC, app, PicGo }) {
     })
 
     /** 保存 PicGo 配置到 userData 目录 */
-    /** @param {unknown} _event @param {unknown} config */
-    ipcMain.handle(IPC.savePicGoConfig, async (_event, config) => {
+    /** @param {unknown} event @param {unknown} config */
+    ipcMain.handle(IPC.savePicGoConfig, async (event, config) => {
+      state.assertMainWindow(event)
       if (!config || typeof config !== 'object') return false
       try {
         const picgo = getPicGo()

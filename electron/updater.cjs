@@ -497,7 +497,8 @@ function createUpdater({
     })
 
     // 用户同意下载
-    ipcMain.handle(IPC.updateDownload, async () => {
+    ipcMain.handle(IPC.updateDownload, async (event) => {
+      state.assertMainWindow(event)
       try {
         // macOS 不走 electron-updater 下载（Squirrel 路径不可靠，见
         // downloadMacInstaller 注释）：从最近一次 update-available 的元数据
@@ -517,7 +518,8 @@ function createUpdater({
 
     // 安装已下载的更新：macOS 打开 dmg 引导手动安装并退出应用；
     // Windows 走 electron-updater 重启安装（有未保存修改时先三选处置）
-    ipcMain.handle(IPC.updateInstall, () => {
+    ipcMain.handle(IPC.updateInstall, (event) => {
+      state.assertMainWindow(event)
       if (process.platform === 'darwin') {
         void openDownloadedInstallerAndQuit()
       } else {
