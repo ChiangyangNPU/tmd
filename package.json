@@ -141,7 +141,8 @@
     "nsis": {
       "artifactName": "${productName}-${version}-${arch}-Setup.${ext}",
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": false,
+      "include": "build/installer.nsh"
     },
     "releaseInfo": {
       "releaseNotesFile": ".release-notes.md"
