@@ -69,7 +69,7 @@ git remote -v
 | `git push gitee master` | 只推 Gitee（`master`） |
 | `git push github master:main` | 只推 GitHub（本地 `master` → 远程 `main`） |
 | `git pushall` | **一键同时推两个仓库** |
-| `git push gitee master --force-with-lease && git push github main --force-with-lease` | **一键强制同时推两个仓库** |
+| `git push gitee master --force-with-lease && git push github master:main --force-with-lease` | **一键强制同时推两个仓库** |
 
 > 注意：Git 默认 `push.default=simple`，要求本地/远程分支同名才允许裸 `git push github`。
 > 因 GitHub 侧分支名为 `main`（与本地 `master` 不同），单推 GitHub 必须带 `master:main` 映射。
@@ -131,14 +131,14 @@ git remote set-url github git@github.com:ChiangyangNPU/tmd.git
 ssh -T git@github.com   # 输出 "Hi ChiangyangNPU!" 即认证成功
 ```
 
-### 5.2 大文件超出 GitHub 100MB 上限
+### 5.2 大文件超出 GitHub 100MB 上限（历史记录，已解决）
 
 症状：`remote: error: File ... is 375.57 MB; this exceeds GitHub's file size limit of 100.00 MB`
 
 原因：`third_party/onnxruntime/lib/onnxruntime.pdb`（375MB，onnxruntime 调试符号）超 GitHub 硬上限。
 Gitee 仅警告（>50MB）但不拦截，GitHub 则硬性拒绝。
 
-处理（已执行）：从仓库移除 PDB 并重写提交：
+处理（已执行；仓库现已无 `third_party/` 目录，本节仅作历史留档）：从仓库移除 PDB 并重写提交：
 
 ```bash
 # 1. 修改 .gitignore，删除 "!third_party/onnxruntime/lib/*.pdb" 放行规则
