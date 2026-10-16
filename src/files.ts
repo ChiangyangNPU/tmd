@@ -240,7 +240,8 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
     a.href = url
     a.download = tab.name
     a.click()
-    URL.revokeObjectURL(url)
+    // 同步 revoke 会掐断部分浏览器刚开始的下载：推迟到下一次宏任务（与 export.ts 同口径）
+    setTimeout(() => URL.revokeObjectURL(url), 0)
   }
   // 落盘期间内容可能又变了（捕获后继续输入），须与磁盘内容比对后才清脏——
   // 一致才清，不一致保持置脏（等待下一次自动保存 / 手动保存）

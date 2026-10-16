@@ -43,7 +43,8 @@ export function startAutosave() {
   }, 5000)
 }
 
-/** 停止自动保存定时器 */
+/** 停止自动保存定时器（重置 timer 避免调用方误判状态） */
 export function stopAutosave() {
   window.clearInterval(timer)
+  timer = undefined
 }
