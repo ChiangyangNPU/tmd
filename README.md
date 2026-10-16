@@ -105,72 +105,123 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  └─ boot.js                    首帧引导脚本（主题 / 平台类，防启动白闪）
 │
 ├─ electron/                     Electron 桌面壳（主进程 + preload）
-│  ├─ main.cjs                   主进程入口（窗口创建、菜单、IPC、图床上传、自动更新）
+│  ├─ main.cjs                   主进程入口（窗口创建、IPC 编排、图床上传、自动更新）
+│  ├─ menu.cjs                   应用菜单模板工厂（纯数据工厂，零 Electron 依赖，可独立单测）
 │  ├─ exporter.cjs               离屏导出服务（隐藏窗口、串行任务队列、截图与读图原语）
 │  ├─ preload.cjs                受控 API 暴露（contextBridge）
+│  ├─ exporter-preload.cjs       离屏导出页专用桥接（最小权限：4 个方法）
 │  ├─ ipc.cjs                    IPC 通道名常量（主进程与 preload 共用）
 │  └─ 子模块（纯 Node，可独立验证）：
 │     ├─ history.cjs              本地历史版本（写盘前快照、指纹去重、两层剪枝）
 │     ├─ logger.cjs               本地 JSONL 日志与崩溃转储扫描
 │     ├─ search.cjs               全文搜索的扫描与匹配
+│     ├─ wikilinks.cjs            双链索引扫描与解析（复用 search 枚举 + 围栏跳过）
 │     ├─ filewatcher.cjs          打开文件的外部修改监视（内容指纹过滤自身写入）
+│     ├─ fsops.cjs                侧边栏文件管理纯函数（新建 / 重命名的名称与路径安全）
 │     └─ themes.cjs               文件式主题目录扫描与安全校验
 │
 ├─ scripts/                      构建 / 测试 / 打包脚本
 │  ├─ trim-runtime.cjs           打包钩子：裁剪 Electron 运行时冗余文件（语言包、WebGL DLL）
 │  ├─ gen-lens-map.mjs           生成液态玻璃 Pro 的折射位移图（PNG data URI，改参数重跑后替换常量）
+│  ├─ make-icon.mjs              由 build/icon.svg 一键重建 png / icns / ico 图标
+│  ├─ make-dmg-background.mjs    生成 dmg 安装窗口背景图（当前版本号画进背景）
+│  ├─ patch-mac-dmg.mjs          dmg 后处理：转 ULMO 压缩 + 更新清单 sha512/size 重算
+│  ├─ extract-release-notes.mjs  从 CHANGELOG 提取当前版本说明写入 .release-notes.md
+│  ├─ prepare-gitee-release.mjs  生成 / 重算 Gitee 自动更新清单与待上传清单
+│  ├─ cleanup-old-app.sh         清理本地旧应用构建
 │  ├─ desktop-app-check.mjs      主链路 + 可靠性 + 外部修改检测 + 历史版本 + 分屏 + 查找映射 桌面 E2E（49 断言）
-│  ├─ desktop-export-check.mjs   导出 Word / 长图 桌面 E2E
+│  ├─ desktop-export-check.mjs   导出 Word / 长图 / LaTeX 桌面 E2E（37 断言）
 │  ├─ desktop-bench.mjs          大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
+│  ├─ *-probe.mjs / ime-*.mjs    一次性真机诊断探针（输入法 / 双链 / 图谱对齐 / 思维导图 / 脏标记 / 输入剖析）
 │  └─ lib/
 │     └─ desktop-harness.mjs     桌面 E2E 共享驱动（CDP 客户端、隔离启动、进程组回收）
 │
 ├─ src/                          渲染层（Vite 构建产物）
 │  ├─ main.ts                    应用启动与全局装配（boot、hooks 注入、快捷键、菜单回调）
 │  ├─ editor-core.ts             编辑器枢纽（创建 / 重建 / 源码模式 / 内容取回）
-│  ├─ mermaid.ts                 Mermaid 实时渲染插件（核心特性）
-│  ├─ tabs.ts                    多标签页状态机
+│  ├─ tabs.ts                    多标签页状态机（含每标签滚动位置）
+│  ├─ files.ts                   文件操作（打开 / 保存、多文件夹工作区、最近列表）
+│  ├─ filetree.ts                文件树 / 最近文件 / 已打开文件夹渲染（任意层级按需展开）
+│  ├─ store.ts                   localStorage 键与读写统一入口
+│  ├─ native.ts                  壳层契约接口（NativeFileAPI，浏览器模式自动降级）
+│  ├─ autosave.ts                自动保存（5 秒写回定时器）
+│  ├─ settings.ts                设置面板装配（语言 / 主题 / CSS / 图床 / 快捷键 / 更新 / 关于）
+│  ├─ shortcuts.ts               快捷键配置（定义 / 读写 / 校验 / 显示格式化，单一数据源）
+│  ├─ i18n.ts                    多语言运行时（语言包加载 / t() / DOM 批量替换）
+│  ├─ theme.ts                   深浅模式切换（图表原地重渲，不重建编辑器）
 │  ├─ theme-presets.ts           主题预设、文件式主题与自定义 CSS 注入
-│  ├─ theme-preset-css.ts        预设 CSS 单一来源（零依赖常量：四个预设样式 + 液态玻璃 Pro 滤镜定义，运行时注入与构建期首帧静态注入共用）
-│  ├─ shortcuts.ts               快捷键配置（定义 / 读写 / 校验 / 显示格式化）
-│  ├─ 搜索相关：
+│  ├─ theme-preset-css.ts        预设 CSS 单一来源（内置预设 + 液态玻璃 Pro 滤镜，运行时注入与首帧静态注入共用）
+│  ├─ mermaid.ts                 Mermaid 实时渲染插件（核心特性）
+│  ├─ sourcemode.ts              CodeMirror 6 源码模式
+│  ├─ split.ts                   左右分屏交互（分隔条拖拽 / 点选可编辑侧 / 滚动近似同步）
+│  ├─ writing-modes.ts           专注模式 / 打字机模式
+│  ├─ typography.ts              排版设置（字体 / 字号 / 行距 / 宽度 / 自动换行 → CSS 变量）
+│  ├─ font-zoom.ts               Ctrl/Cmd+滚轮缩放字号
+│  ├─ outline.ts                 大纲面板（1-3 级标题点击跳转）
+│  ├─ command-palette.ts         命令面板（Ctrl/Cmd+Shift+A，模糊搜索并执行菜单动作）
+│  ├─ quick-switch.ts            快速切换面板（Ctrl+P 模糊搜索）
+│  ├─ pinyin-index.ts            拼音首字母索引（中文文件名匹配，懒加载）
+│  ├─ 搜索：
 │  │  ├─ search.ts               跨文件全文搜索面板（防抖 / 分组渲染 / 跳转定位）
-│  │  └─ find.ts                 查找替换（装饰器实现）
-│  ├─ 导出相关：
-│  │  ├─ export-doc.ts           导出核心（渲染管线 / 样式 / 图片引用分类，四格式共用）
+│  │  ├─ find.ts                 查找替换（装饰器实现）
+│  │  └─ findbar.ts              查找栏 DOM 装配（源码模式交给 CodeMirror 自带面板）
+│  ├─ 双链与图谱：
+│  │  ├─ wikilink.ts             双链语法内核（[[目标]] / 别名 / 标题锚 + 未解析装饰）
+│  │  ├─ wikilink-index.ts       双链索引渲染层缓存（按需扫描 / 失效调度 / 三档解析）
+│  │  ├─ backlinks.ts            反向链接面板（按来源分组，点击定位）
+│  │  ├─ link-rewrite.ts         改名自动重写全工作区引用
+│  │  ├─ graph.ts                关系图谱（canvas + d3-force，设置弹层）
+│  │  └─ local-graph.ts          局部图谱侧边栏面板（当前笔记邻域，1/2 层）
+│  ├─ 导出：
+│  │  ├─ export.ts               导出动作层（HTML / PDF / Word / 长图 / LaTeX）
+│  │  ├─ export-doc.ts           载体无关的导出文档核心（解析管线 / 样式 / 图片引用分类，五载体共用）
+│  │  ├─ export-latex.ts         LaTeX 适配器（token 流 → 可编译 .tex）
 │  │  ├─ export-word.ts          Word 导出（区域截帧栅格化 + OOXML 转换）
 │  │  ├─ export-omml.ts          Word 公式可编辑化（LaTeX → MathML → OMML 后处理）
 │  │  ├─ export-image.ts         长图导出（分段计划 + canvas 拼接）
-│  │  └─ export-renderer.ts      离屏导出页引导（渲染管线 + 任务分派）
+│  │  ├─ export-renderer.ts      离屏导出页引导（渲染管线 + 任务分派）
+│  │  └─ export-bridge.ts        离屏页与主进程 exporter 的桥接契约
 │  ├─ 编辑器功能：
-│  │  ├─ mark-ext.ts             语法扩展（高亮 / 上下标：解析、序列化、输入规则）
+│  │  ├─ mark-ext.ts             语法扩展（高亮 / 上下标 / 脚注：解析、序列化、输入规则）
 │  │  ├─ frontmatter.ts          YAML front matter（属性表 ⇄ 源码双态编辑）
 │  │  ├─ paste-image.ts          粘贴图片插件（inline / assets / 图床 三策略）
 │  │  ├─ paste-html.ts           HTML 粘贴转换（白名单清洗 → schema 解析）
+│  │  ├─ paste-tsv.ts            TSV 粘贴转表格
 │  │  ├─ table-input.ts          Typora 式表格输入（管道行 + 回车即时成表）
 │  │  ├─ table-toolbar.ts        表格悬浮工具栏（行列增删 / 对齐 / 删除整表）
+│  │  ├─ table-markdown.ts       表格 Markdown 规范化（空单元格占位清理）
+│  │  ├─ text-escaping.ts        文本转义补丁（恢复表格单元格内标点转义）
 │  │  ├─ image-attrs.ts          图片缩放 / 对齐（拖拽改宽 + 对齐浮层）
-│  │  ├─ writing-modes.ts        专注模式 / 打字机模式
-│  │  ├─ typography.ts           排版设置（字体/字号/行距/宽度/自动换行 → CSS 变量）
+│  │  ├─ image-resolver.ts       文档内相对路径图片按文档目录解析
+│  │  ├─ task-list.ts            任务列表复选框点击切换
+│  │  ├─ toc.ts                  目录（TOC）块
 │  │  ├─ context-menu.ts         编辑区右键上下文菜单
 │  │  ├─ tab-menu.ts             标签栏右键菜单（关闭当前/其他/左右侧/已保存/全部）
 │  │  ├─ link-nav.ts             链接点击跳转（Mod+点击，外部/本地分发）
-│  │  ├─ quick-switch.ts         快速切换面板（Ctrl+P 模糊搜索）
-│  │  ├─ toc.ts                  目录（TOC）块
-│  │  ├─ split.ts                左右分屏交互（分隔条拖拽 / 点选可编辑侧 / 滚动近似同步）
+│  │  ├─ format.ts               格式化命令层（配置驱动，可撤销标准事务）
+│  │  └─ dragdrop.ts             拖拽打开文件（.md/.txt）与拖入图片
+│  ├─ 面板与基础设施：
 │  │  ├─ history.ts              历史版本面板（快照列表 / 预览 / 恢复到编辑器）
-│  │  └─ style.css               全部样式（CSS 变量实现深浅主题 + 高亮配色）
-│  └─ 工具与基础设施：
-│     ├─ fs-path.ts              文件系统路径工具（规范化 / 取目录 / 同一性判断）
-│     └─ error-report.ts         渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
+│  │  ├─ external-change.ts      外部修改检测与重载提示条
+│  │  ├─ error-report.ts         渲染层未捕获异常 / Promise rejection 捕获与 IPC 上报
+│  │  └─ fs-path.ts              文件系统路径工具（规范化 / 取目录 / 同一性判断）
+│  ├─ locales/                   语言包（zh-CN / zh-Hant / en）
+│  ├─ templates/                 index.html 浮层 / 面板 HTML 分块（?raw 内联）
+│  ├─ styles/                    样式分块（01 设计令牌 → 15 打印，编号即级联顺序）
+│  ├─ style.css                  样式入口：仅按原级联顺序 @import styles/*.css
+│  └─ __tests__/                 vitest 纯函数单元测试（53 个测试文件 / 671 用例）
 │
 ├─ docs/                         项目文档
 │  ├─ 需求说明.md                功能清单与路线图
 │  ├─ 架构设计.md                模块职责与数据流
 │  ├─ 详细设计.md                关键模块实现细节
+│  ├─ 路线图.md                  版本规划与能力差距分析
 │  ├─ 打包发布.md                本地打包与 CI 发布流程
+│  ├─ mac安装后启动报错解决方案.md  Gatekeeper 拦截放行说明
 │  └─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
 │
+├─ build/                        打包资源（图标、dmg 背景图、NSIS 自定义脚本）
+├─ .github/workflows/            CI（build / release 工作流）
 ├─ dist/                         渲染层构建产物（vite build 输出；本地生成，git 忽略，可随时删除重建）
 ├─ release/                      本地打包产物（electron-builder 输出：dmg / nsis 安装包与应用目录；本地生成，git 忽略，可随时删除）
 └─ releases/                     自动更新清单（latest.yml / latest-mac.yml，git 跟踪）：Gitee 更新源指向本目录

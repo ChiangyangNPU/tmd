@@ -102,71 +102,123 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  └─ boot.js                    First-frame bootstrap script (theme / platform classes, prevents white flash)
 │
 ├─ electron/                     Electron desktop shell (main process + preload)
-│  ├─ main.cjs                   Main process entry (window creation, menu, IPC, image hosting, auto-update)
+│  ├─ main.cjs                   Main process entry (window creation, IPC orchestration, image hosting, auto-update)
+│  ├─ menu.cjs                   App menu template factory (pure data factory, zero Electron deps, unit-testable)
 │  ├─ exporter.cjs               Offscreen export service (hidden window, serial task queue, capture & read-image primitives)
 │  ├─ preload.cjs                Controlled API exposure (contextBridge)
+│  ├─ exporter-preload.cjs       Offscreen export page bridge (minimal privilege: 4 methods)
 │  ├─ ipc.cjs                    IPC channel name constants (shared by main and preload)
 │  └─ Submodules (pure Node, independently verifiable):
 │      ├─ history.cjs            Local version history (pre-write snapshots, hash dedup, two-tier pruning)
 │      ├─ logger.cjs              Local JSONL logging & minidump scanning
 │      ├─ search.cjs              Full-text search scanning & matching
+│      ├─ wikilinks.cjs           Wiki-link index scanning & resolution (reuses search enumeration + fence skip)
+│      ├─ filewatcher.cjs         External-change watcher for open files (content fingerprint filters self-writes)
+│      ├─ fsops.cjs               Sidebar file-management pure functions (name & path safety for new/rename)
 │      └─ themes.cjs              File-based theme folder scanning & safety checks
 │
 ├─ scripts/                      Build / test / pack scripts
 │  ├─ trim-runtime.cjs           Pack hook: trims redundant Electron runtime files (locales, WebGL DLLs)
 │  ├─ gen-lens-map.mjs           Generates the Liquid Glass Pro refraction displacement map (PNG data URI; tweak params, rerun, paste the constant)
+│  ├─ make-icon.mjs              Rebuilds png / icns / ico icons from build/icon.svg
+│  ├─ make-dmg-background.mjs    Renders the dmg installer background image (current version drawn in)
+│  ├─ patch-mac-dmg.mjs          dmg post-processing: recompress to ULMO + recompute manifest sha512/size
+│  ├─ extract-release-notes.mjs  Extracts the current version's notes from CHANGELOG into .release-notes.md
+│  ├─ prepare-gitee-release.mjs  Generates / recomputes the Gitee auto-update manifest and upload list
+│  ├─ cleanup-old-app.sh         Cleans up old local app builds
 │  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history & split-view desktop E2E (49 assertions)
-│  ├─ desktop-export-check.mjs   Word / long-image export desktop E2E
+│  ├─ desktop-export-check.mjs   Word / long-image / LaTeX export desktop E2E (37 assertions)
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
+│  ├─ *-probe.mjs / ime-*.mjs    One-off real-machine diagnostic probes (IME / wiki-links / graph alignment / mindmap / dirty marker / input profiling)
 │  └─ lib/
 │     └─ desktop-harness.mjs     Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
 │
 ├─ src/                          Renderer layer (Vite build output)
 │  ├─ main.ts                    App startup & global wiring (boot, hooks injection, shortcuts, menu callbacks)
 │  ├─ editor-core.ts             Editor hub (create / rebuild / source mode / content retrieval)
-│  ├─ mermaid.ts                 Mermaid real-time rendering plugin (core feature)
-│  ├─ tabs.ts                    Multi-tab state machine
+│  ├─ tabs.ts                    Multi-tab state machine (incl. per-tab scroll position)
+│  ├─ files.ts                   File operations (open / save, multi-folder workspace, recent list)
+│  ├─ filetree.ts                File tree / recent files / mounted folders rendering (lazy per-level expand)
+│  ├─ store.ts                   Unified localStorage key & read/write entry
+│  ├─ native.ts                  Shell contract interface (NativeFileAPI, auto-degrades in browser mode)
+│  ├─ autosave.ts                Autosave (5-second write-back timer)
+│  ├─ settings.ts                Settings panel wiring (language / theme / CSS / image host / shortcuts / update / about)
+│  ├─ shortcuts.ts               Shortcut configuration (definitions / read-write / validation / display formatting, single source)
+│  ├─ i18n.ts                    i18n runtime (locale loading / t() / batch DOM replacement)
+│  ├─ theme.ts                   Light/dark switching (in-place diagram re-render, no editor rebuild)
 │  ├─ theme-presets.ts           Theme presets, file-based themes & custom CSS injection
-│  ├─ theme-preset-css.ts        Single source of preset CSS (zero-dependency constants: four preset styles + Liquid Glass Pro filter defs, shared by runtime injection and build-time first-paint injection)
-│  ├─ shortcuts.ts               Shortcut configuration (definitions / read-write / validation / display formatting)
+│  ├─ theme-preset-css.ts        Single source of preset CSS (built-in presets + Liquid Glass Pro filter, shared by runtime & first-paint injection)
+│  ├─ mermaid.ts                 Mermaid real-time rendering plugin (core feature)
+│  ├─ sourcemode.ts              CodeMirror 6 source mode
+│  ├─ split.ts                   Split-view interaction (divider drag / click to pick the editable pane / approximate scroll sync)
+│  ├─ writing-modes.ts           Focus mode / typewriter mode
+│  ├─ typography.ts              Typography settings (font / size / line-height / width / word-wrap → CSS variables)
+│  ├─ font-zoom.ts               Ctrl/Cmd+wheel font zoom
+│  ├─ outline.ts                 Outline panel (H1-H3 jump)
+│  ├─ command-palette.ts         Command palette (Ctrl/Cmd+Shift+A, fuzzy search & run menu actions)
+│  ├─ quick-switch.ts            Quick switch panel (Ctrl+P fuzzy search)
+│  ├─ pinyin-index.ts            Pinyin-initial index (Chinese filename matching, lazy-loaded)
 │  ├─ Search:
 │  │  ├─ search.ts               Cross-file search panel (debounce / grouped rendering / jump & locate)
-│  │  └─ find.ts                 Find & replace (decorator-based)
+│  │  ├─ find.ts                 Find & replace (decorator-based)
+│  │  └─ findbar.ts              Find bar DOM wiring (source mode defers to CodeMirror's own panel)
+│  ├─ Wiki-links & graph:
+│  │  ├─ wikilink.ts             Wiki-link syntax core ([[target]] / alias / heading anchor + unresolved decoration)
+│  │  ├─ wikilink-index.ts       Renderer-side wiki-link index cache (on-demand scan / invalidation scheduling / three-tier resolution)
+│  │  ├─ backlinks.ts            Backlinks panel (grouped by source, click to locate)
+│  │  ├─ link-rewrite.ts         Auto-rewrite workspace references on rename
+│  │  ├─ graph.ts                Relation graph (canvas + d3-force, settings popover)
+│  │  └─ local-graph.ts          Local graph sidebar panel (current note neighborhood, 1/2 hops)
 │  ├─ Export:
-│  │  ├─ export-doc.ts           Export core (render pipeline / styles / image-ref classification, shared by all four formats)
+│  │  ├─ export.ts               Export action layer (HTML / PDF / Word / long image / LaTeX)
+│  │  ├─ export-doc.ts           Carrier-agnostic export doc core (render pipeline / styles / image-ref classification, shared by all five carriers)
+│  │  ├─ export-latex.ts         LaTeX adapter (token stream → compilable .tex)
 │  │  ├─ export-word.ts          Word export (region capture rasterization + OOXML conversion)
 │  │  ├─ export-omml.ts          Editable Word formulas (LaTeX → MathML → OMML post-processing)
 │  │  ├─ export-image.ts         Long-image export (segment planning + canvas stitching)
-│  │  └─ export-renderer.ts      Offscreen export page bootstrap (render pipeline + task dispatch)
+│  │  ├─ export-renderer.ts      Offscreen export page bootstrap (render pipeline + task dispatch)
+│  │  └─ export-bridge.ts        Bridge contract between offscreen page and main-process exporter
 │  ├─ Editor features:
-│  │  ├─ mark-ext.ts             Syntax extensions (highlight / super-subscript: parsing, serialization, input rules)
+│  │  ├─ mark-ext.ts             Syntax extensions (highlight / super-subscript / footnote: parsing, serialization, input rules)
 │  │  ├─ frontmatter.ts          YAML front matter (property table ⇄ source dual-mode editing)
 │  │  ├─ paste-image.ts          Pasted-image plugin (inline / assets / image host — triple strategy)
 │  │  ├─ paste-html.ts           HTML paste conversion (whitelist sanitize → schema parsing)
+│  │  ├─ paste-tsv.ts            TSV paste → table
 │  │  ├─ table-input.ts          Typora-style table input (pipe row + Enter builds the table)
 │  │  ├─ table-toolbar.ts        Floating table toolbar (row/col add-remove / alignment / delete table)
+│  │  ├─ table-markdown.ts       Table Markdown normalization (empty placeholder cell cleanup)
+│  │  ├─ text-escaping.ts        Text-escaping patch (restores punctuation escaping inside table cells)
 │  │  ├─ image-attrs.ts          Image resize / alignment (drag handle + alignment overlay)
-│  │  ├─ writing-modes.ts        Focus mode / typewriter mode
-│  │  ├─ typography.ts           Typography settings (font/size/line-height/width/word-wrap → CSS variables)
+│  │  ├─ image-resolver.ts       Resolves relative image paths against the document folder
+│  │  ├─ task-list.ts            Task-list checkbox click toggle
+│  │  ├─ toc.ts                  Table-of-contents (TOC) block
 │  │  ├─ context-menu.ts         Editor right-click context menu
 │  │  ├─ tab-menu.ts             Tab-bar right-click menu (close current/others/left/right/saved/all)
 │  │  ├─ link-nav.ts             Link following (Mod+click, external / local dispatch)
-│  │  ├─ quick-switch.ts         Quick switch panel (Ctrl+P fuzzy search)
-│  │  ├─ toc.ts                  Table-of-contents (TOC) block
-│  │  ├─ split.ts                Split-view interaction (divider drag / click to pick the editable pane / approximate scroll sync)
+│  │  ├─ format.ts               Formatting command layer (config-driven, undoable standard transactions)
+│  │  └─ dragdrop.ts             Drag-and-drop open (.md/.txt) and image insert
+│  ├─ Panels & infrastructure:
 │  │  ├─ history.ts              Version-history panel (snapshot list / preview / restore into the editor)
-│  │  └─ style.css               All styles (CSS variables for dark/light themes + highlight colors)
-│  └─ Utilities & infrastructure:
-│     ├─ fs-path.ts              Filesystem path utilities (normalize / dirname / identity check)
-│     └─ error-report.ts         Renderer uncaught-error / Promise-rejection capture & IPC reporting
+│  │  ├─ external-change.ts      External-change detection & reload banner
+│  │  ├─ error-report.ts         Renderer uncaught-error / Promise-rejection capture & IPC reporting
+│  │  └─ fs-path.ts              Filesystem path utilities (normalize / dirname / identity check)
+│  ├─ locales/                   Locale packs (zh-CN / zh-Hant / en)
+│  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
+│  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
+│  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
+│  └─ __tests__/                 vitest pure-function unit tests (53 files / 671 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap
 │  ├─ 架构设计.md                Module responsibilities & data flow
 │  ├─ 详细设计.md                Key module implementation details
+│  ├─ 路线图.md                  Version plan & capability-gap analysis
 │  ├─ 打包发布.md                Local packaging & CI release workflow
+│  ├─ mac安装后启动报错解决方案.md  Gatekeeper allow-through guide
 │  └─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
 │
+├─ build/                        Packaging assets (icons, dmg background, NSIS custom scripts)
+├─ .github/workflows/            CI (build / release workflows)
 ├─ dist/                         Renderer build output (vite build; generated locally, git-ignored, safe to delete)
 ├─ release/                      Local pack output (electron-builder: dmg / nsis installers and app bundle; generated locally, git-ignored, safe to delete)
 └─ releases/                     Auto-update manifests (latest.yml / latest-mac.yml, git-tracked): the Gitee update feed points
