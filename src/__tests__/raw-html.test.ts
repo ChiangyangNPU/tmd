@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest'
 import { convertHtmlBlocks, sanitizeRawHtml } from '../raw-html'
 import { renderMarkdown } from '../export-doc'
 
-type MdNode = { type: string; value?: string | null; children?: MdNode[] }
+type MdNode = {
+  type: string
+  value?: string | null
+  children?: MdNode[]
+  position?: unknown
+}
 
 describe('sanitizeRawHtml 白名单', () => {
   it('保留常见结构，剔除脚本 / 事件 / javascript: / class / id / style', () => {
@@ -66,6 +71,19 @@ describe('convertHtmlBlocks', () => {
       type: 'html_block',
       value: '<details>wrapped</details>',
     })
+  })
+
+  it('替换节点保留原 position（frontmatter extractRaw 依赖兄弟 position 切片）', () => {
+    const pos = {
+      start: { line: 2, column: 1, offset: 20 },
+      end: { line: 2, column: 12, offset: 31 },
+    }
+    const tree: MdNode = {
+      type: 'root',
+      children: [{ type: 'html', value: '<div>x</div>', position: pos }],
+    }
+    convertHtmlBlocks(tree)
+    expect((tree.children![0] as MdNode).position).toBe(pos)
   })
 })
 

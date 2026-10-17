@@ -152,7 +152,14 @@ export async function composeLongPng(
     const remainingCss = Math.max(1, plan.physicalHeight / ratio - offsetCss)
     const requestCss = Math.min(plan.requestHeightCss, remainingCss)
     await scrollTo(offsetCss)
-    const shot = await capture({ widthCss, heightCss: requestCss, zoom })
+    const shot = await capture({
+      widthCss,
+      heightCss: requestCss,
+      zoom,
+      // 主进程 setContentSize 可能重置/钳制 scrollTop，带上目标偏移让其在
+      // 调整视口后重新滚动（否则长图会截到错误内容）
+      scrollYCss: offsetCss,
+    })
     if (!shot || shot.physicalWidth <= 0 || shot.physicalHeight <= 0) {
       throw new Error('分段截图失败')
     }

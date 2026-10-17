@@ -193,15 +193,12 @@ function createExporter(deps) {
     // 而非「导出入口损坏」
     loaded = new Promise((resolve, reject) => {
       target.webContents.once('did-finish-load', () => resolve())
-      target.webContents.once(
-        'did-fail-load',
-        (_event, _code, _desc, _url, isMainFrame) => {
-          // 子框架加载失败不致命（远程图片等），只处理主框架
-          if (isMainFrame === false) return
-          destroyWindow()
-          reject(new Error('导出页面加载失败'))
-        },
-      )
+      target.webContents.once('did-fail-load', (_event, _code, _desc, _url, isMainFrame) => {
+        // 子框架加载失败不致命（远程图片等），只处理主框架
+        if (isMainFrame === false) return
+        destroyWindow()
+        reject(new Error('导出页面加载失败'))
+      })
     })
     target.webContents.on('will-navigate', (event) => event.preventDefault())
     target.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -344,7 +341,7 @@ function createExporter(deps) {
      * - 视口模式：按 zoom 归一后的尺寸设置窗口内容尺寸，等一帧后截取整个视口（长图分段）
      * - 区域模式：不改窗口尺寸，截取当前视口内的一块矩形（Word 公式栅格化）
      * @param {import('electron').IpcMainInvokeEvent} event
-     * @param {{ widthCss?: number, heightCss?: number, region?: { x: number, y: number, width: number, height: number }, zoom: number }} req
+     * @param {{ widthCss?: number, heightCss?: number, region?: { x: number, y: number, width: number, height: number }, zoom: number, scrollYCss?: number }} req
      */
     ipcMain.handle(IPC.exporterCapture, async (event, req) => {
       const target = BrowserWindow.fromWebContents(event.sender)
@@ -372,6 +369,24 @@ function createExporter(deps) {
         target.setContentSize(clampDip(widthCss * zoom), clampDip(heightCss * zoom))
       }
       await settle(target.webContents)
+      // setContentSize 可能重置/钳制页面滚动位置：长图分段必须在改完视口后
+      // 再按目标偏移重新滚动，否则会截到顶部或重复内容（高度敏感回归）
+      if (!rect && typeof req.scrollYCss === 'number' && Number.isFinite(req.scrollYCss)) {
+        const top = Math.max(0, Math.round(Number(req.scrollYCss) * zoom))
+        try {
+          await target.webContents.executeJavaScript(
+            `(() => {
+              document.documentElement.scrollTop = ${top}
+              document.body.scrollTop = ${top}
+              return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+            })()`,
+            true,
+          )
+        } catch {
+          /* 页面已销毁：保持当前帧，后续截图会失败并由任务错误路径处理 */
+        }
+        await settle(target.webContents)
+      }
       const image = rect
         ? await target.webContents.capturePage(rect)
         : await target.webContents.capturePage()

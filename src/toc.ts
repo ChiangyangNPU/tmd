@@ -32,7 +32,12 @@ import { t } from './i18n'
 // 1. remark 转换：<!-- TOC --> ... <!-- /TOC --> 区间 → toc 节点
 // ---------------------------------------------------------------------------
 
-type MdNode = { type: string; value?: string | null; children?: MdNode[] }
+type MdNode = {
+  type: string
+  value?: string | null
+  children?: MdNode[]
+  position?: unknown
+}
 
 const TOC_OPEN_RE = /<!--\s*TOC\s*-->/i
 const TOC_CLOSE_RE = /<!--\s*\/TOC\s*-->/i
@@ -65,7 +70,7 @@ export function convertTocBlocks(node: MdNode, depth = 0): void {
     // Typora 兼容：顶层独立一段 [TOC] 直接转目录块（与输入规则同语义；
     // 嵌套在引用/列表里的 [TOC] 保持原样，避免误吞正文）
     if (depth === 0 && TOC_LITERAL_RE.test(text)) {
-      children.splice(i, 1, { type: 'toc' })
+      children.splice(i, 1, { type: 'toc', position: child.position })
       continue
     }
     const openMatch = text.match(TOC_OPEN_RE)
@@ -78,7 +83,7 @@ export function convertTocBlocks(node: MdNode, depth = 0): void {
     // 整段只允许开闭标记与空白，夹带其他文字不识别
     if (TOC_CLOSE_RE.test(text)) {
       if (text.replace(TOC_OPEN_RE, '').replace(TOC_CLOSE_RE, '').trim() !== '') continue
-      children.splice(i, 1, { type: 'toc' })
+      children.splice(i, 1, { type: 'toc', position: child.position })
       continue
     }
     // 开标记后同段也不允许有正文（如 "<!-- TOC --> 说明"）
@@ -97,7 +102,7 @@ export function convertTocBlocks(node: MdNode, depth = 0): void {
     }
     // 无闭合标记：不识别、保留原文，否则会把后续正文吞进原子节点造成内容丢失
     if (end === -1) continue
-    children.splice(i, end + 1 - i, { type: 'toc' })
+    children.splice(i, end + 1 - i, { type: 'toc', position: child.position })
   }
 }
 
@@ -148,14 +153,16 @@ export interface TocHeading {
 
 /** GitHub 风格锚点：小写、空白转连字符、去标点、保留全部 Unicode 字母与数字 */
 export function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .trim()
-    // \p{L}\p{N} 覆盖全部 Unicode 字母/数字（假名、韩文、西里尔等）：旧实现
-    // 只保留 CJK 基本区，日文/韩文标题的 slug 会变成空串、目录链接失效，
-    // 且与 GitHub 锚点（保留假名/韩文）不一致。`_` 需显式保留（\w 的成分）
-    .replace(/[^\p{L}\p{N}\s_-]/gu, '')
-    .replace(/\s+/g, '-')
+  return (
+    text
+      .toLowerCase()
+      .trim()
+      // \p{L}\p{N} 覆盖全部 Unicode 字母/数字（假名、韩文、西里尔等）：旧实现
+      // 只保留 CJK 基本区，日文/韩文标题的 slug 会变成空串、目录链接失效，
+      // 且与 GitHub 锚点（保留假名/韩文）不一致。`_` 需显式保留（\w 的成分）
+      .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+      .replace(/\s+/g, '-')
+  )
 }
 
 /** 收集全文标题（全部级别，含同名标题的 -1/-2 计数后缀，与 GitHub 行为一致） */

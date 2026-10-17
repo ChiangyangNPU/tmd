@@ -12,10 +12,19 @@ const schema = new Schema({
   },
 })
 
-type MdNode = { type: string; value?: string | null; children?: MdNode[] }
+type MdNode = {
+  type: string
+  value?: string | null
+  children?: MdNode[]
+  position?: unknown
+}
 
 const para = (value: string): MdNode => ({ type: 'paragraph', children: [{ type: 'text', value }] })
-const html = (value: string): MdNode => ({ type: 'html', value })
+const html = (value: string, position?: MdNode['position']): MdNode => ({
+  type: 'html',
+  value,
+  position,
+})
 
 describe('slugify', () => {
   it('小写、空白转连字符、去标点、保留中文', () => {
@@ -89,6 +98,19 @@ describe('convertTocBlocks', () => {
     }
     convertTocBlocks(tree)
     expect(tree.children!).toEqual([{ type: 'toc' }])
+  })
+
+  it('toc 替换节点保留原 position（frontmatter extractRaw 依赖兄弟 position 切片）', () => {
+    const pos = {
+      start: { line: 3, column: 1, offset: 30 },
+      end: { line: 3, column: 14, offset: 43 },
+    }
+    const tree: MdNode = {
+      type: 'root',
+      children: [html('<!-- TOC -->', pos), html('<!-- /TOC -->')],
+    }
+    convertTocBlocks(tree)
+    expect((tree.children![0] as MdNode).position).toBe(pos)
   })
 
   it('Typora 风格独立 [TOC] 段落转为目录块（仅顶层，大小写不敏感）', () => {

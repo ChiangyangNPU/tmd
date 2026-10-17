@@ -130,6 +130,7 @@ $$
 
 ![相对路径图片](assets/pic.png)
 
+<img src="assets/pic.png" width="120">
 
 ---
 
@@ -535,11 +536,13 @@ async function main() {
         for (const ink of rowInk) {
           if (ink === 0) { run++; blankRows++; if (run > maxBlank) maxBlank = run } else run = 0
         }
-        // 接缝处（每 8000 物理像素一段）的墨量应与总体中位数相当，不能骤降为 0
+        // 接缝处（每 8000 物理像素一段）±200px 带内必须有墨迹：
+        // 真正的接缝断裂（漏截一段）会留下整段高的空白带；而均匀稀疏内容下
+        // 接缝可能恰好落在段间空隙（本样体节间距 ~64px），±2 行的窄带会误报
         const boundaries = []
         for (let y = 8000; y < size.height; y += 8000) {
           const idx = Math.floor(y / 8)
-          const band = rowInk.slice(Math.max(0, idx - 2), idx + 3)
+          const band = rowInk.slice(Math.max(0, idx - 25), idx + 26)
           boundaries.push({ y, ink: band.reduce((a, b) => a + b, 0) })
         }
         return JSON.stringify({

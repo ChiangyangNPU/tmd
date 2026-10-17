@@ -14,7 +14,12 @@ import sanitizeHtml from 'sanitize-html'
 import { $nodeSchema, $remark, $view } from '@milkdown/kit/utils'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 
-type MdNode = { type: string; value?: string | null; children?: MdNode[] }
+type MdNode = {
+  type: string
+  value?: string | null
+  children?: MdNode[]
+  position?: unknown
+}
 
 /** 允许渲染的标签：覆盖常见文档结构；script/style/iframe/svg 等一律剔除 */
 const ALLOWED_TAGS = [
@@ -110,6 +115,10 @@ const BLOCK_PARENTS = new Set(['root', 'blockquote', 'listItem', 'footnoteDefini
  * Milkdown 的 remarkHtmlTransformer 会先把块级 html 节点包成
  * `paragraph > html`（见 preset-commonmark），所以这里同时识别「仅含一个
  * html 子节点的段落」；普通段落里的行内 html 不转换。
+ *
+ * 替换节点必须保留原 position：后续管线（frontmatter 的 extractRaw 等）
+ * 依赖兄弟节点的 position 做源码切片，缺失会被回退成「切到文末」，
+ * 把整篇文档吞进 front matter 的 value（回归：保存时全文成倍重复）。
  */
 export function convertHtmlBlocks(node: MdNode): void {
   if (!node.children) return
@@ -121,7 +130,7 @@ export function convertHtmlBlocks(node: MdNode): void {
       child.children[0]?.type === 'html'
     if (BLOCK_PARENTS.has(node.type) && (child.type === 'html' || wrappedHtml)) {
       const raw = child.type === 'html' ? child.value : child.children?.[0]?.value
-      node.children[i] = { type: 'html_block', value: raw ?? '' }
+      node.children[i] = { type: 'html_block', value: raw ?? '', position: child.position }
       continue
     }
     convertHtmlBlocks(child)

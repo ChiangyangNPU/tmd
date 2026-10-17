@@ -45,6 +45,12 @@ export interface CaptureRequest {
   region?: CaptureRegion
   /** CSS px → DIP 换算系数（1 或 2/dpr，见 export-image.zoomForDpr） */
   zoom: number
+  /**
+   * 视口模式：截帧前应滚动到的位置（zoom 坐标系 CSS px）。
+   * 主进程会先 setContentSize（可能重置/钳制滚动位置），再按此值重新滚动，
+   * 避免长图分段因窗口尺寸变化截到错误内容。
+   */
+  scrollYCss?: number
 }
 
 /** 视口截图原语结果 */

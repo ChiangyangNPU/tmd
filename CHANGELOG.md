@@ -12,6 +12,7 @@
 - **离线 HTML 导出**：设置面板可开启「内联 Mermaid / KaTeX」；构建时把 Mermaid / KaTeX 运行时与 woff2 字体拷到 `dist/export-assets`，导出时主进程读取并内联（KaTeX CSS 字体转 data URI），断网打开 HTML 也能渲染图表与公式；资源缺失（未 build）时回退 CDN。导出文件约 4–5MB
 - **ePub 导出**：离屏渲染页完成 Markdown / Mermaid / KaTeX 渲染后，把正文序列化为 XHTML，打包为 EPUB 3（mimetype / container / content.opf / nav / content.xhtml / style.css）；导航按 1–3 级标题自动生成，KaTeX 样式随离线资源注入；主菜单与工具栏 ⋯ 菜单新增「导出 ePub」
 - **原生 HTML 安全渲染（块级）**：Markdown 中独立成块的 `<details>` / `<div>` / `<table>` 等 HTML 由白名单 sanitizer 渲染——剔除 script/iframe/svg/事件处理器/style/class/id，链接与图片走协议白名单；源码在 Markdown 中原样保留，可在源码模式编辑。行内 HTML 标签对按文本保留（逐段渲染会破坏嵌套，属已记录取舍）。HTML / Word / 长图 / ePub 导出同样清洗后渲染；LaTeX 仍按纯文本/图片转换
+- **长图拼接内容重复（含保存内容翻倍）**：块级 HTML 的 remark 转换把 html 节点替换为无 `position` 的自定义节点，front matter 的原文切片依赖「下一个兄弟的 position」（缺失时回退到文末），导致文档起始的 HTML 块紧跟 front matter 时整篇正文被吞进 front matter value——保存 / 导出 / 长图内容成倍重复（×2/×4 随编辑同步周期放大）。现 html_block 与 toc 转换均保留原 position；长图截图分段在主进程 `setContentSize` 后按目标偏移重新滚动，防止视口调整重置滚动位置；导出 E2E 的接缝断言改为 ±200px 带内必有墨迹（原 ±2 行窄带在均匀稀疏内容下会落在段间空隙误报）
 - **Windows 安装向导自选目录即时显示 `\TMD`**：新增 `build/installer.nsh`（经 `nsis.include` 引入，同时把 `nsis.allowToChangeInstallationDirectory` 置 false 关闭模板内置页），用 nsDialogs 自绘目录页替换 MUI 内置页——点「浏览」选定文件夹后路径框立即回写 `<所选目录>\TMD` 并刷新磁盘空间信息，手工输入路径离开页面时做同样兜底修正；布局对齐内置页（目标文件夹分组框 + 所需/可用空间），文案复用 NSIS/MUI 预置语言字符串随向导语言自动切换，升级安装（`--updated`）仍按原行为跳过该页
 
 ### 修复
