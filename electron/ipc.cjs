@@ -16,6 +16,7 @@ const channels = {
   saveFile: 'tmd:save-file',
   saveFileAs: 'tmd:save-file-as',
   exportAs: 'tmd:export-as',
+  exportAssets: 'tmd:export-assets',
   print: 'tmd:print',
   setDirty: 'tmd:set-dirty',
   menu: 'tmd:menu',

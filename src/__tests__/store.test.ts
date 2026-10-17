@@ -23,6 +23,8 @@ import {
   setSpellcheckEnabled,
   getPdfOptions,
   setPdfOptions,
+  getHtmlOffline,
+  setHtmlOffline,
 } from '../store'
 
 /** 简单内存版 localStorage（每个用例重置） */
@@ -187,5 +189,13 @@ describe('store', () => {
     })
     localStorage.setItem('tmd:pdf-options', '{broken')
     expect(getPdfOptions().pageSize).toBe('A4')
+  })
+
+  it('离线 HTML 开关：默认关闭、可持久化', () => {
+    expect(getHtmlOffline()).toBe(false)
+    setHtmlOffline(true)
+    expect(getHtmlOffline()).toBe(true)
+    setHtmlOffline(false)
+    expect(getHtmlOffline()).toBe(false)
   })
 })

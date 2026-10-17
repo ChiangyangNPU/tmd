@@ -36,6 +36,14 @@ export interface TextFileData extends TextFileMeta {
   content: string
 }
 
+/** 离线 HTML 导出资源（主进程从 dist/export-assets 读取并内联字体） */
+export interface ExportAssets {
+  mermaidJs: string
+  katexJs: string
+  katexAutoRenderJs: string
+  katexCss: string
+}
+
 export interface NativeFileAPI {
   isNative: true
   openFile(): Promise<TextFileData | null>
@@ -55,6 +63,8 @@ export interface NativeFileAPI {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
   }): Promise<{ path: string; name: string } | null>
+  /** 离线 HTML 导出资源；资源缺失返回 null（调用方回退 CDN） */
+  getExportAssets(): Promise<ExportAssets | null>
   print(name?: string, options?: PdfOptions): Promise<boolean>
   /** 向主进程同步未保存状态（用于关闭确认） */
   setDirty(dirty: boolean): void
@@ -340,6 +350,7 @@ export interface IpcChannels {
   saveFile: string
   saveFileAs: string
   exportAs: string
+  exportAssets: string
   print: string
   setDirty: string
   menu: string

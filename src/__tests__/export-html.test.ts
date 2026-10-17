@@ -76,6 +76,20 @@ describe('buildExportHtml', () => {
     expect(html).toContain("securityLevel: 'strict'")
     expect(html).toContain('katex@0.16.11/dist/katex.min.js')
   })
+
+  it('离线资源：内联脚本/样式且不引用 CDN', () => {
+    const html = buildExportHtml(md, '笔记.md', LIGHT_VARS, false, {
+      mermaidJs: 'MERMAID_JS;',
+      katexJs: 'KATEX_JS;',
+      katexAutoRenderJs: 'AUTO_RENDER_JS;',
+      katexCss: 'KATEX_CSS',
+    })
+    expect(html).toContain('MERMAID_JS;')
+    expect(html).toContain('KATEX_JS;')
+    expect(html).toContain('AUTO_RENDER_JS;')
+    expect(html).toContain('KATEX_CSS')
+    expect(html).not.toContain('cdn.jsdelivr.net')
+  })
 })
 
 describe('stripFrontMatter', () => {

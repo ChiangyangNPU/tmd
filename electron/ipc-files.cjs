@@ -32,6 +32,7 @@ const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./hi
 const { tmdHome, logsDir, normalizeRendererReport } = require('./logger.cjs')
 const { decodeTextFile, encodeTextFile, normalizeTextMeta } = require('./text-file.cjs')
 const { buildPrintToPdfOptions } = require('./pdf-options.cjs')
+const { loadExportAssets } = require('./export-assets.cjs')
 const state = require('./app-state.cjs')
 
 /** @type {import('electron').FileFilter[]} */
@@ -408,6 +409,9 @@ function registerFileIpc({
     await fs.writeFile(result.filePath, content, 'utf-8')
     return { path: result.filePath, name: path.basename(result.filePath) }
   })
+
+  /** 离线 HTML 资源：读取一次后缓存；资源缺失返回 null，渲染层回退 CDN */
+  ipcMain.handle(IPC.exportAssets, async () => loadExportAssets())
 
   // 导出 PDF：printToPDF 程序化生成（跟随 @media print 样式与 @page 页边距）
   // + 保存对话框落盘。不走 webContents.print 的系统打印对话框——Electron 44

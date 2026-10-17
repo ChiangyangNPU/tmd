@@ -27,6 +27,7 @@ export const TYPOGRAPHY_KEY = 'tmd:typography'
 export const FOCUS_MODE_KEY = 'tmd:focus-mode'
 export const TYPEWRITER_MODE_KEY = 'tmd:typewriter-mode'
 export const PDF_OPTIONS_KEY = 'tmd:pdf-options'
+export const HTML_OFFLINE_KEY = 'tmd:html-offline'
 
 /** 上一次 saveDoc 是否已发出警告（true 时静默，避免 localStorage 持续写失败导致 console 刷屏） */
 let saveDocWarned = false
@@ -151,6 +152,16 @@ export function getPdfOptions(): PdfOptions {
 /** 持久化 PDF 导出选项（写入前收窄，避免旧版本/手工改坏的值流到主进程） */
 export function setPdfOptions(options: PdfOptions) {
   localStorage.setItem(PDF_OPTIONS_KEY, JSON.stringify(normalizePdfOptions(options)))
+}
+
+/** HTML 导出是否内联 Mermaid/KaTeX（离线可看；默认关闭，文件约 4–5MB） */
+export function getHtmlOffline(): boolean {
+  return localStorage.getItem(HTML_OFFLINE_KEY) === 'true'
+}
+
+/** 持久化离线 HTML 导出开关 */
+export function setHtmlOffline(enabled: boolean) {
+  localStorage.setItem(HTML_OFFLINE_KEY, enabled ? 'true' : 'false')
 }
 
 /** 自动保存开关是否开启（默认关闭） */

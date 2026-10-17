@@ -40,6 +40,8 @@ const api = {
     ipcRenderer.invoke(IPC.saveFileAs, content, defaultName, meta),
   /** 通用导出：按过滤器弹保存对话框并写入 */
   exportAs: (options) => ipcRenderer.invoke(IPC.exportAs, options),
+  /** 离线 HTML 导出资源（主进程缓存；缺失返回 null） */
+  getExportAssets: () => ipcRenderer.invoke(IPC.exportAssets),
   /** 调起系统打印（导出 PDF 走此路径） */
   print: (name, options) => ipcRenderer.invoke(IPC.print, name, options),
   /** 向主进程同步未保存状态（用于关闭确认） */

@@ -26,6 +26,8 @@ import {
   getTypewriterMode,
   getPdfOptions,
   setPdfOptions,
+  getHtmlOffline,
+  setHtmlOffline,
 } from './store'
 import type { PdfOptions } from './pdf-options'
 import {
@@ -704,6 +706,14 @@ export function wireSettings() {
     pdfOutline,
   ]) {
     el?.addEventListener('change', savePdfOptions)
+  }
+  // 离线 HTML：开启后导出时内联 Mermaid/KaTeX 资源（约 4–5MB）
+  const htmlOffline = document.getElementById('html-offline') as HTMLInputElement | null
+  if (htmlOffline) {
+    htmlOffline.checked = getHtmlOffline()
+    htmlOffline.addEventListener('change', () => {
+      setHtmlOffline(htmlOffline.checked)
+    })
   }
   // 源码模式行号开关：持久化 + body class 即时生效（源码模式开着时切换立即变化）
   document.getElementById('set-linenos')?.addEventListener('change', (e) => {

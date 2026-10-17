@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "dev:electron": "concurrently -k -s first \"vite\" \"wait-on tcp:127.0.0.1:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/copy-export-assets.mjs",
     "test": "vitest run",
     "test:desktop": "node scripts/desktop-app-check.mjs && node scripts/desktop-export-check.mjs",
     "bench": "node scripts/desktop-bench.mjs",

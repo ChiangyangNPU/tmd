@@ -11,7 +11,8 @@
  * @author chiangyang
  */
 import { native } from './native'
-import { getPdfOptions } from './store'
+import type { ExportAssets } from './native'
+import { getPdfOptions, getHtmlOffline } from './store'
 import { getLocale, t } from './i18n'
 import { showToast } from './files'
 import {
@@ -53,8 +54,27 @@ export function buildExportHtml(
   currentName: string,
   vars: Record<string, string>,
   isDark: boolean,
+  assets?: ExportAssets,
 ): string {
   const mermaidTheme = isDark ? 'dark' : 'default'
+  const mathDelimiters =
+    "{ delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}] }"
+  const katexHead = assets
+    ? `<style>${assets.katexCss}</style>`
+    : `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">`
+  // 离线模式：把 Mermaid/KaTeX 运行时内联，单文件断网可渲染；
+  // 资源缺失（开发环境未 build）时回退 CDN
+  const scripts = assets
+    ? `<script>${assets.mermaidJs}</script>
+<script>mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: '${mermaidTheme}' });</script>
+<script>${assets.katexJs}</script>
+<script>${assets.katexAutoRenderJs}</script>
+<script>renderMathInElement(document.body, ${mathDelimiters});</script>`
+    : `<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: '${mermaidTheme}' });</script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, ${mathDelimiters});"></script>`
   return `<!doctype html>
 <html lang="${getLocale()}">
 <head>
@@ -62,26 +82,27 @@ export function buildExportHtml(
 <title>${escapeHtml(stripMdExt(currentName))}</title>
 <style>${buildThemeVarsBlock(vars)}</style>
 <style>${EXPORT_CSS}</style>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-<script>mermaid.initialize({ startOnLoad: true, securityLevel: 'strict', theme: '${mermaidTheme}' });</script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
-  onload="renderMathInElement(document.body, { delimiters: [{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}] });"></script>
+${katexHead}
 </head>
 <body>
 ${renderMarkdown(markdown)}
+${scripts}
 </body>
 </html>`
 }
 
-/** 导出 HTML：按当前主题渲染为内嵌样式、引 Mermaid/KaTeX CDN 的独立页面（Electron 存盘 / 浏览器下载） */
+/** 导出 HTML：按当前主题渲染为内嵌样式；开启离线模式时内联 Mermaid/KaTeX 资源 */
 export async function exportHtml(markdown: string, currentName: string) {
+  const assets = native && getHtmlOffline() ? await native.getExportAssets() : null
+  if (native && getHtmlOffline() && !assets) {
+    console.warn('[tmd] 离线 HTML 资源缺失，回退 CDN')
+  }
   const html = buildExportHtml(
     markdown,
     currentName,
     collectThemeVars(),
     document.documentElement.classList.contains('dark'),
+    assets ?? undefined,
   )
   await saveOrDownload(
     html,
