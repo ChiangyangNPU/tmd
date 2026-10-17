@@ -217,7 +217,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
 │  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
-│  └─ __tests__/                 vitest pure-function unit tests (54 files / 687 cases)
+│  └─ __tests__/                 vitest pure-function unit tests (55 files / 688 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap

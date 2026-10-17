@@ -13,10 +13,19 @@
 
 - **另存为默认名硬编码**：此前任何标签「另存为」的默认名都是 `未命名.md`，打开 txt 后另存为会丢失原扩展名；现 `saveFileAs` IPC 增加可选 `defaultName` 参数，渲染层传当前标签名，txt 标签另存为默认保留 `.txt` 扩展名
 - **安装路径含 `TMD` 子串时文件平铺**：electron-builder 模板内置目录页的追加逻辑用 StrContains 在整条路径里查找产品名，`D:\MyTMDTools` 这类路径被误判为已经带上产品子目录、不再追加，文件直接平铺进所选目录；自绘页的 `tmdFixInstallDir` 只比较路径最后一段且幂等，误判随之消除
+- **文件式主题目录路径缺少 `.tmd` 段**：`themes-list` / `themes-read` / `themes-open-dir` 此前计算为 `<tmdRoot>/themes`（未设 `TMD_HOME_DIR` 时即用户主目录根的 `~/themes`），与文档、`themes.cjs` 的 `themesDir()`（`~/.tmd/themes`）及 logs / history / crash-dumps 的 `<tmdRoot>/.tmd/...` 布局不一致——设置面板「打开主题目录」会在用户主目录根部创建文件夹，按文档把 CSS 放进 `~/.tmd/themes` 时主题列表为空。现三处统一经 `themesDir(tmdRoot)` 计算（2026-09-30 9289f1d 引入，v0.1.1 起存在）；新增 `src/__tests__/ipc-files.test.ts` 锁住路径与示例主题落盘位置
+- **大文件读入导致主进程 OOM**：`openFile` / `readFile` 增加 50MB 上限（`fs.stat` 预检，超限抛 `file too large: X MB (limit 50 MB)`，渲染层沿用「打开失败」toast）；`snapshotBeforeWrite` 同步复用该读取（超限跳过历史快照但仍允许保存），堵住经 `saveFile` 传入任意大文件路径绕过上限的次生漏洞
+- **恢复副本写入配额溢出打断编辑**：崩溃恢复副本的 localStorage 写入（`saveDoc`）加 try/catch 静默降级——副本丢失优于崩溃（调用方在编辑器 onChange 节流链路上，上抛会打断输入）；持续失败只 warn 一次（成功写入后重置警告位），避免配额满时 console 刷屏
+- **自动保存停止后 timer 未复位**：`stopAutosave` 清定时器后置 `timer = undefined`，避免调用方误判状态
+- **浏览器模式下载可能被掐断**：`files.ts` 下载链的 `revokeObjectURL` 由同步调用推迟到下一宏任务（与 `export.ts` 同一口径），避免部分浏览器刚开始的下载被中断
 
 ### 重构（无功能变化）
 
 - **主进程 main.cjs 按域拆分**：1748 行 → 539 行，拆出 7 个领域模块，主文件只留窗口 / 菜单生命周期、文件关联与装配。新模块全部沿用既有「工厂 + 依赖注入」模式（零顶层 `require('electron')`，与 exporter.cjs / menu.cjs 同构）、可脱离 Electron 单测：`app-state.cjs`（跨模块共享状态 store：mainWindow / rendererDirty / autosaveEnabled / menuLabels / customShortcuts / sortLocale / shellThemeSource 的 getter/setter）、`updater.cjs`（自动更新双源 + macOS dmg 自行下载安装 + 4 条 IPC + 启动 5s 自动检查）、`shell-state.cjs`（主题来源与窗口几何持久化）、`recent.cjs`（最近文件镜像 + 系统最近文档注册 + 4 条 IPC）、`ipc-files.cjs`（文件 / 目录 / 搜索 / 双链 / 主题 / 日志 / 历史 / 导出 / 打印，22 条通道）、`ipc-app.cjs`（状态同步 / 窗口控制 / 图片落盘 / 链接跳转，12 条通道）、`picgo.cjs`（PicGo 实例懒加载 + 配置读写，3 条通道）。模块间回调（buildMenu / flushPendingOpenPaths / sendToRenderer 等）经装配注入，模块不反向 require main。**46 条 IPC 通道与拆分前逐一比对一致**（31 handle + 14 on + 1 once），`npx tsc` / `npm test` / `npm run lint` 全过，桌面 E2E 主链路 49 断言 + 导出 36 断言全过，`npm run dist:dir` 产物模块齐全。顺带收敛少量 IPC 边界行为：`watchFiles` 过滤非字符串入参、`saveFileAs` 非字符串内容由返回 null 改为抛错（渲染层 catch 后 toast，等价）、`saveFile` 校验错误消息拆分、`dialogParent` 去掉不可达的可见窗口兜底——渲染层现有调用点均不受影响。新增 `app-state.cjs` 单测 7 例（加载默认值 / 进程内单例契约 / 布尔入参 `!!` 收窄 / 取值即取引用约定 / SHELL_BG 常量）
+
+### 安全
+
+- **主进程敏感 IPC 增加主窗口 sender 校验**：`app-state.cjs` 新增 `assertMainWindow(event)`——`event.sender` 必须为主窗口 webContents（且窗口未销毁），否则抛 `forbidden`；接入 14 条高危通道：写盘 / 文件管理 / 导出（`saveFile` / `saveFileAs` / `createFile` / `createDir` / `renamePath` / `revealInFolder` / `exportAs`）、应用级（`saveImage` / `openExternal` / `openLocalFile`）、图床（`uploadImage` / `savePicGoConfig`）、更新（`updateDownload` / `updateInstall`），并有专项验证覆盖「主窗口放行 / 外来 sender 拒绝」两个方向。防护边界是**非主窗口 webContents**（隐藏离屏导出窗口、未来新增窗口）无法从渲染层发起敏感操作；主窗口内部的 XSS 仍会通过该口径（sender 即主窗口），故入参白名单（`saveImage` 裸文件名、`fsops` 路径清洗、50MB 读入上限）仍是主窗口侧的第一道防线。只读通道（`readFile` / `readDir` / 搜索 / 双链 / 历史与主题读取等）与系统对话框类（`print` 的另存为、打开日志 / 主题目录）保持原样
 
 ## [0.1.3] - 2026-10-14
 

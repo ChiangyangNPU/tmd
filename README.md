@@ -217,7 +217,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ templates/                 index.html 浮层 / 面板 HTML 分块（?raw 内联）
 │  ├─ styles/                    样式分块（01 设计令牌 → 15 打印，编号即级联顺序）
 │  ├─ style.css                  样式入口：仅按原级联顺序 @import styles/*.css
-│  └─ __tests__/                 vitest 纯函数单元测试（54 个测试文件 / 687 用例）
+│  └─ __tests__/                 vitest 纯函数单元测试（55 个测试文件 / 688 用例）
 │
 ├─ docs/                         项目文档
 │  ├─ 需求说明.md                功能清单与路线图

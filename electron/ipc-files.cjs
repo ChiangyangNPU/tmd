@@ -20,7 +20,12 @@ const {
   SEARCH_MAX_MATCHES,
 } = require('./search.cjs')
 const { scanWikiLinks } = require('./wikilinks.cjs')
-const { listThemeFiles, readThemeFile, ensureThemesDirWithSample } = require('./themes.cjs')
+const {
+  themesDir,
+  listThemeFiles,
+  readThemeFile,
+  ensureThemesDirWithSample,
+} = require('./themes.cjs')
 const { sanitizeFileName, childPath, ensureMarkdownExt } = require('./fsops.cjs')
 const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./history.cjs')
 const { tmdHome, logsDir, normalizeRendererReport } = require('./logger.cjs')
@@ -193,12 +198,15 @@ function registerFileIpc({
   })
 
   // ---------- 文件式主题（~/.tmd/themes/*.css） ----------
-  // 主题目录基于 tmdRoot（TMD_HOME_DIR 可重定位）而非硬编码真实主目录：
-  // history/logs/crash-dumps 均随 tmdRoot 走，主题不跟随会破坏 E2E 隔离与便携版约定
+  // 主题目录统一经 themesDir(tmdRoot) 计算：默认 ~/.tmd/themes，随 TMD_HOME_DIR
+  // 整体重定位时必须仍落在 <tmdRoot>/.tmd/ 下（与 logs/history/crash-dumps 同级）。
+  // 不要手写 path.join(tmdRoot, 'themes')——曾因此漏掉 .tmd 段，主题被读写到
+  // 用户主目录根的 ~/themes（2026-09-30 引入，2026-10-17 修复，单测见
+  // src/__tests__/ipc-files.test.ts）
 
   /** 列出主题目录中的全部主题文件 + 目录绝对路径（目录不存在返回空列表） */
   ipcMain.handle(IPC.themesList, async () => {
-    const dir = path.join(tmdRoot, 'themes')
+    const dir = themesDir(tmdRoot)
     const themes = await listThemeFiles(dir, state.getSortLocale() || app.getLocale())
     return { dir, themes }
   })
@@ -206,13 +214,13 @@ function registerFileIpc({
   /** 读取单个主题文件内容（裸文件名经主进程 basename 校验，失败返回 null） */
   /** @param {unknown} _event @param {unknown} name */
   ipcMain.handle(IPC.themesRead, async (_event, name) => {
-    const dir = path.join(tmdRoot, 'themes')
+    const dir = themesDir(tmdRoot)
     return readThemeFile(dir, name)
   })
 
   /** 在系统文件管理器中打开主题目录：不存在则创建，并在空目录写入示例主题 */
   ipcMain.handle(IPC.themesOpenDir, async () => {
-    const dir = path.join(tmdRoot, 'themes')
+    const dir = themesDir(tmdRoot)
     try {
       await ensureThemesDirWithSample(dir)
       const error = await shell.openPath(dir)

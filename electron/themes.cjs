@@ -5,7 +5,8 @@
  * 扫描/校验这部分纯 Node 逻辑可被单测直接 require 验证（与 search.cjs 同构）。
  *
  * 约定：
- * - 目录：~/.tmd/themes（用户主目录，跨安装/升级保留；主题是用户资产，
+ * - 目录：<home>/.tmd/themes（主进程传入的 home 即 tmdRoot：默认用户主目录，
+ *   设了 TMD_HOME_DIR 时整体重定位；跨安装/升级保留；主题是用户资产，
  *   不同于随卸载清理的 userData 配置）
  * - 一个 *.css 文件 = 一个主题，文件名（去 .css 扩展名）即主题显示名，
  *   支持中文等任意 Unicode 文件名
@@ -23,8 +24,10 @@ const THEME_EXT_RE = /\.css$/i
 const THEME_MAX_SIZE = 1024 * 1024
 
 /**
- * 主题目录绝对路径：~/.tmd/themes。
- * @param {string} home - app.getPath('home')（用户主目录）
+ * 主题目录绝对路径：<home>/.tmd/themes。
+ * 注意始终保留 .tmd 段——调用方传 tmdRoot（可能经 TMD_HOME_DIR 重定位），
+ * 不要手写 path.join(tmdRoot, 'themes')（会漏掉 .tmd 落到 home 根目录）。
+ * @param {string} home - tmdRoot（默认用户主目录；TMD_HOME_DIR 可重定位）
  * @returns {string}
  */
 function themesDir(home) {
