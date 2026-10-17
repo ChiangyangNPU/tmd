@@ -67,6 +67,7 @@
     "empty": "尚無紀錄",
     "emptyFolder": "尚無開啟的資料夾",
     "openFailed": "檔案已被移動或刪除，無法開啟",
+    "tooLarge": "檔案過大（{size} MB，上限 {limit} MB），無法開啟",
     "saveFailed": "儲存失敗，請檢查磁碟空間或檔案權限",
     "folderOpenFailed": "資料夾已被移動或刪除，無法開啟",
     "imageDropInSource": "原始碼模式下無法插入圖片，請切換到所見即所得",

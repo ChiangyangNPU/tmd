@@ -56,7 +56,7 @@ vi.mock('../filetree', () => ({
   renderFolders: vi.fn(),
 }))
 
-import { saveDocument } from '../files'
+import { parseTooLargeError, saveDocument } from '../files'
 import { native } from '../native'
 import { currentMarkdown } from '../editor-core'
 import { activeTab, hasDirty, isTabOpen, syncDirtyWith } from '../tabs'
@@ -203,5 +203,23 @@ describe('saveDocument 捕获与队列语义', () => {
     expect(mocked.save).not.toHaveBeenCalled()
     expect(tab.markdown).toBe('OLD')
     expect(mocked.syncDirtyWith).not.toHaveBeenCalled()
+  })
+})
+
+describe('parseTooLargeError', () => {
+  it('从 Electron 包装的超限错误中提取大小与上限，其他错误返回 null', () => {
+    expect(
+      parseTooLargeError(
+        new Error(
+          "Error invoking remote method 'tmd:read-file': Error: file too large: 60.0 MB (limit 50 MB)",
+        ),
+      ),
+    ).toEqual({ size: '60.0', limit: '50' })
+    expect(parseTooLargeError('file too large: 51.2 MB (limit 50 MB)')).toEqual({
+      size: '51.2',
+      limit: '50',
+    })
+    expect(parseTooLargeError(new Error('file too large'))).toBeNull()
+    expect(parseTooLargeError(new Error('other'))).toBeNull()
   })
 })

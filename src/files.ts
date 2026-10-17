@@ -111,6 +111,18 @@ export function initFileWatcherBridge() {
 }
 
 /**
+ * 识别主进程 readFileCapped 的超限错误并提取大小信息。
+ * Electron 会把主进程错误包成
+ * `Error invoking remote method '…': Error: file too large: 60.0 MB (limit 50 MB)`，
+ * 故用非锚定匹配；其他错误返回 null（调用方回落通用「打开失败」）。
+ */
+export function parseTooLargeError(err: unknown): { size: string; limit: string } | null {
+  const message = err instanceof Error ? err.message : String(err)
+  const match = /file too large: ([\d.]+) MB \(limit (\d+) MB\)/.exec(message)
+  return match ? { size: match[1], limit: match[2] } : null
+}
+
+/**
  * 打开文档：
  * - Electron：原生文件选择对话框（自动去重已打开的同路径文件）
  * - 浏览器：降级为 <input type="file">
@@ -121,9 +133,10 @@ export async function openDocument() {
       const result = await native.openFile()
       if (result) await openFromData(result)
     } catch (err) {
-      // 读取失败（权限 / 文件已删除）：提示而不是抛未捕获异常
+      // 读取失败（权限 / 文件已删除 / 超过 50MB）：提示而不是抛未捕获异常
       console.error('[tmd] 打开文件失败', err)
-      showToast(t('files.openFailed'))
+      const tooLarge = parseTooLargeError(err)
+      showToast(tooLarge ? t('files.tooLarge', tooLarge) : t('files.openFailed'))
     }
     return
   }
@@ -322,14 +335,15 @@ export async function reloadFolderTrees() {
 }
 
 /** 按绝对路径打开文件（文件树 / 最近列表 / 系统最近菜单点击时）；
- *  文件已被移动或删除时提示而不是抛未捕获异常（最近条目天然可能失效） */
+ *  文件已被移动或删除、或超过读取上限时提示而不是抛未捕获异常（最近条目天然可能失效） */
 export async function openPath(path: string) {
   if (!native) return
   try {
     const result = await native.readFile(path)
     await openFromData(result)
-  } catch {
-    showToast(t('files.openFailed'))
+  } catch (err) {
+    const tooLarge = parseTooLargeError(err)
+    showToast(tooLarge ? t('files.tooLarge', tooLarge) : t('files.openFailed'))
   }
 }
 

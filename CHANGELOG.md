@@ -14,7 +14,7 @@
 - **另存为默认名硬编码**：此前任何标签「另存为」的默认名都是 `未命名.md`，打开 txt 后另存为会丢失原扩展名；现 `saveFileAs` IPC 增加可选 `defaultName` 参数，渲染层传当前标签名，txt 标签另存为默认保留 `.txt` 扩展名
 - **安装路径含 `TMD` 子串时文件平铺**：electron-builder 模板内置目录页的追加逻辑用 StrContains 在整条路径里查找产品名，`D:\MyTMDTools` 这类路径被误判为已经带上产品子目录、不再追加，文件直接平铺进所选目录；自绘页的 `tmdFixInstallDir` 只比较路径最后一段且幂等，误判随之消除
 - **文件式主题目录路径缺少 `.tmd` 段**：`themes-list` / `themes-read` / `themes-open-dir` 此前计算为 `<tmdRoot>/themes`（未设 `TMD_HOME_DIR` 时即用户主目录根的 `~/themes`），与文档、`themes.cjs` 的 `themesDir()`（`~/.tmd/themes`）及 logs / history / crash-dumps 的 `<tmdRoot>/.tmd/...` 布局不一致——设置面板「打开主题目录」会在用户主目录根部创建文件夹，按文档把 CSS 放进 `~/.tmd/themes` 时主题列表为空。现三处统一经 `themesDir(tmdRoot)` 计算（2026-09-30 9289f1d 引入，v0.1.0–v0.1.3 存在）；主题 IPC 首次访问时会把旧目录 `<tmdRoot>/themes` 下的 CSS 一次性补拷到新目录（同名文件不覆盖、旧文件保留），完成后写入 `<tmdRoot>/.tmd/.themes-migrated` 标记，之后不再扫描（删除标记可手动重跑），避免用户删除/改名主题后又被旧文件复活；新增 `src/__tests__/ipc-files.test.ts` 锁住路径、示例主题落盘位置与迁移行为
-- **大文件读入导致主进程 OOM**：`openFile` / `readFile` 增加 50MB 上限（`fs.stat` 预检，超限抛 `file too large: X MB (limit 50 MB)`，渲染层沿用「打开失败」toast）；同时拒绝目录 / FIFO / 字符设备等非普通文件（它们的 `stat.size` 可能为 0，只查大小会让 `fs.readFile` 持续读入或阻塞）；`snapshotBeforeWrite` 同步复用该读取（超限跳过历史快照但仍允许保存），堵住经 `saveFile` 传入任意大文件路径绕过上限的次生漏洞；`historyRead` 读取快照前同样做普通文件 + 50MB 预检，堵住旧版本超大快照的预览路径
+- **大文件读入导致主进程 OOM**：`openFile` / `readFile` 增加 50MB 上限（`fs.stat` 预检，超限抛 `file too large: X MB (limit 50 MB)`）；同时拒绝目录 / FIFO / 字符设备等非普通文件（它们的 `stat.size` 可能为 0，只查大小会让 `fs.readFile` 持续读入或阻塞）；`snapshotBeforeWrite` 同步复用该读取（超限跳过历史快照但仍允许保存），堵住经 `saveFile` 传入任意大文件路径绕过上限的次生漏洞；`historyRead` 读取快照前同样做普通文件 + 50MB 预检，堵住旧版本超大快照的预览路径；渲染层识别超限错误后提示具体大小与上限，不再只显示通用「打开失败」
 - **恢复副本写入配额溢出打断编辑**：崩溃恢复副本的 localStorage 写入（`saveDoc`）加 try/catch 静默降级——副本丢失优于崩溃（调用方在编辑器 onChange 节流链路上，上抛会打断输入）；持续失败只 warn 一次（成功写入后重置警告位），避免配额满时 console 刷屏
 - **自动保存停止后 timer 未复位**：`stopAutosave` 清定时器后置 `timer = undefined`，避免调用方误判状态
 - **浏览器模式下载可能被掐断**：`files.ts` 下载链的 `revokeObjectURL` 由同步调用推迟到下一宏任务（与 `export.ts` 同一口径），避免部分浏览器刚开始的下载被中断
@@ -25,7 +25,7 @@
 
 ### 安全
 
-- **主进程敏感 IPC 增加主窗口 sender 校验**：`app-state.cjs` 新增 `assertMainWindow(event)`——`event.sender` 必须为主窗口 webContents（且窗口未销毁），否则抛 `forbidden`；接入 14 条高危通道：写盘 / 文件管理 / 导出（`saveFile` / `saveFileAs` / `createFile` / `createDir` / `renamePath` / `revealInFolder` / `exportAs`）、应用级（`saveImage` / `openExternal` / `openLocalFile`）、图床（`uploadImage` / `savePicGoConfig`）、更新（`updateDownload` / `updateInstall`）；`app-state.test.ts` 直测 `assertMainWindow` 的放行 / 拒绝两个方向，`ipc-files.test.ts` 验证 `saveFile` 的实际接线。防护边界是**非主窗口 webContents**（隐藏离屏导出窗口、未来新增窗口）无法从渲染层发起敏感操作；主窗口内部的 XSS 仍会通过该口径（sender 即主窗口），故入参白名单（`saveImage` 裸文件名、`fsops` 路径清洗、50MB 读入上限）仍是主窗口侧的第一道防线。只读通道（`readFile` / `readDir` / 搜索 / 双链 / 历史与主题读取等）与系统对话框类（`print` 的另存为、打开日志 / 主题目录）保持原样
+- **主进程敏感 IPC 增加主窗口 sender 校验**：`app-state.cjs` 新增 `assertMainWindow(event)`——`event.sender` 必须为主窗口 webContents（且窗口未销毁），否则抛 `forbidden`；接入 14 条高危通道：写盘 / 文件管理 / 导出（`saveFile` / `saveFileAs` / `createFile` / `createDir` / `renamePath` / `revealInFolder` / `exportAs`）、应用级（`saveImage` / `openExternal` / `openLocalFile`）、图床（`uploadImage` / `savePicGoConfig`）、更新（`updateDownload` / `updateInstall`）；`app-state.test.ts` 直测 `assertMainWindow` 的放行 / 拒绝两个方向，`ipc-files.test.ts` 验证 `saveFile` 的实际接线，`ipc-sender-guard.test.ts` 表驱动覆盖全部 14 条通道的外来 sender 拒绝。防护边界是**非主窗口 webContents**（隐藏离屏导出窗口、未来新增窗口）无法从渲染层发起敏感操作；主窗口内部的 XSS 仍会通过该口径（sender 即主窗口），故入参白名单（`saveImage` 裸文件名、`fsops` 路径清洗、50MB 读入上限）仍是主窗口侧的第一道防线。只读通道（`readFile` / `readDir` / 搜索 / 双链 / 历史与主题读取等）与系统对话框类（`print` 的另存为、打开日志 / 主题目录）保持原样
 
 ## [0.1.3] - 2026-10-14
 
