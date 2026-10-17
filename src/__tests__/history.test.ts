@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url)
 const historyMod = require('../../electron/history.cjs') as {
   HISTORY_MAX_PER_FILE: number
   HISTORY_MAX_TOTAL_BYTES: number
+  HISTORY_MAX_SNAPSHOT_BYTES: number
   historyDir: (home: string) => string
   snapshotKey: (filePath: string) => string
   snapshotDir: (root: string, filePath: string) => string
@@ -36,7 +37,7 @@ const historyMod = require('../../electron/history.cjs') as {
     root: string,
     filePath: string,
     id: string,
-    options?: { fsImpl?: typeof import('node:fs/promises') },
+    options?: { fsImpl?: typeof import('node:fs/promises'); maxSnapshotBytes?: number },
   ) => Promise<{ id: string; ts: string; content: string } | null>
   pruneHistory: (
     root: string,
@@ -307,6 +308,20 @@ describe('listSnapshots / readSnapshot', () => {
     const snap = await historyMod.readSnapshot(root, FILE, '20260917-100000')
     expect(snap?.content).toBe('被覆盖的旧内容')
     expect(snap?.ts).toBe(new Date(2026, 8, 17, 10, 0, 0).toISOString())
+  })
+
+  it('超过读取上限的快照返回 null（旧版本可能留下超大快照）', async () => {
+    await historyMod.writeSnapshot(root, {
+      path: FILE,
+      name: 's.md',
+      content: 'v1',
+      now: new Date(2026, 8, 17, 10, 0, 0),
+    })
+    expect(
+      await historyMod.readSnapshot(root, FILE, '20260917-100000', { maxSnapshotBytes: 1 }),
+    ).toBeNull()
+    // 默认上限下仍可正常读取
+    expect((await historyMod.readSnapshot(root, FILE, '20260917-100000'))?.content).toBe('v1')
   })
 
   it('读取非法 id 或不存在 id 一律返回 null（防目录穿越）', async () => {

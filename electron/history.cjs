@@ -26,6 +26,8 @@ const crypto = require('node:crypto')
 const HISTORY_MAX_PER_FILE = 50
 /** 历史目录总容量上限（字节）；超出后跨文件按时间最旧优先删除 */
 const HISTORY_MAX_TOTAL_BYTES = 200 * 1024 * 1024
+/** 单条快照读取上限（50MB）：旧版本可能留下超大快照，预览时不能整份读入主进程 */
+const HISTORY_MAX_SNAPSHOT_BYTES = 50 * 1024 * 1024
 /** 全局容量剪枝的执行频率：每 N 次快照写入跑一次（写入侧降频，见 writeSnapshot） */
 const PRUNE_EVERY_WRITES = 20
 /** 进程内写入计数（跨全部源文件累计；仅用于剪枝节流，不持久化） */
@@ -250,19 +252,25 @@ async function listSnapshots(root, filePath, options = {}) {
 }
 
 /**
- * 读取单条快照正文。id 非法或文件缺失时返回 null。
+ * 读取单条快照正文。id 非法、文件缺失、非普通文件或超过读取上限时返回 null。
  * @param {string} root
  * @param {string} filePath
  * @param {string} id
- * @param {{ fsImpl?: typeof fs }} [options]
+ * @param {{ fsImpl?: typeof fs, maxSnapshotBytes?: number }} [options]
  * @returns {Promise<{ id: string, ts: string, content: string } | null>}
  */
 async function readSnapshot(root, filePath, id, options = {}) {
   const fsImpl = options.fsImpl || fs
+  const maxBytes = options.maxSnapshotBytes ?? HISTORY_MAX_SNAPSHOT_BYTES
   if (!isValidId(id) || typeof filePath !== 'string' || !filePath) return null
   const dir = snapshotDir(root, filePath)
   try {
-    const content = await fsImpl.readFile(path.join(dir, `${id}.md`), 'utf-8')
+    const file = path.join(dir, `${id}.md`)
+    // 旧版本（50MB 读入上限之前）可能留下超大快照：先 stat 预检，
+    // 避免历史面板预览把整份内容读进主进程
+    const stat = await fsImpl.stat(file)
+    if (!stat.isFile() || stat.size > maxBytes) return null
+    const content = await fsImpl.readFile(file, 'utf-8')
     const index = await readIndex(dir, fsImpl)
     const meta = index?.snapshots.find((s) => s.id === id)
     return { id, ts: meta?.ts || '', content }
@@ -367,6 +375,7 @@ async function pruneHistory(root, options = {}) {
 module.exports = {
   HISTORY_MAX_PER_FILE,
   HISTORY_MAX_TOTAL_BYTES,
+  HISTORY_MAX_SNAPSHOT_BYTES,
   historyDir,
   snapshotKey,
   snapshotDir,

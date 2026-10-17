@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url)
 const themes = require('../../electron/themes.cjs') as {
   themesDir: (home: string) => string
   migrateLegacyThemes: (home: string) => Promise<number>
+  THEMES_MIGRATION_MARKER: string
   isThemeFileName: (name: unknown) => boolean
   safeThemeName: (name: unknown) => string | null
   themeDisplayName: (name: string) => string
@@ -79,10 +80,11 @@ describe('themesDir', () => {
 })
 
 describe('migrateLegacyThemes', () => {
-  it('把 <home>/themes 的 CSS 补拷到 <home>/.tmd/themes，不覆盖同名文件、忽略非 CSS', async () => {
+  it('补拷 CSS、不覆盖同名文件，写迁移标记且删除目标后不再复活', async () => {
     const home = path.join(tempRoot, 'legacy-home')
     const legacyDir = path.join(home, 'themes')
     const targetDir = path.join(home, '.tmd', 'themes')
+    const marker = path.join(home, '.tmd', themes.THEMES_MIGRATION_MARKER)
     await mkdir(legacyDir, { recursive: true })
     await mkdir(targetDir, { recursive: true })
     await writeFile(path.join(legacyDir, '旧主题.css'), 'legacy')
@@ -94,14 +96,21 @@ describe('migrateLegacyThemes', () => {
     expect(await readFile(path.join(targetDir, '旧主题.css'), 'utf-8')).toBe('legacy')
     expect(await readFile(path.join(targetDir, 'keep-me.css'), 'utf-8')).toBe('current')
     expect(existsSync(path.join(targetDir, 'note.txt'))).toBe(false)
-    // 幂等：旧目录仍在，但目标已有同名文件，第二次不再复制
+    expect(existsSync(marker)).toBe(true)
+    // 幂等：旧目录仍在，但已有标记，第二次不再复制
     expect(await themes.migrateLegacyThemes(home)).toBe(0)
+
+    // 用户删除新目录中的主题后，旧目录文件仍在也不能再被补拷回来
+    await rm(path.join(targetDir, '旧主题.css'))
+    expect(await themes.migrateLegacyThemes(home)).toBe(0)
+    expect(existsSync(path.join(targetDir, '旧主题.css'))).toBe(false)
   })
 
-  it('旧目录不存在时不创建新目录', async () => {
+  it('旧目录不存在时不创建新目录，也不写迁移标记', async () => {
     const home = path.join(tempRoot, 'no-legacy')
     expect(await themes.migrateLegacyThemes(home)).toBe(0)
     expect(existsSync(path.join(home, '.tmd', 'themes'))).toBe(false)
+    expect(existsSync(path.join(home, '.tmd', themes.THEMES_MIGRATION_MARKER))).toBe(false)
   })
 })
 

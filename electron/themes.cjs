@@ -23,6 +23,8 @@ const { constants: fsConstants } = require('node:fs')
 const THEME_EXT_RE = /\.css$/i
 /** 单个主题文件大小上限（1MB，远超正常 CSS 体量，仅为兜底） */
 const THEME_MAX_SIZE = 1024 * 1024
+/** 迁移完成标记（`.tmd/.themes-migrated`）：存在即不再扫描旧目录，避免用户删除主题后被旧文件复活 */
+const THEMES_MIGRATION_MARKER = '.themes-migrated'
 
 /**
  * 主题目录绝对路径：<home>/.tmd/themes。
@@ -43,8 +45,10 @@ function themesDir(home) {
  * 启动时还会被判为「文件不存在」并清掉持久化选择。迁移只增不覆盖——新目录已有
  * 同名文件时保留用户当前版本，旧目录原文件也不删除（是否清理交给用户）。
  *
- * 旧目录不存在时只做一次 readdir，不创建新目录；重复调用幂等（同名文件全部跳过后
- * 返回 0）。
+ * 处理过旧目录 CSS 后写入 `<home>/.tmd/.themes-migrated` 标记，之后不再扫描：
+ * 否则用户删除/改名新目录里的主题后，下次启动会从保留的旧目录里再拷回来。
+ * 需要重新迁移时删除该标记即可。旧目录不存在或没有 CSS 时不写标记，也不创建
+ * 新目录（之后用户再放入旧主题仍可迁移）。
  * @param {string} home - tmdRoot（默认用户主目录；TMD_HOME_DIR 可重定位）
  * @param {{ fsImpl?: typeof fs }} [options]
  * @returns {Promise<number>} 实际复制的主题文件数
@@ -54,6 +58,13 @@ async function migrateLegacyThemes(home, options = {}) {
   const legacyDir = path.join(home, 'themes')
   const targetDir = themesDir(home)
   if (legacyDir === targetDir) return 0
+  const marker = path.join(home, '.tmd', THEMES_MIGRATION_MARKER)
+  try {
+    await fsImpl.access(marker)
+    return 0 // 已迁移过：不再扫描/补拷，避免复活用户已删除的主题
+  } catch {
+    /* 尚未迁移 */
+  }
   /** @type {import('node:fs').Dirent[]} */
   let entries
   try {
@@ -78,6 +89,9 @@ async function migrateLegacyThemes(home, options = {}) {
       /* 同名文件已存在或复制失败：保持现状，迁移失败不应影响主题列表 */
     }
   }
+  // 即使本次全部同名跳过也写标记：之后用户删除新目录主题时不再从旧目录补回。
+  // 标记写入失败只影响幂等性，不阻断本次迁移。
+  await fsImpl.writeFile(marker, `${new Date().toISOString()}\n`, 'utf-8').catch(() => {})
   return copied
 }
 
@@ -238,6 +252,7 @@ async function ensureThemesDirWithSample(dir) {
 module.exports = {
   themesDir,
   migrateLegacyThemes,
+  THEMES_MIGRATION_MARKER,
   isThemeFileName,
   safeThemeName,
   themeDisplayName,
