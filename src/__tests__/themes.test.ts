@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { createRequire } from 'node:module'
 import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -9,6 +10,7 @@ import path from 'node:path'
 const require = createRequire(import.meta.url)
 const themes = require('../../electron/themes.cjs') as {
   themesDir: (home: string) => string
+  migrateLegacyThemes: (home: string) => Promise<number>
   isThemeFileName: (name: unknown) => boolean
   safeThemeName: (name: unknown) => string | null
   themeDisplayName: (name: string) => string
@@ -73,6 +75,33 @@ describe('themesDir', () => {
   it('拼出 ~/.tmd/themes', () => {
     const dir = themes.themesDir(path.join(tempRoot, 'home'))
     expect(dir.split(path.sep).slice(-2)).toEqual(['.tmd', 'themes'])
+  })
+})
+
+describe('migrateLegacyThemes', () => {
+  it('把 <home>/themes 的 CSS 补拷到 <home>/.tmd/themes，不覆盖同名文件、忽略非 CSS', async () => {
+    const home = path.join(tempRoot, 'legacy-home')
+    const legacyDir = path.join(home, 'themes')
+    const targetDir = path.join(home, '.tmd', 'themes')
+    await mkdir(legacyDir, { recursive: true })
+    await mkdir(targetDir, { recursive: true })
+    await writeFile(path.join(legacyDir, '旧主题.css'), 'legacy')
+    await writeFile(path.join(legacyDir, 'keep-me.css'), 'legacy-should-not-win')
+    await writeFile(path.join(targetDir, 'keep-me.css'), 'current')
+    await writeFile(path.join(legacyDir, 'note.txt'), 'x')
+
+    expect(await themes.migrateLegacyThemes(home)).toBe(1)
+    expect(await readFile(path.join(targetDir, '旧主题.css'), 'utf-8')).toBe('legacy')
+    expect(await readFile(path.join(targetDir, 'keep-me.css'), 'utf-8')).toBe('current')
+    expect(existsSync(path.join(targetDir, 'note.txt'))).toBe(false)
+    // 幂等：旧目录仍在，但目标已有同名文件，第二次不再复制
+    expect(await themes.migrateLegacyThemes(home)).toBe(0)
+  })
+
+  it('旧目录不存在时不创建新目录', async () => {
+    const home = path.join(tempRoot, 'no-legacy')
+    expect(await themes.migrateLegacyThemes(home)).toBe(0)
+    expect(existsSync(path.join(home, '.tmd', 'themes'))).toBe(false)
   })
 })
 

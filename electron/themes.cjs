@@ -17,6 +17,7 @@
  */
 const fs = require('node:fs/promises')
 const path = require('node:path')
+const { constants: fsConstants } = require('node:fs')
 
 /** 主题文件扩展名（大小写不敏感） */
 const THEME_EXT_RE = /\.css$/i
@@ -32,6 +33,52 @@ const THEME_MAX_SIZE = 1024 * 1024
  */
 function themesDir(home) {
   return path.join(home, '.tmd', 'themes')
+}
+
+/**
+ * 把旧版本误写到 `<home>/themes` 的 CSS 主题补拷到 `<home>/.tmd/themes`。
+ *
+ * v0.1.0–v0.1.3 的三条主题 IPC 手写 path.join(tmdRoot, 'themes') 漏掉 `.tmd` 段
+ * （2026-09-30 9289f1d 引入）：升级后若不迁移，主题列表会凭空清空，已选主题在
+ * 启动时还会被判为「文件不存在」并清掉持久化选择。迁移只增不覆盖——新目录已有
+ * 同名文件时保留用户当前版本，旧目录原文件也不删除（是否清理交给用户）。
+ *
+ * 旧目录不存在时只做一次 readdir，不创建新目录；重复调用幂等（同名文件全部跳过后
+ * 返回 0）。
+ * @param {string} home - tmdRoot（默认用户主目录；TMD_HOME_DIR 可重定位）
+ * @param {{ fsImpl?: typeof fs }} [options]
+ * @returns {Promise<number>} 实际复制的主题文件数
+ */
+async function migrateLegacyThemes(home, options = {}) {
+  const fsImpl = options.fsImpl || fs
+  const legacyDir = path.join(home, 'themes')
+  const targetDir = themesDir(home)
+  if (legacyDir === targetDir) return 0
+  /** @type {import('node:fs').Dirent[]} */
+  let entries
+  try {
+    entries = await fsImpl.readdir(legacyDir, { withFileTypes: true })
+  } catch {
+    return 0 // 无旧目录（绝大多数用户）：不做任何创建
+  }
+  const files = entries.filter((entry) => entry.isFile() && isThemeFileName(entry.name))
+  if (!files.length) return 0
+  await fsImpl.mkdir(targetDir, { recursive: true })
+  let copied = 0
+  for (const entry of files) {
+    try {
+      // COPYFILE_EXCL：目标已有同名主题时抛 EEXIST，跳过而非覆盖
+      await fsImpl.copyFile(
+        path.join(legacyDir, entry.name),
+        path.join(targetDir, entry.name),
+        fsConstants.COPYFILE_EXCL,
+      )
+      copied++
+    } catch {
+      /* 同名文件已存在或复制失败：保持现状，迁移失败不应影响主题列表 */
+    }
+  }
+  return copied
 }
 
 /**
@@ -190,6 +237,7 @@ async function ensureThemesDirWithSample(dir) {
 
 module.exports = {
   themesDir,
+  migrateLegacyThemes,
   isThemeFileName,
   safeThemeName,
   themeDisplayName,

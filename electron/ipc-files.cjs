@@ -22,6 +22,7 @@ const {
 const { scanWikiLinks } = require('./wikilinks.cjs')
 const {
   themesDir,
+  migrateLegacyThemes,
   listThemeFiles,
   readThemeFile,
   ensureThemesDirWithSample,
@@ -69,6 +70,14 @@ function registerFileIpc({
   // 入口（不自动回滚）。与 themes / logs 同级、跨升级保留
   const historyRoot = historyDir(tmdRoot)
 
+  // 旧版本主题目录（<tmdRoot>/themes）迁移：主题 IPC 首次访问时执行一次。
+  // 失败也缓存结果，避免每次主题操作重复扫描；迁移失败不影响读写新目录。
+  let legacyThemesMigration = null
+  function ensureLegacyThemesMigrated() {
+    legacyThemesMigration ??= migrateLegacyThemes(tmdRoot).catch(() => 0)
+    return legacyThemesMigration
+  }
+
   /**
    * 读取文本文件并做大小上限校验（openFile/readFile 共用）。
    * 先用 fs.stat 预检而非读入后再截断：避免大文件撑爆主进程内存。
@@ -78,6 +87,9 @@ function registerFileIpc({
    */
   async function readFileCapped(filePath) {
     const stat = await fs.stat(filePath)
+    // 目录 / FIFO / 字符设备的 size 可能为 0（如 /dev/zero），只看 size 会让
+    // fs.readFile 持续读入或阻塞，反而绕过上限——先要求是普通文件
+    if (!stat.isFile()) throw new Error('not a regular file')
     if (stat.size > MAX_READ_FILE_BYTES) {
       const actualMB = (stat.size / 1024 / 1024).toFixed(1)
       const limitMB = Math.round(MAX_READ_FILE_BYTES / 1024 / 1024)
@@ -206,6 +218,7 @@ function registerFileIpc({
 
   /** 列出主题目录中的全部主题文件 + 目录绝对路径（目录不存在返回空列表） */
   ipcMain.handle(IPC.themesList, async () => {
+    await ensureLegacyThemesMigrated()
     const dir = themesDir(tmdRoot)
     const themes = await listThemeFiles(dir, state.getSortLocale() || app.getLocale())
     return { dir, themes }
@@ -214,12 +227,14 @@ function registerFileIpc({
   /** 读取单个主题文件内容（裸文件名经主进程 basename 校验，失败返回 null） */
   /** @param {unknown} _event @param {unknown} name */
   ipcMain.handle(IPC.themesRead, async (_event, name) => {
+    await ensureLegacyThemesMigrated()
     const dir = themesDir(tmdRoot)
     return readThemeFile(dir, name)
   })
 
   /** 在系统文件管理器中打开主题目录：不存在则创建，并在空目录写入示例主题 */
   ipcMain.handle(IPC.themesOpenDir, async () => {
+    await ensureLegacyThemesMigrated()
     const dir = themesDir(tmdRoot)
     try {
       await ensureThemesDirWithSample(dir)

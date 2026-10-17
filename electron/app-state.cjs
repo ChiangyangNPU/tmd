@@ -120,8 +120,10 @@ function setShellThemeSource(source) {
 
 /**
  * 校验 IPC 调用方是主窗口的 webContents（敏感 handler 的纵深防御）。
- * CSP 已限定渲染层只能加载 self，但万一未来出现 XSS 注入，攻击者也无法
- * 从注入脚本走到主进程写盘/外链等敏感通道。
+ * 防护边界是「非主窗口 webContents」（隐藏离屏导出窗口、未来新增窗口）：
+ * 它们即使拿到通道名也无法发起写盘 / 外链等敏感操作。主窗口自身的 XSS
+ * 仍会通过本校验（sender 即主窗口），主窗口侧的防线仍是 CSP、入参白名单
+ * 与 50MB 读入上限等。
  * @param {unknown} event IPC 事件对象（须为 IpcMainInvokeEvent / IpcMainEvent）
  * @throws {Error} 非主窗口调用时抛出 'forbidden'
  */

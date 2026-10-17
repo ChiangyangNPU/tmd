@@ -22,6 +22,7 @@ const state = require('../../electron/app-state.cjs') as {
   setSortLocale: (locale: string) => void
   getShellThemeSource: () => 'system' | 'dark' | 'light'
   setShellThemeSource: (source: 'system' | 'dark' | 'light') => void
+  assertMainWindow: (event: unknown) => void
 }
 const { DEFAULT_MENU_LABELS } = require('../../electron/menu.cjs') as {
   DEFAULT_MENU_LABELS: Record<string, string>
@@ -111,5 +112,28 @@ describe('app-state.cjs 共享状态 store', () => {
 
   it('窗口底色常量与渲染层 --bg 对齐（合成层兜底色）', () => {
     expect(state.SHELL_BG).toEqual({ dark: '#1e2127', light: '#ffffff' })
+  })
+
+  it('assertMainWindow：仅放行主窗口 webContents，其余 sender / 已销毁 / 无窗口均 forbidden', () => {
+    const webContents = { id: 'main-web-contents' }
+    const alive = { id: 1, isDestroyed: () => false, webContents }
+    state.setMainWindow(alive as unknown as { id: number })
+    try {
+      // 放行：sender 与主窗口 webContents 为同一对象
+      expect(() => state.assertMainWindow({ sender: webContents })).not.toThrow()
+      // 拒绝：其他 webContents、缺 sender、空事件
+      expect(() => state.assertMainWindow({ sender: { id: 'other' } })).toThrow('forbidden')
+      expect(() => state.assertMainWindow({})).toThrow('forbidden')
+      expect(() => state.assertMainWindow(null)).toThrow('forbidden')
+
+      // 拒绝：主窗口已销毁（关闭过程中残留的 invoke）
+      const destroyed = { id: 2, isDestroyed: () => true, webContents }
+      state.setMainWindow(destroyed as unknown as { id: number })
+      expect(() => state.assertMainWindow({ sender: webContents })).toThrow('forbidden')
+    } finally {
+      state.setMainWindow(null)
+    }
+    // 拒绝：无主窗口
+    expect(() => state.assertMainWindow({ sender: webContents })).toThrow('forbidden')
   })
 })
