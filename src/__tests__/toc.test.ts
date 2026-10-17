@@ -91,6 +91,24 @@ describe('convertTocBlocks', () => {
     expect(tree.children!).toEqual([{ type: 'toc' }])
   })
 
+  it('Typora 风格独立 [TOC] 段落转为目录块（仅顶层，大小写不敏感）', () => {
+    const tree: MdNode = {
+      type: 'root',
+      children: [para('[TOC]'), para('正文'), para('[toc] 附带文字')],
+    }
+    convertTocBlocks(tree)
+    expect(tree.children).toEqual([{ type: 'toc' }, para('正文'), para('[toc] 附带文字')])
+  })
+
+  it('嵌套容器里的 [TOC] 不转换（避免误吞引用/列表正文）', () => {
+    const tree: MdNode = {
+      type: 'root',
+      children: [{ type: 'blockquote', children: [para('[TOC]')] }],
+    }
+    convertTocBlocks(tree)
+    expect((tree.children![0] as MdNode).children).toEqual([para('[TOC]')])
+  })
+
   it('嵌套容器内同样生效', () => {
     const tree: MdNode = {
       type: 'root',
