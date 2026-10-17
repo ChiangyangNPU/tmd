@@ -11,6 +11,7 @@
 - **PDF 导出选项**：设置面板新增纸张（A4/A3/A5/Letter/Legal）、方向、页边距（18/10/25mm）、页眉页脚（文档名/日期）、页码与 PDF 书签开关；主进程按选项生成 `printToPDF` 参数，书签从标题层级生成。选项持久化于 `tmd:pdf-options`，主进程对 IPC 入参再做白名单收窄
 - **离线 HTML 导出**：设置面板可开启「内联 Mermaid / KaTeX」；构建时把 Mermaid / KaTeX 运行时与 woff2 字体拷到 `dist/export-assets`，导出时主进程读取并内联（KaTeX CSS 字体转 data URI），断网打开 HTML 也能渲染图表与公式；资源缺失（未 build）时回退 CDN。导出文件约 4–5MB
 - **ePub 导出**：离屏渲染页完成 Markdown / Mermaid / KaTeX 渲染后，把正文序列化为 XHTML，打包为 EPUB 3（mimetype / container / content.opf / nav / content.xhtml / style.css）；导航按 1–3 级标题自动生成，KaTeX 样式随离线资源注入；主菜单与工具栏 ⋯ 菜单新增「导出 ePub」
+- **原生 HTML 安全渲染（块级）**：Markdown 中独立成块的 `<details>` / `<div>` / `<table>` 等 HTML 由白名单 sanitizer 渲染——剔除 script/iframe/svg/事件处理器/style/class/id，链接与图片走协议白名单；源码在 Markdown 中原样保留，可在源码模式编辑。行内 HTML 标签对按文本保留（逐段渲染会破坏嵌套，属已记录取舍）。HTML / Word / 长图 / ePub 导出同样清洗后渲染；LaTeX 仍按纯文本/图片转换
 - **Windows 安装向导自选目录即时显示 `\TMD`**：新增 `build/installer.nsh`（经 `nsis.include` 引入，同时把 `nsis.allowToChangeInstallationDirectory` 置 false 关闭模板内置页），用 nsDialogs 自绘目录页替换 MUI 内置页——点「浏览」选定文件夹后路径框立即回写 `<所选目录>\TMD` 并刷新磁盘空间信息，手工输入路径离开页面时做同样兜底修正；布局对齐内置页（目标文件夹分组框 + 所需/可用空间），文案复用 NSIS/MUI 预置语言字符串随向导语言自动切换，升级安装（`--updated`）仍按原行为跳过该页
 
 ### 修复

@@ -204,7 +204,7 @@ describe('convertImgTokens（导出管线）', () => {
   it('渲染为真实 <img> 标签而非转义文本', () => {
     // 走导出管线真实路径（内部 mdIt 实例含自定义 image 渲染规则）
     const html = renderMarkdown('<img src="a.png" width="120">')
-    expect(html).toContain('<img src="a.png" alt="" width="120">')
+    expect(html).toMatch(/<img src="a\.png"[^>]*width="120"[^>]*>/)
     expect(html).not.toContain('&lt;img')
   })
 

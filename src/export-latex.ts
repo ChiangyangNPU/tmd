@@ -445,7 +445,7 @@ export function renderLatexDocument(
   title: string,
   baseDir: string | null = null,
 ): string {
-  const pipeline = createExportMarkdownIt()
+  const pipeline = createExportMarkdownIt({ html: false })
   const env = createLatexEnv(baseDir)
   installLatexRules(pipeline, env)
   // env 参数对本模块规则无作用（规则经闭包持有 env），传空对象满足 Env 契约

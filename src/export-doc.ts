@@ -22,6 +22,7 @@ import { getLocale } from './i18n'
 import { slugify } from './toc'
 import { parseImgHtml } from './image-attrs'
 import { toFileUrl } from './fs-path'
+import { sanitizeRawHtml } from './raw-html'
 
 /**
  * 解析管线工厂：与渲染目标无关的解析权威。
@@ -32,8 +33,8 @@ import { toFileUrl } from './fs-path'
  * 渲染规则（HTML 的 fence/heading/image 等）不属于本工厂，由各渲染目标
  * 在自己的实例上安装。
  */
-export function createExportMarkdownIt() {
-  const md = new MarkdownIt({ html: false, linkify: true })
+export function createExportMarkdownIt(options: { html?: boolean } = {}) {
+  const md = new MarkdownIt({ html: options.html ?? true, linkify: true })
     .use(footnote)
     .use(markPlugin)
     .use(subPlugin)
@@ -41,6 +42,19 @@ export function createExportMarkdownIt() {
   md.inline.ruler.before('text', 'tmd_math', mathRule)
   md.inline.ruler.before('text', 'tmd_wikilink', wikilinkRule)
   md.core.ruler.push('tmdConvertImgHtml', (state) => convertImgTokens(state.tokens))
+  if (options.html !== false) {
+    // 原生 HTML：块级按白名单清洗后渲染；行内标签对常被拆成多个 token，
+    // 逐段渲染会破坏嵌套，故只放行 br/hr 与完整 img，其余按文本转义
+    md.renderer.rules.html_block = (tokens, idx) => `${sanitizeRawHtml(tokens[idx].content)}\n`
+    md.renderer.rules.html_inline = (tokens, idx) => {
+      const raw = tokens[idx].content
+      const trimmed = raw.trim()
+      if (/^<br\s*\/?>$/i.test(trimmed)) return '<br>'
+      if (/^<hr\s*\/?>$/i.test(trimmed)) return '<hr>'
+      if (/^<img\b[^>]*>$/i.test(trimmed)) return sanitizeRawHtml(trimmed)
+      return md.utils.escapeHtml(raw)
+    }
+  }
   return md
 }
 

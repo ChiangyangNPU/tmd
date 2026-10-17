@@ -59,6 +59,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - Formatting shortcuts & Format menu: headings 1–6 (Ctrl/Cmd+1–6), bold/italic (Ctrl/Cmd+B/I), link (Ctrl/Cmd+K), blockquote, lists, code block — all undoable
 - **Custom shortcuts**: the settings panel lists 34 shortcuts grouped into File / Export / Format / Editor; click a key box and press a new combination to rebind. Includes conflict detection with inline error hints and one-click reset to defaults (Windows shows `Ctrl+Shift+O`, macOS follows Apple conventions showing `⇧⌘O`)
 - Syntax extensions: footnotes `[^1]`, highlight `==text==`, superscript/subscript (both `^x^`/`~x~` and `^{x}`/`_{x}` are recognized; saving normalizes to the Pandoc single-symbol style), YAML front matter (a leading `---` fence renders as a key-value property table, click to edit the YAML source, written back byte-for-byte on save, stripped automatically from HTML/PDF export). Shortcuts: highlight Ctrl/Cmd+Shift+H, superscript Ctrl/Cmd+Shift+=, subscript Ctrl/Cmd+Shift+-
+- **Safe block-level raw HTML**: standalone HTML blocks such as `<details>` / `<div>` / `<table>` render through a whitelist sanitizer — script/iframe/svg, event handlers, style/class/id are removed and links/images use protocol allowlists. Source Markdown is preserved and editable in source mode. Inline HTML tag pairs remain source text; HTML/Word/long-image/ePub exports sanitize and render the same way
 - Right-click context menu in the editor: cut/copy/paste plus selection-aware format items (including remove link)
 - Link following: Ctrl/Cmd+click opens external URLs in the browser; relative-path links resolve against the document directory and open with the system app (hold Mod while hovering for a pointer hint)
 - Triple paste-image strategy: inline data URL / save to `assets/` next to the document / upload to an image host (built-in PicGo-Core supporting SM.MS, GitHub, Qiniu, Upyun, Tencent COS, Aliyun OSS and Imgur — 7 providers; falls back to inline on failure; images >5MB ignored)
@@ -217,7 +218,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
 │  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
-│  └─ __tests__/                 vitest pure-function unit tests (56 files / 697 cases)
+│  └─ __tests__/                 vitest pure-function unit tests (60 files / 723 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap

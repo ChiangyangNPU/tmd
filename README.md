@@ -60,6 +60,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - 格式化快捷键与「格式」菜单：标题 1~6（Ctrl/Cmd+1~6）、加粗/斜体（Ctrl/Cmd+B/I）、链接（Ctrl/Cmd+K）、引用、有序/无序列表、代码块，全部可撤销
 - **快捷键自定义**：设置面板按「文件 / 导出 / 格式 / 编辑器」四组罗列 34 项快捷键，点击按键框后按下新组合键即可改键；带冲突检测与就地错误提示，支持一键恢复默认（Windows 显示 `Ctrl+Shift+O`，macOS 按苹果规范显示 `⇧⌘O`）
 - 语法扩展：脚注 `[^1]`、高亮 `==文本==`、上/下标（`^x^`/`~x~` 与 `^{x}`/`_{x}` 两种写法均识别，保存统一为 Pandoc 单符号风格）、YAML front matter（文档开头 `---` 围栏渲染为键值属性表，点击进 YAML 源码编辑，保存字节级原样写回，导出 HTML/PDF 自动剥离）；快捷键：高亮 Ctrl/Cmd+Shift+H、上标 Ctrl/Cmd+Shift+=、下标 Ctrl/Cmd+Shift+-
+- **原生 HTML（块级）安全渲染**：Markdown 中独立成块的 `<details>` / `<div>` / `<table>` 等 HTML 按白名单清洗后渲染——剔除 script/iframe/svg、事件处理器、style/class/id，链接与图片走协议白名单；源码原样保留并可在源码模式编辑。行内 HTML 标签对保持源码文本；HTML/Word/长图/ePub 导出同步清洗渲染
 - 编辑区右键上下文菜单：剪切/复制/粘贴 + 按选区显隐的格式化项（含移除链接）
 - 链接点击跳转：Ctrl/Cmd+点击外部链接跳浏览器、相对路径链接按文档目录解析后用系统应用打开（悬停按住 Mod 键提示可点）
 - 粘贴图片三策略：内联 data URL / 文档同目录 `assets/` 落盘 / 上传到图床（内建 PicGo-Core，支持 SM.MS、GitHub、七牛云、又拍云、腾讯云 COS、阿里云 OSS、Imgur 共 7 种；落盘或上传失败自动降级内联，>5MB 忽略）
@@ -95,7 +96,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 
 ## 技术栈
 
-Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + PicGo-Core + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate。
+Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + PicGo-Core + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate + sanitize-html + iconv-lite。
 
 ## 目录结构
 
@@ -218,7 +219,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ templates/                 index.html 浮层 / 面板 HTML 分块（?raw 内联）
 │  ├─ styles/                    样式分块（01 设计令牌 → 15 打印，编号即级联顺序）
 │  ├─ style.css                  样式入口：仅按原级联顺序 @import styles/*.css
-│  └─ __tests__/                 vitest 纯函数单元测试（56 个测试文件 / 697 用例）
+│  └─ __tests__/                 vitest 纯函数单元测试（60 个测试文件 / 723 用例）
 │
 ├─ docs/                         项目文档
 │  ├─ 需求说明.md                功能清单与路线图

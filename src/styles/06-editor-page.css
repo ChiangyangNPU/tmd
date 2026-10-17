@@ -254,3 +254,26 @@ dl[data-type='footnote_definition'] dd {
   color: var(--error-fg);
   background: var(--error-bg);
 }
+
+/* 块级原生 HTML（raw-html.ts）：渲染 sanitize 后的结构，源码在源码模式编辑 */
+.raw-html-block {
+  display: block;
+}
+
+.raw-html-block > :first-child {
+  margin-top: 0;
+}
+
+.raw-html-block > :last-child {
+  margin-bottom: 0;
+}
+
+.raw-html-empty {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px dashed var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  user-select: none;
+}

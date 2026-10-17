@@ -25,6 +25,7 @@ import { pasteTsv } from './paste-tsv'
 import { findPlugin, findClear, findState, findRefreshAfterReplace, findTextRanges } from './find'
 import { taskListClick } from './task-list'
 import { tocPlugins, fillTocBlocks } from './toc'
+import { rawHtmlPlugins } from './raw-html'
 import { markPlugins } from './mark-ext'
 import { wikilinkPlugins } from './wikilink'
 import { frontmatterInputRule, frontmatterPlugins } from './frontmatter'
@@ -348,6 +349,8 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(findPlugin)
       .use(taskListClick)
       .use(tocPlugins)
+      // 块级原生 HTML：须晚于 tocPlugins（先让 <!-- TOC --> 区间被识别为目录块）
+      .use(rawHtmlPlugins)
       // 扩展行内标记：晚于 gfm（~x~ 纠正依赖 remark-gfm 的 delete 词法解析）
       .use(markPlugins)
       // 双链语法：[[目标]] / [[目标|别名]] / [[目标#标题]]（晚于 gfm 注册，

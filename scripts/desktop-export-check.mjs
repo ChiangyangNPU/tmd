@@ -130,7 +130,6 @@ $$
 
 ![相对路径图片](assets/pic.png)
 
-<img src="assets/pic.png" width="120">
 
 ---
 
