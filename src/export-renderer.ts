@@ -16,9 +16,9 @@ import renderMathInElement from 'katex/dist/contrib/auto-render.mjs'
 import { resolveExportImageRef } from './export-doc'
 import { nextFrames, type ExportTask } from './export-bridge'
 import type { ExporterBridge } from './export-bridge'
-import { buildDocxBytes } from './export-word'
+import { buildDocxBytes, rasterizeVisualBlocks, WORD_VIEWPORT } from './export-word'
 import { composeLongPng, planSegments, zoomForDpr } from './export-image'
-import { buildEpubBytes } from './export-epub'
+import { buildEpubBytes, type EpubImage } from './export-epub'
 
 /** 导出正文页面宽度（EXPORT_CSS 的 max-width 860 + 左右 padding 32×2）= 无需横向留白 */
 const EXPORT_PAGE_WIDTH_CSS = 924
@@ -215,8 +215,16 @@ async function exportLongImage(bridge: ExporterBridge): Promise<Uint8Array> {
   )
 }
 
-/** 把已渲染的 body 序列化为 XHTML，并收集 1–3 级标题作为 EPUB 导航 */
-function buildEpubFromDom(task: ExportTask): Uint8Array {
+/**
+ * 把已渲染的 body 序列化为 XHTML，并收集 1–3 级标题作为 EPUB 导航。
+ *
+ * 阅读器兼容处理：
+ * - Mermaid 图表先栅格化为 PNG（其 SVG 含 foreignObject，Kindle / 旧版
+ *   Calibre 等阅读器渲染不可靠），复用 Word 导出的区域截帧管线；
+ * - data URI 图片抽成 zip 内图片文件以相对路径引用——data URI 在 EPUB
+ *   中虽合法，但部分老阅读器不支持。
+ */
+async function buildEpubFromDom(bridge: ExporterBridge, task: ExportTask): Promise<Uint8Array> {
   const headings = Array.from(document.body.querySelectorAll<HTMLElement>('h1, h2, h3')).map(
     (el, index) => {
       if (!el.id) el.id = `sec-${index + 1}`
@@ -227,6 +235,27 @@ function buildEpubFromDom(task: ExportTask): Uint8Array {
       }
     },
   )
+
+  // 先固定高视口（区域截帧只能取可见部分），再把 Mermaid 图表栅格化为 PNG
+  await bridge.capture({ ...WORD_VIEWPORT, zoom: 1 })
+  await rasterizeVisualBlocks(bridge, document.body, 1)
+
+  // data URI 图片 → zip 内文件；收集失败（非 png data URI 等）保留 data URI
+  const images: EpubImage[] = []
+  for (const img of Array.from(document.body.querySelectorAll<HTMLImageElement>('img'))) {
+    const src = img.getAttribute('src') ?? ''
+    const match = /^data:image\/png;base64,(.+)$/i.exec(src)
+    if (!match) continue
+    const name = `fig-${images.length + 1}.png`
+    try {
+      const res = await fetch(src)
+      images.push({ name, bytes: new Uint8Array(await res.arrayBuffer()) })
+      img.setAttribute('src', `images/${name}`)
+    } catch {
+      /* 保留 data URI：个别阅读器不支持，但内容不丢 */
+    }
+  }
+
   const serializer = new XMLSerializer()
   const bodyHtml = Array.from(document.body.childNodes)
     .map((node) => serializer.serializeToString(node))
@@ -237,6 +266,7 @@ function buildEpubFromDom(task: ExportTask): Uint8Array {
     bodyHtml,
     css: [task.varsBlock, task.css, task.katexCss ?? ''].filter(Boolean).join('\n'),
     headings,
+    images,
   })
 }
 
@@ -258,7 +288,7 @@ async function handleTask(bridge: ExporterBridge, task: ExportTask): Promise<voi
       task.kind === 'word'
         ? await buildDocxBytes(bridge, document.body, task.lang, 1)
         : task.kind === 'epub'
-          ? buildEpubFromDom(task)
+          ? await buildEpubFromDom(bridge, task)
           : await exportLongImage(bridge)
     await bridge.taskDone({ ok: true, bytes })
   } catch (err) {

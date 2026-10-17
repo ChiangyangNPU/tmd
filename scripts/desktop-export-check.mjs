@@ -713,10 +713,17 @@ async function main() {
         `${unzipError || 'ok'} entries=${names.join(',')}`,
       )
       const body = text('OEBPS/content.xhtml')
+      // Mermaid 已栅格化为 images/fig-N.png（foreignObject 在部分阅读器不可靠）；
+      // data URI 图片同样抽取为包内文件
+      const imageNames = names.filter((n) => /^OEBPS\/images\//.test(n))
       check(
-        'ePub 正文包含渲染后的 Mermaid / 公式 / 正文',
-        /导出验证文档/.test(body) && /<svg/i.test(body) && /class="katex"/.test(body),
-        `len=${body.length} svg=${/<svg/i.test(body)} katex=${/class="katex"/.test(body)}`,
+        'ePub 正文包含正文 / KaTeX 公式 / 栅格化图表图片',
+        /导出验证文档/.test(body) &&
+          /class="katex"/.test(body) &&
+          /<img src="images\/fig-/.test(body) &&
+          imageNames.length >= 1 &&
+          imageNames.every((n) => epubEntries[n].length > 0),
+        `len=${body.length} katex=${/class="katex"/.test(body)} img=${/<img src="images\/fig-/.test(body)} images=${imageNames.join(',')}`,
       )
     }
 

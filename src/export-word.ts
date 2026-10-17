@@ -23,7 +23,7 @@ import { injectOmmlFormulas, mathPlaceholder } from './export-omml'
  * Word 转换前设置的离屏视口：需容纳最高的那张图表/公式（区域截帧只能取可见部分），
  * 故取一个远高于常规屏幕的高度（隐藏窗口已开启 enableLargerThanScreen）。
  */
-const WORD_VIEWPORT = { widthCss: 924, heightCss: 4000 }
+export const WORD_VIEWPORT = { widthCss: 924, heightCss: 4000 }
 /** 单张远程图片字节上限（与主进程本地图片上限一致） */
 const MAX_REMOTE_IMAGE_BYTES = 32 * 1024 * 1024
 /** 单次导出最多栅格化的视觉块数（超出部分保留原 DOM，避免耗时失控） */
