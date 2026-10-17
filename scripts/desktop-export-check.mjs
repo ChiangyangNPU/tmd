@@ -1,5 +1,5 @@
 /**
- * 导出功能（HTML / PDF / Word / 长图 / LaTeX）的桌面端端到端验证脚本。
+ * 导出功能（HTML / PDF / Word / 长图 / ePub / LaTeX）的桌面端端到端验证脚本。
  *
  * 为什么需要它：单元测试跑在 node 环境（无 DOM、无 Electron），覆盖不到导出的
  * 真实链路——隐藏窗口能否截帧、Mermaid/KaTeX 是否渲染完成、docx 是否良构、
@@ -654,6 +654,70 @@ async function main() {
       )
     }
 
+    // ---------- ePub 导出：离屏渲染 DOM → EPUB 3 打包 ----------
+    await main.evalJson(`(async () => {
+      const req = typeof require === 'function' ? require : global.process.mainModule.require
+      const { dialog, Menu } = req('electron')
+      const fs = req('node:fs')
+      let n = 200
+      dialog.showSaveDialog = async (...args) => {
+        const opts = args.length > 1 ? args[1] : args[0]
+        const ext = (opts && opts.filters && opts.filters[0] && opts.filters[0].extensions[0]) || 'epub'
+        const filePath = ${JSON.stringify(WORK)} + '/epub-' + (++n) + '.' + ext
+        fs.mkdirSync(${JSON.stringify(WORK)}, { recursive: true })
+        return { canceled: false, filePath }
+      }
+      const m = Menu.getApplicationMenu()
+      const exp = m.items.find(i => i.submenu && i.submenu.items.some(s => /ePub|EPUB/i.test(s.label || '')))
+      exp.submenu.items.find(i => /ePub|EPUB/i.test(i.label)).click()
+      return 'clicked'
+    })()`)
+    let epubPath = null
+    for (let i = 0; i < 90; i++) {
+      await sleep(1000)
+      const p = join(WORK, 'epub-201.epub')
+      if (existsSync(p)) {
+        const st = await stat(p)
+        if (st.size > 1000) {
+          await sleep(500)
+          epubPath = p
+          break
+        }
+      }
+    }
+    check('ePub 导出产出 .epub 文件', epubPath !== null, epubPath ?? '未生成 epub-201.epub')
+
+    if (epubPath) {
+      const buf = await readFile(epubPath)
+      let epubEntries = {}
+      let unzipError = ''
+      try {
+        epubEntries = unzipSync(new Uint8Array(buf))
+      } catch (err) {
+        unzipError = String(err)
+      }
+      const names = Object.keys(epubEntries)
+      const text = (name) =>
+        epubEntries[name] ? Buffer.from(epubEntries[name]).toString('utf-8') : ''
+      check(
+        'EPUB 包结构完整（mimetype / container / opf / nav / content / style）',
+        !unzipError &&
+          text('mimetype') === 'application/epub+zip' &&
+          text('META-INF/container.xml').includes('OEBPS/content.opf') &&
+          text('OEBPS/content.opf').includes('version="3.0"') &&
+          text('OEBPS/nav.xhtml').includes('epub:type="toc"') &&
+          text('OEBPS/content.xhtml').includes('<body') &&
+          text('OEBPS/style.css').length > 100,
+        `${unzipError || 'ok'} entries=${names.join(',')}`,
+      )
+      const body = text('OEBPS/content.xhtml')
+      check(
+        'ePub 正文包含渲染后的 Mermaid / 公式 / 正文',
+        /导出验证文档/.test(body) && /<svg/i.test(body) && /class="katex"/.test(body),
+        `len=${body.length} svg=${/<svg/i.test(body)} katex=${/class="katex"/.test(body)}`,
+      )
+    }
+
     // ---------- 浏览器降级：无 tmdAPI 时两个入口隐藏 ----------
     const degrade = await main.evalJson(`(async () => {
       const req = typeof require === 'function' ? require : global.process.mainModule.require
@@ -670,6 +734,7 @@ async function main() {
           api: typeof window.tmdAPI,
           word: document.querySelector('#menu-export-word-btn')?.hidden,
           long: document.querySelector('#menu-export-longimage-btn')?.hidden,
+          epub: document.querySelector('#menu-export-epub-btn')?.hidden,
           html: document.querySelector('#menu-export-html-btn')?.hidden
         })\`)
       } finally {
@@ -678,8 +743,12 @@ async function main() {
     })()`)
     const dg = JSON.parse(degrade)
     check(
-      '浏览器环境（无 tmdAPI）隐藏 Word / 长图入口，HTML 导出保留',
-      dg.api === 'undefined' && dg.word === true && dg.long === true && dg.html === false,
+      '浏览器环境（无 tmdAPI）隐藏 Word / 长图 / ePub 入口，HTML 导出保留',
+      dg.api === 'undefined' &&
+        dg.word === true &&
+        dg.long === true &&
+        dg.epub === true &&
+        dg.html === false,
       degrade,
     )
 

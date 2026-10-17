@@ -1,10 +1,11 @@
 /**
  * 导出文档核心：与载体无关的 Markdown → 文档中间表示。
  *
- * 三种导出载体共用同一份渲染产物与样式：
- * - 独立 HTML 文件（export.ts：CDN 外壳）
+ * 多种导出载体共用同一份渲染产物与样式：
+ * - 独立 HTML 文件（export.ts：CDN 外壳，可选离线内联）
  * - Word 文档（export-word.ts：离屏页内 OOXML 转换）
  * - 长图（export-image.ts：离屏页内整页截图）
+ * - ePub（export-epub.ts：离屏页序列化 XHTML 后打包 EPUB 3）
  *
  * 本模块不依赖 Electron / DOM 副作用（collectThemeVars 除外，仅主窗口采集时调用），
  * 纯函数部分均可在 vitest（node 环境）下直接断言。

@@ -176,6 +176,7 @@ async function runOffscreenExport(
   baseDir: string | null,
   extension: string,
   filterLabel: string,
+  katexCss?: string,
 ): Promise<void> {
   if (!native) return // 浏览器环境入口已隐藏，防御性返回
   const doc = buildExportDocument(
@@ -184,7 +185,7 @@ async function runOffscreenExport(
     collectThemeVars(),
     document.documentElement.classList.contains('dark'),
   )
-  const task: ExportTask = { ...doc, kind, baseDir }
+  const task: ExportTask = { ...doc, kind, baseDir, ...(katexCss ? { katexCss } : {}) }
   try {
     const result = await native.exportRun({
       task,
@@ -215,4 +216,14 @@ export function exportLongimage(
   baseDir: string | null,
 ): Promise<void> {
   return runOffscreenExport('longimage', markdown, currentName, baseDir, 'png', 'PNG')
+}
+
+/** 导出当前文档为 EPUB 3；KaTeX 样式取离线资源（字体已内联为 data URI） */
+export async function exportEpub(
+  markdown: string,
+  currentName: string,
+  baseDir: string | null,
+): Promise<void> {
+  const assets = native ? await native.getExportAssets() : null
+  await runOffscreenExport('epub', markdown, currentName, baseDir, 'epub', 'EPUB', assets?.katexCss)
 }

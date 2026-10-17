@@ -11,9 +11,11 @@ import type { ExportDocument } from './export-doc'
 
 /** 离屏导出任务：载体无关文档 + 任务种类 + 图片相对路径解析目录 */
 export interface ExportTask extends ExportDocument {
-  kind: 'word' | 'longimage'
+  kind: 'word' | 'longimage' | 'epub'
   /** 当前文档所在目录绝对路径（相对路径图片本地化用）；未保存文档为 null */
   baseDir: string | null
+  /** EPUB 专用：KaTeX CSS（离线资源版，woff2 已转 data URI） */
+  katexCss?: string
 }
 
 /** 视口内的矩形区域（CSS px，相对视口左上角） */

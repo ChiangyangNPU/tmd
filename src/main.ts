@@ -399,7 +399,7 @@ async function boot() {
       runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')))
       closeMoreMenu()
     })
-    // Word / 长图：离屏渲染导出（仅 Electron 环境可用）
+    // Word / 长图 / ePub：离屏渲染导出（仅 Electron 环境可用）
     document.getElementById('menu-export-word-btn')?.addEventListener('click', () => {
       runExport((m) =>
         m.exportWord(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'), getActiveBaseDir()),
@@ -416,6 +416,12 @@ async function boot() {
       )
       closeMoreMenu()
     })
+    document.getElementById('menu-export-epub-btn')?.addEventListener('click', () => {
+      runExport((m) =>
+        m.exportEpub(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'), getActiveBaseDir()),
+      )
+      closeMoreMenu()
+    })
     document.getElementById('menu-export-latex-btn')?.addEventListener('click', () => {
       runExport((m) =>
         m.exportLatex(
@@ -426,9 +432,13 @@ async function boot() {
       )
       closeMoreMenu()
     })
-    // 浏览器环境没有离屏渲染能力，隐藏这两项（HTML / PDF 导出仍可用）
+    // 浏览器环境没有离屏渲染能力，隐藏这三项（HTML / PDF 导出仍可用）
     if (!native) {
-      for (const id of ['menu-export-word-btn', 'menu-export-longimage-btn']) {
+      for (const id of [
+        'menu-export-word-btn',
+        'menu-export-longimage-btn',
+        'menu-export-epub-btn',
+      ]) {
         const btn = document.getElementById(id)
         if (btn) btn.hidden = true
       }
@@ -660,6 +670,14 @@ async function boot() {
             getActiveBaseDir(),
           ),
         ),
+      'export-epub': () =>
+        runExport((m) =>
+          m.exportEpub(
+            currentMarkdown(),
+            activeTab()?.name ?? t('tab.untitled'),
+            getActiveBaseDir(),
+          ),
+        ),
       'export-latex': () =>
         runExport((m) =>
           m.exportLatex(
@@ -699,6 +717,7 @@ async function boot() {
       'export-pdf': ['menu.exportPdf', 'export pdf print'],
       'export-word': ['menu.exportWord', 'export word docx'],
       'export-longimage': ['menu.exportLongimage', 'export long image png'],
+      'export-epub': ['menu.exportEpub', 'export epub ebook'],
       'export-latex': ['menu.exportLatex', 'export latex tex'],
       'insert-toc': ['menu.insertToc', 'toc table of contents outline'],
       'view-source': ['settings.shortcutSourceMode', 'source mode codemirror text'],

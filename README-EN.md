@@ -137,7 +137,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ prepare-gitee-release.mjs  Generates / recomputes the Gitee auto-update manifest and upload list
 │  ├─ cleanup-old-app.sh         Cleans up old local app builds
 │  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history, split-view & find-mapping desktop E2E (49 assertions)
-│  ├─ desktop-export-check.mjs   Word / long-image / LaTeX export desktop E2E (36 assertions)
+│  ├─ desktop-export-check.mjs   Word / long-image / ePub / LaTeX export desktop E2E (39 assertions)
 │  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
 │  ├─ *-probe.mjs / ime-*.mjs    One-off real-machine diagnostic probes (IME / wiki-links / graph alignment / mindmap / dirty marker / input profiling)
 │  └─ lib/

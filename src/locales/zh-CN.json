@@ -127,6 +127,7 @@
     "exportPdf": "导出 PDF",
     "exportWord": "导出 Word",
     "exportLongimage": "导出长图",
+    "exportEpub": "导出 ePub",
     "exportLatex": "导出 LaTeX",
     "failed": "导出失败，请重试",
     "format": "格式",

@@ -35,6 +35,7 @@ const DEFAULT_MENU_LABELS = {
   exportPdf: '打印 / 导出 PDF',
   exportWord: '导出 Word',
   exportLongimage: '导出长图',
+  exportEpub: '导出 ePub',
   exportLatex: '导出 LaTeX',
   format: '格式',
   bold: '加粗',
@@ -212,6 +213,10 @@ function buildMenuTemplate(deps) {
         {
           label: L('exportLongimage'),
           click: () => onAction('export-longimage'),
+        },
+        {
+          label: L('exportEpub'),
+          click: () => onAction('export-epub'),
         },
         // LaTeX 为纯文本转换（无离屏渲染、无重任务），入口保持导出区一致
         {

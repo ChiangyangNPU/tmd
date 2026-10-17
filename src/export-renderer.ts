@@ -1,7 +1,7 @@
 /**
  * 离屏导出页引导（export-renderer.html 的入口）。
  *
- * 这里是导出编排的唯一位置（策略模式：按 task.kind 分派 word / longimage），
+ * 这里是导出编排的唯一位置（策略模式：按 task.kind 分派 word / longimage / epub），
  * 两条路径共用同一条渲染管线：
  *   注入文档 → 图片本地化 → 公式渲染（KaTeX）→ 字体就绪 → 图表渲染（Mermaid）
  *   → 分派处理器 → 回传字节
@@ -18,6 +18,7 @@ import { nextFrames, type ExportTask } from './export-bridge'
 import type { ExporterBridge } from './export-bridge'
 import { buildDocxBytes } from './export-word'
 import { composeLongPng, planSegments, zoomForDpr } from './export-image'
+import { buildEpubBytes } from './export-epub'
 
 /** 导出正文页面宽度（EXPORT_CSS 的 max-width 860 + 左右 padding 32×2）= 无需横向留白 */
 const EXPORT_PAGE_WIDTH_CSS = 924
@@ -37,8 +38,7 @@ function hideScrollbars(): void {
   const style = document.createElement('style')
   style.id = 'export-hide-scrollbar'
   style.textContent =
-    'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}' +
-    'html{scrollbar-width:none}'
+    'html::-webkit-scrollbar,body::-webkit-scrollbar{display:none}' + 'html{scrollbar-width:none}'
   document.head.appendChild(style)
 }
 
@@ -215,6 +215,31 @@ async function exportLongImage(bridge: ExporterBridge): Promise<Uint8Array> {
   )
 }
 
+/** 把已渲染的 body 序列化为 XHTML，并收集 1–3 级标题作为 EPUB 导航 */
+function buildEpubFromDom(task: ExportTask): Uint8Array {
+  const headings = Array.from(document.body.querySelectorAll<HTMLElement>('h1, h2, h3')).map(
+    (el, index) => {
+      if (!el.id) el.id = `sec-${index + 1}`
+      return {
+        level: Number(el.tagName.slice(1)),
+        id: el.id,
+        text: (el.textContent ?? '').trim(),
+      }
+    },
+  )
+  const serializer = new XMLSerializer()
+  const bodyHtml = Array.from(document.body.childNodes)
+    .map((node) => serializer.serializeToString(node))
+    .join('')
+  return buildEpubBytes({
+    title: task.title,
+    lang: task.lang,
+    bodyHtml,
+    css: [task.varsBlock, task.css, task.katexCss ?? ''].filter(Boolean).join('\n'),
+    headings,
+  })
+}
+
 /** 处理一个导出任务并回传结果 */
 async function handleTask(bridge: ExporterBridge, task: ExportTask): Promise<void> {
   try {
@@ -232,7 +257,9 @@ async function handleTask(bridge: ExporterBridge, task: ExportTask): Promise<voi
     const bytes =
       task.kind === 'word'
         ? await buildDocxBytes(bridge, document.body, task.lang, 1)
-        : await exportLongImage(bridge)
+        : task.kind === 'epub'
+          ? buildEpubFromDom(task)
+          : await exportLongImage(bridge)
     await bridge.taskDone({ ok: true, bytes })
   } catch (err) {
     await bridge.taskDone({ ok: false, error: err instanceof Error ? err.message : String(err) })

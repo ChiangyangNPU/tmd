@@ -66,7 +66,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - HTML 粘贴转换：从网页/Word 复制的富文本自动转 Markdown（白名单清洗 + 协议过滤，标题/列表/表格/代码块等结构保留）
 - **TSV 粘贴转表格**：从 Excel/表格软件复制的纯文本（制表符分隔、至少 2 行 × 2 列、列数对齐）粘贴即生成真实表格（首行作表头）；富文本剪贴板仍优先走 HTML 转换管线，普通句子里的单个制表符不会误触
 - 相对路径图片按文档所在目录解析显示（文档数据保持相对路径）
-- 导出五种格式：HTML（独立文件，默认引 Mermaid/KaTeX CDN；设置面板可开启离线内联，约 4–5MB）、PDF（程序化 printToPDF 生成，设置面板可选纸张 / 方向 / 页边距 / 页眉页脚 / 页码 / 书签）、**Word**（原生可编辑 .docx：标题/列表/表格/行内格式/超链接均为 Word 原生元素，独占公式注入 OMML 可编辑公式，Mermaid 图以 2x 位图嵌入）、**长图**（单张 PNG，物理清晰度不低于 2x，超长文档自动分段拼接）、**LaTeX**（独立可编译 .tex 源码：公式原生透传零失真，中文文档 ctexart 文档类，图片相对路径随文件解析；Mermaid 图表以注释保留源码）
+- 导出六种格式：HTML（独立文件，默认引 Mermaid/KaTeX CDN；设置面板可开启离线内联，约 4–5MB）、PDF（程序化 printToPDF 生成，设置面板可选纸张 / 方向 / 页边距 / 页眉页脚 / 页码 / 书签）、**Word**（原生可编辑 .docx：标题/列表/表格/行内格式/超链接均为 Word 原生元素，独占公式注入 OMML 可编辑公式，Mermaid 图以 2x 位图嵌入）、**长图**（单张 PNG，物理清晰度不低于 2x，超长文档自动分段拼接）、**ePub**（EPUB 3：渲染后的正文 XHTML + 内联 Mermaid SVG、KaTeX 样式，自动生成 nav 目录）、**LaTeX**（独立可编译 .tex 源码：公式原生透传零失真，中文文档 ctexart 文档类，图片相对路径随文件解析；Mermaid 图表以注释保留源码）
 - 自动保存（5 秒周期写回，设置面板与菜单共用开关）
 - **选区字数统计**：编辑区选中文字时工具栏实时切「已选 N / 共 M 字」双数字（150ms 合并刷新，拖拽选择不抖动），清除选区还原全文计数
 - 拼写检查开关（设置面板「编辑器」分类，默认关闭：Chromium 对可编辑内容默认开启且内置词典仅英语，中文内容不受影响，关闭即消除红色波浪线）
@@ -101,7 +101,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 
 ```
 ├─ index.html                    页面入口（所见即所得 + 源码模式）
-├─ export-renderer.html           离屏导出页（Word / 长图，隐藏窗口加载）
+├─ export-renderer.html           离屏导出页（Word / 长图 / ePub，隐藏窗口加载）
 ├─ public/
 │  └─ boot.js                    首帧引导脚本（主题 / 平台类，防启动白闪）
 │
@@ -138,7 +138,7 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  ├─ prepare-gitee-release.mjs  生成 / 重算 Gitee 自动更新清单与待上传清单
 │  ├─ cleanup-old-app.sh         清理本地旧应用构建
 │  ├─ desktop-app-check.mjs      主链路 + 可靠性 + 外部修改检测 + 历史版本 + 分屏 + 查找映射 桌面 E2E（49 断言）
-│  ├─ desktop-export-check.mjs   导出 Word / 长图 / LaTeX 桌面 E2E（36 断言）
+│  ├─ desktop-export-check.mjs   导出 Word / 长图 / ePub / LaTeX 桌面 E2E（39 断言）
 │  ├─ desktop-bench.mjs          大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
 │  ├─ *-probe.mjs / ime-*.mjs    一次性真机诊断探针（输入法 / 双链 / 图谱对齐 / 思维导图 / 脏标记 / 输入剖析）
 │  └─ lib/
@@ -181,8 +181,8 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 │  │  ├─ graph.ts                关系图谱（canvas + d3-force，设置弹层）
 │  │  └─ local-graph.ts          局部图谱侧边栏面板（当前笔记邻域，1/2 层）
 │  ├─ 导出：
-│  │  ├─ export.ts               导出动作层（HTML / PDF / Word / 长图 / LaTeX）
-│  │  ├─ export-doc.ts           载体无关的导出文档核心（解析管线 / 样式 / 图片引用分类，五载体共用）
+│  │  ├─ export.ts               导出动作层（HTML / PDF / Word / 长图 / ePub / LaTeX）
+│  │  ├─ export-doc.ts           载体无关的导出文档核心（解析管线 / 样式 / 图片引用分类，六载体共用）
 │  │  ├─ export-latex.ts         LaTeX 适配器（token 流 → 可编译 .tex）
 │  │  ├─ export-word.ts          Word 导出（区域截帧栅格化 + OOXML 转换）
 │  │  ├─ export-omml.ts          Word 公式可编辑化（LaTeX → MathML → OMML 后处理）
