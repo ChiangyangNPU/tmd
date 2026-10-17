@@ -21,6 +21,8 @@ import {
   setSidebarWidth,
   getSpellcheckEnabled,
   setSpellcheckEnabled,
+  getPdfOptions,
+  setPdfOptions,
 } from '../store'
 
 /** 简单内存版 localStorage（每个用例重置） */
@@ -156,5 +158,34 @@ describe('store', () => {
     expect(getSpellcheckEnabled()).toBe(true)
     setSpellcheckEnabled(false)
     expect(getSpellcheckEnabled()).toBe(false)
+  })
+
+  it('PDF 选项：默认值、持久化回读、损坏 JSON 回落', () => {
+    expect(getPdfOptions()).toEqual({
+      pageSize: 'A4',
+      orientation: 'portrait',
+      margin: 'default',
+      headerFooter: false,
+      pageNumbers: false,
+      outline: true,
+    })
+    setPdfOptions({
+      pageSize: 'Letter',
+      orientation: 'landscape',
+      margin: 'wide',
+      headerFooter: true,
+      pageNumbers: true,
+      outline: false,
+    })
+    expect(getPdfOptions()).toEqual({
+      pageSize: 'Letter',
+      orientation: 'landscape',
+      margin: 'wide',
+      headerFooter: true,
+      pageNumbers: true,
+      outline: false,
+    })
+    localStorage.setItem('tmd:pdf-options', '{broken')
+    expect(getPdfOptions().pageSize).toBe('A4')
   })
 })

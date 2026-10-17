@@ -8,6 +8,7 @@
 
 - **支持打开 .txt 文件**：打开对话框 / 文件树 / 拖拽进窗口 / 启动参数全链路放行 txt（`electron/main.cjs` 打开对话框拆出 `OPEN_FILTERS`，`readDir` 与单实例 argv 过滤同步加 txt；`src/dragdrop.ts` 扩展名白名单加 `.txt`；浏览器降级 `input.accept` 同步）。txt 按 Markdown 解析渲染（纯文本不受影响），`Cmd+S` 直接写回原 `.txt` 路径；不声明系统文件关联（双击 txt 不唤起 TMD），双链 / 图谱索引仍只扫 `.md`
 - **文件编码与换行保持**：打开时检测 UTF-8（含 BOM）/ UTF-16LE/BE / GBK，保存时按原编码与原换行（LF/CRLF）写回；全文搜索、双链扫描、外部修改监视使用同一解码器，CRLF 文件不再被误标脏。核心逻辑在 `electron/text-file.cjs`（纯 Node，可单测），渲染层 Tab 记录原始编码元信息，另存为时沿用
+- **PDF 导出选项**：设置面板新增纸张（A4/A3/A5/Letter/Legal）、方向、页边距（18/10/25mm）、页眉页脚（文档名/日期）、页码与 PDF 书签开关；主进程按选项生成 `printToPDF` 参数，书签从标题层级生成。选项持久化于 `tmd:pdf-options`，主进程对 IPC 入参再做白名单收窄
 - **Windows 安装向导自选目录即时显示 `\TMD`**：新增 `build/installer.nsh`（经 `nsis.include` 引入，同时把 `nsis.allowToChangeInstallationDirectory` 置 false 关闭模板内置页），用 nsDialogs 自绘目录页替换 MUI 内置页——点「浏览」选定文件夹后路径框立即回写 `<所选目录>\TMD` 并刷新磁盘空间信息，手工输入路径离开页面时做同样兜底修正；布局对齐内置页（目标文件夹分组框 + 所需/可用空间），文案复用 NSIS/MUI 预置语言字符串随向导语言自动切换，升级安装（`--updated`）仍按原行为跳过该页
 
 ### 修复

@@ -31,6 +31,7 @@ const { sanitizeFileName, childPath, ensureMarkdownExt } = require('./fsops.cjs'
 const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./history.cjs')
 const { tmdHome, logsDir, normalizeRendererReport } = require('./logger.cjs')
 const { decodeTextFile, encodeTextFile, normalizeTextMeta } = require('./text-file.cjs')
+const { buildPrintToPdfOptions } = require('./pdf-options.cjs')
 const state = require('./app-state.cjs')
 
 /** @type {import('electron').FileFilter[]} */
@@ -412,16 +413,12 @@ function registerFileIpc({
   // + 保存对话框落盘。不走 webContents.print 的系统打印对话框——Electron 44
   // 在 macOS 上该对话框会静默失败（点击无反应），且「选存储为 PDF」的间接
   // 路径体验也差于直接出文件。
-  /** @param {unknown} _event @param {unknown} name */
-  ipcMain.handle(IPC.print, async (_event, name) => {
+  /** @param {unknown} _event @param {unknown} name @param {unknown} [options] */
+  ipcMain.handle(IPC.print, async (_event, name, options) => {
     const win = state.getMainWindow()
     if (!win || win.isDestroyed()) return false
     try {
-      const data = await win.webContents.printToPDF({
-        printBackground: true,
-        preferCSSPageSize: true, // 打印样式里的 @page 18mm 页边距生效
-        pageSize: 'A4',
-      })
+      const data = await win.webContents.printToPDF(buildPrintToPdfOptions(options, name))
       const raw = typeof name === 'string' && name.trim() ? name.trim() : '导出'
       // 笔记名自带 .md 扩展名,落盘为 PDF 时剥掉(否则得到 笔记A.md.pdf)
       const base = raw.replace(/\.(md|markdown)$/i, '').trim() || '导出'

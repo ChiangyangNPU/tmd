@@ -7,6 +7,7 @@
  *
  * @author chiangyang
  */
+import type { PdfOptions } from './pdf-options'
 
 /**
  * 界面语言信息：菜单文案 + 语言码。
@@ -54,7 +55,7 @@ export interface NativeFileAPI {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
   }): Promise<{ path: string; name: string } | null>
-  print(name?: string): Promise<boolean>
+  print(name?: string, options?: PdfOptions): Promise<boolean>
   /** 向主进程同步未保存状态（用于关闭确认） */
   setDirty(dirty: boolean): void
   onMenu(callback: (action: string) => void): void

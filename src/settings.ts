@@ -24,7 +24,10 @@ import {
   setSpellcheckEnabled,
   getFocusMode,
   getTypewriterMode,
+  getPdfOptions,
+  setPdfOptions,
 } from './store'
+import type { PdfOptions } from './pdf-options'
 import {
   changeThemePreset,
   changeCustomCss,
@@ -667,6 +670,41 @@ export function wireSettings() {
   document.getElementById('set-autosave')?.addEventListener('change', (e) => {
     setAutosaveOn((e.target as HTMLInputElement).checked)
   })
+  // PDF 导出选项：持久化到 localStorage，导出时读取；主进程再做一次白名单收窄
+  const pdfPageSize = document.getElementById('pdf-page-size') as HTMLSelectElement | null
+  const pdfOrientation = document.getElementById('pdf-orientation') as HTMLSelectElement | null
+  const pdfMargin = document.getElementById('pdf-margin') as HTMLSelectElement | null
+  const pdfHeaderFooter = document.getElementById('pdf-header-footer') as HTMLInputElement | null
+  const pdfPageNumbers = document.getElementById('pdf-page-numbers') as HTMLInputElement | null
+  const pdfOutline = document.getElementById('pdf-outline') as HTMLInputElement | null
+  const pdfOptions = getPdfOptions()
+  if (pdfPageSize) pdfPageSize.value = pdfOptions.pageSize
+  if (pdfOrientation) pdfOrientation.value = pdfOptions.orientation
+  if (pdfMargin) pdfMargin.value = pdfOptions.margin
+  if (pdfHeaderFooter) pdfHeaderFooter.checked = pdfOptions.headerFooter
+  if (pdfPageNumbers) pdfPageNumbers.checked = pdfOptions.pageNumbers
+  if (pdfOutline) pdfOutline.checked = pdfOptions.outline
+  const savePdfOptions = () => {
+    if (!pdfPageSize || !pdfOrientation || !pdfMargin) return
+    setPdfOptions({
+      pageSize: pdfPageSize.value as PdfOptions['pageSize'],
+      orientation: pdfOrientation.value as PdfOptions['orientation'],
+      margin: pdfMargin.value as PdfOptions['margin'],
+      headerFooter: pdfHeaderFooter?.checked ?? false,
+      pageNumbers: pdfPageNumbers?.checked ?? false,
+      outline: pdfOutline?.checked ?? true,
+    })
+  }
+  for (const el of [
+    pdfPageSize,
+    pdfOrientation,
+    pdfMargin,
+    pdfHeaderFooter,
+    pdfPageNumbers,
+    pdfOutline,
+  ]) {
+    el?.addEventListener('change', savePdfOptions)
+  }
   // 源码模式行号开关：持久化 + body class 即时生效（源码模式开着时切换立即变化）
   document.getElementById('set-linenos')?.addEventListener('change', (e) => {
     const enabled = (e.target as HTMLInputElement).checked

@@ -11,6 +11,7 @@
  * @author chiangyang
  */
 import { native } from './native'
+import { getPdfOptions } from './store'
 import { getLocale, t } from './i18n'
 import { showToast } from './files'
 import {
@@ -136,7 +137,7 @@ export async function exportLatex(markdown: string, currentName: string, baseDir
 /** 导出 PDF：主进程 printToPDF 生成 + 保存对话框落盘（浏览器走 window.print） */
 export async function exportPdf(name?: string) {
   if (native) {
-    await native.print(name)
+    await native.print(name, getPdfOptions())
   } else {
     window.print()
   }

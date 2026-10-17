@@ -381,6 +381,59 @@
           </div>
         </section>
 
+        <section id="sec-pdf" class="settings-section">
+          <div class="settings-label" data-i18n="settings.pdfExport">PDF 导出</div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="pdf-page-size" data-i18n="settings.pdfPageSize"
+              >纸张</label
+            >
+            <select id="pdf-page-size" class="settings-select">
+              <option value="A4">A4</option>
+              <option value="A3">A3</option>
+              <option value="A5">A5</option>
+              <option value="Letter">Letter</option>
+              <option value="Legal">Legal</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label
+              class="settings-row-label"
+              for="pdf-orientation"
+              data-i18n="settings.pdfOrientation"
+              >方向</label
+            >
+            <select id="pdf-orientation" class="settings-select">
+              <option value="portrait" data-i18n="settings.pdfPortrait">纵向</option>
+              <option value="landscape" data-i18n="settings.pdfLandscape">横向</option>
+            </select>
+          </div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="pdf-margin" data-i18n="settings.pdfMargin"
+              >页边距</label
+            >
+            <select id="pdf-margin" class="settings-select">
+              <option value="default" data-i18n="settings.pdfMarginDefault">默认（18mm）</option>
+              <option value="narrow" data-i18n="settings.pdfMarginNarrow">窄（10mm）</option>
+              <option value="wide" data-i18n="settings.pdfMarginWide">宽（25mm）</option>
+            </select>
+          </div>
+          <label class="settings-option">
+            <input type="checkbox" id="pdf-header-footer" />
+            <span data-i18n="settings.pdfHeaderFooter">页眉页脚（文档名 / 日期）</span>
+          </label>
+          <label class="settings-option">
+            <input type="checkbox" id="pdf-page-numbers" />
+            <span data-i18n="settings.pdfPageNumbers">页码</span>
+          </label>
+          <label class="settings-option">
+            <input type="checkbox" id="pdf-outline" />
+            <span data-i18n="settings.pdfOutline">生成 PDF 书签（按标题层级）</span>
+          </label>
+          <div class="settings-hint" data-i18n="settings.pdfHint">
+            仅在桌面版导出 PDF 时生效；书签需要 PDF 阅读器支持大纲
+          </div>
+        </section>
+
         <section id="sec-image" class="settings-section">
           <div class="settings-label" data-i18n="settings.imageStrategy">粘贴图片存储方式</div>
           <label class="settings-option"

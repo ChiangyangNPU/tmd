@@ -5,6 +5,7 @@
  * - theme / recent / folders / img / autosave：偏好与开关
  */
 import type { ImageStrategy } from './paste-image'
+import { normalizePdfOptions, parsePdfOptions, type PdfOptions } from './pdf-options'
 
 // 注意：electron/main.cjs「放弃修改并关闭」路径硬编码了此键名，改键时须同步
 export const DOC_KEY = 'tmd:doc:v1'
@@ -25,6 +26,7 @@ export const SIDEBAR_WIDTH_KEY = 'tmd:sidebar-width'
 export const TYPOGRAPHY_KEY = 'tmd:typography'
 export const FOCUS_MODE_KEY = 'tmd:focus-mode'
 export const TYPEWRITER_MODE_KEY = 'tmd:typewriter-mode'
+export const PDF_OPTIONS_KEY = 'tmd:pdf-options'
 
 /** 上一次 saveDoc 是否已发出警告（true 时静默，避免 localStorage 持续写失败导致 console 刷屏） */
 let saveDocWarned = false
@@ -139,6 +141,16 @@ export function getImageStrategy(): ImageStrategy {
 /** 持久化图片粘贴策略 */
 export function setImageStrategy(strategy: ImageStrategy) {
   localStorage.setItem(IMAGE_STRATEGY_KEY, strategy)
+}
+
+/** PDF 导出选项（损坏/缺失回落默认；与主进程 pdf-options.cjs 同枚举） */
+export function getPdfOptions(): PdfOptions {
+  return parsePdfOptions(localStorage.getItem(PDF_OPTIONS_KEY))
+}
+
+/** 持久化 PDF 导出选项（写入前收窄，避免旧版本/手工改坏的值流到主进程） */
+export function setPdfOptions(options: PdfOptions) {
+  localStorage.setItem(PDF_OPTIONS_KEY, JSON.stringify(normalizePdfOptions(options)))
 }
 
 /** 自动保存开关是否开启（默认关闭） */
