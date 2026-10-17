@@ -89,14 +89,17 @@ function registerFileIpc({
    */
   async function snapshotBeforeWrite(filePath) {
     try {
-      const previous = await fs.readFile(filePath, 'utf-8')
+      // 走 readFileCapped：>50MB 文件直接抛错被外层 catch 吞掉（不写快照但仍允许保存）。
+      // 若此处直接 fs.readFile，攻击者可通过 saveFile 传入任意大文件路径绕过
+      // openFile/readFile 通道的 50MB 上限，导致主进程 OOM。
+      const previous = await readFileCapped(filePath)
       await writeSnapshot(historyRoot, {
         path: filePath,
         name: path.basename(filePath),
         content: previous,
       })
     } catch {
-      /* 文件尚不存在（首次保存）或读取失败：无旧内容可存 */
+      /* 文件尚不存在（首次保存）或读取失败或超过 50MB 上限：无旧内容可存 */
     }
   }
 
