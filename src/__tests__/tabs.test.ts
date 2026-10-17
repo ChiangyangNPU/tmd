@@ -26,6 +26,7 @@ import {
   activateTab,
   closeTab,
   isTabOpen,
+  normalizeForDirtyCompare,
 } from '../tabs'
 import { replaceEditor, currentMarkdown } from '../editor-core'
 import { saveDoc, loadDoc } from '../store'
@@ -73,6 +74,14 @@ describe('syncDirtyWith 内容比对清脏', () => {
     // 空单元格占位规范化后为「| + 空格 + |」，两侧一致即不算修改
     syncDirtyWith('|a| |')
     expect(tab.dirty).toBe(false)
+  })
+
+  it('CRLF 基准与编辑器 LF 序列化不造成伪脏', async () => {
+    const tab = newTab('a.md', 'line1\r\nline2\r\n', '/tmp/a.md')
+    await activateTab(tab.id)
+    syncDirtyWith('line1\nline2\n')
+    expect(tab.dirty).toBe(false)
+    expect(normalizeForDirtyCompare('a\r\nb')).toBe(normalizeForDirtyCompare('a\nb'))
   })
 })
 

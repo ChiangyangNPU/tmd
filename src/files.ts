@@ -5,6 +5,7 @@
  * 与恢复副本）、filetree（纯渲染）。
  */
 import { native } from './native'
+import type { LineEnding, TextEncoding, TextFileMeta } from './native'
 import { replaceEditor, currentMarkdown, flushMarkdownSync } from './editor-core'
 import {
   activeTab,
@@ -155,7 +156,14 @@ export async function openDocument() {
  * 用读取到的文件数据打开文档：
  * 同路径已打开 → 跳转既有标签；唯一的空白"未命名"标签 → 原地替换；否则新建标签。
  */
-export async function openFromData(data: { path?: string; name: string; content: string }) {
+export async function openFromData(data: {
+  path?: string
+  name: string
+  content: string
+  encoding?: TextEncoding
+  bom?: boolean
+  lineEnding?: LineEnding
+}) {
   // 已打开同一文件 → 跳到那个标签页（集合未变，无需重新同步监视）
   if (data.path) {
     const existing = findByPath(data.path)
@@ -173,13 +181,20 @@ export async function openFromData(data: { path?: string; name: string; content:
     only.path = data.path
     only.name = data.name
     only.markdown = data.content
+    only.encoding = data.encoding
+    only.bom = data.bom
+    only.lineEnding = data.lineEnding
     await replaceEditor(data.content)
     renderTabs()
     updateTitle()
     syncFileWatchers()
     return
   }
-  const tab = newTab(data.name, data.content, data.path)
+  const tab = newTab(data.name, data.content, data.path, {
+    encoding: data.encoding,
+    bom: data.bom,
+    lineEnding: data.lineEnding,
+  })
   await activateTab(tab.id)
   syncFileWatchers()
 }
@@ -220,17 +235,27 @@ export function saveDocument(saveAs = false): Promise<void> {
   return saveQueue
 }
 
+/** 从标签提取编码/换行元信息；新文档或恢复副本没有原始元信息，交给主进程默认 UTF-8/LF */
+function tabFileMeta(tab: DocTab): TextFileMeta | undefined {
+  if (!tab.encoding) return undefined
+  return { encoding: tab.encoding, bom: tab.bom ?? false, lineEnding: tab.lineEnding ?? 'lf' }
+}
+
 /** 实际写盘（由 saveDocument 串行调用）：成功后推进基准并按需清脏，失败保留脏标记 */
 async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
   // 捕获到执行之间标签可能已被用户"放弃修改"关闭：明确放弃的内容不得再写盘
   if (!isTabOpen(tab)) return
   if (native) {
     try {
+      const meta = tabFileMeta(tab)
       if (tab.path && !saveAs) {
-        await native.saveFile(tab.path, markdown)
+        if (meta) await native.saveFile(tab.path, markdown, meta)
+        else await native.saveFile(tab.path, markdown)
       } else {
         // 传当前标签名作对话框默认名：txt 标签另存为时保留原扩展名
-        const result = await native.saveFileAs(markdown, tab.name)
+        const result = meta
+          ? await native.saveFileAs(markdown, tab.name, meta)
+          : await native.saveFileAs(markdown, tab.name)
         if (!result) return
         tab.path = result.path
         tab.name = result.name

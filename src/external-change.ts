@@ -46,15 +46,20 @@ async function handleFileChanged(info: import('./native').FileChangeInfo) {
     return
   }
   if (!native) return
-  /** @type {string} */
-  let content: string
+  /** @type {{ content: string, encoding: import('./native').TextEncoding, bom: boolean, lineEnding: import('./native').LineEnding }} */
+  let file
   try {
-    content = (await native.readFile(info.path)).content
+    file = await native.readFile(info.path)
   } catch {
     return // 读盘间隙文件又被删除：等 unlink 事件处理
   }
   // 等待读取期间标签可能被关闭 / 另存为换了关联路径
   if (!isTabOpen(tab) || tab.path !== info.path) return
+  // 外部程序可能改了编码/换行：采用磁盘当前元信息，后续保存按新格式写回
+  tab.encoding = file.encoding
+  tab.bom = file.bom
+  tab.lineEnding = file.lineEnding
+  const content = file.content
   if (tab.dirty) {
     showReloadBar(tab)
     return
@@ -122,15 +127,18 @@ function showReloadBar(tab: DocTab) {
 async function reloadExternal(tab: DocTab) {
   dismissBar()
   if (!native || !isTabOpen(tab) || !tab.path) return
-  /** @type {string} */
-  let content: string
+  /** @type {{ content: string, encoding: import('./native').TextEncoding, bom: boolean, lineEnding: import('./native').LineEnding }} */
+  let file
   try {
-    content = (await native.readFile(tab.path)).content
+    file = await native.readFile(tab.path)
   } catch {
     showToast(t('files.openFailed'))
     return
   }
   if (!isTabOpen(tab)) return
-  await applyExternalContent(tab, content)
+  tab.encoding = file.encoding
+  tab.bom = file.bom
+  tab.lineEnding = file.lineEnding
+  await applyExternalContent(tab, file.content)
   showToast(t('extchange.reloaded', { name: tab.name }))
 }

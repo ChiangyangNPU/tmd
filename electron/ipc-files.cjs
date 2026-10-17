@@ -30,6 +30,7 @@ const {
 const { sanitizeFileName, childPath, ensureMarkdownExt } = require('./fsops.cjs')
 const { historyDir, writeSnapshot, listSnapshots, readSnapshot } = require('./history.cjs')
 const { tmdHome, logsDir, normalizeRendererReport } = require('./logger.cjs')
+const { decodeTextFile, encodeTextFile, normalizeTextMeta } = require('./text-file.cjs')
 const state = require('./app-state.cjs')
 
 /** @type {import('electron').FileFilter[]} */
@@ -81,9 +82,11 @@ function registerFileIpc({
   /**
    * 读取文本文件并做大小上限校验（openFile/readFile 共用）。
    * 先用 fs.stat 预检而非读入后再截断：避免大文件撑爆主进程内存。
+   * 读入 Buffer 后按 BOM / UTF-8 / UTF-16 / GBK 检测解码，并返回编码与换行元信息，
+   * 供渲染层保存时原样写回。
    * @param {string} filePath
-   * @returns {Promise<string>} UTF-8 文本内容
-   * @throws {Error} 文件超过 MAX_READ_FILE_BYTES 时抛出，消息含实际大小与上限
+   * @returns {Promise<{ content: string, encoding: 'utf-8' | 'utf-16le' | 'utf-16be' | 'gbk', bom: boolean, lineEnding: 'lf' | 'crlf' }>}
+   * @throws {Error} 文件超过 MAX_READ_FILE_BYTES 或非普通文件时抛出
    */
   async function readFileCapped(filePath) {
     const stat = await fs.stat(filePath)
@@ -95,7 +98,7 @@ function registerFileIpc({
       const limitMB = Math.round(MAX_READ_FILE_BYTES / 1024 / 1024)
       throw new Error(`file too large: ${actualMB} MB (limit ${limitMB} MB)`)
     }
-    return fs.readFile(filePath, 'utf-8')
+    return decodeTextFile(await fs.readFile(filePath))
   }
 
   /**
@@ -113,7 +116,7 @@ function registerFileIpc({
       await writeSnapshot(historyRoot, {
         path: filePath,
         name: path.basename(filePath),
-        content: previous,
+        content: previous.content,
       })
     } catch {
       /* 文件尚不存在（首次保存）或读取失败或超过 50MB 上限：无旧内容可存 */
@@ -127,16 +130,30 @@ function registerFileIpc({
     })
     if (result.canceled || !result.filePaths[0]) return null
     const filePath = result.filePaths[0]
-    const content = await readFileCapped(filePath)
-    return { path: filePath, name: path.basename(filePath), content }
+    const file = await readFileCapped(filePath)
+    return {
+      path: filePath,
+      name: path.basename(filePath),
+      content: file.content,
+      encoding: file.encoding,
+      bom: file.bom,
+      lineEnding: file.lineEnding,
+    }
   })
 
   /** @param {unknown} _event @param {string} filePath */
   ipcMain.handle(IPC.readFile, async (_event, filePath) => {
     // IPC 入参不可信：非字符串/空路径直接拒绝，避免 fs 错误直穿渲染层
     if (typeof filePath !== 'string' || !filePath) throw new Error('invalid path')
-    const content = await readFileCapped(filePath)
-    return { path: filePath, name: path.basename(filePath), content }
+    const file = await readFileCapped(filePath)
+    return {
+      path: filePath,
+      name: path.basename(filePath),
+      content: file.content,
+      encoding: file.encoding,
+      bom: file.bom,
+      lineEnding: file.lineEnding,
+    }
   })
 
   // 列出文件夹内一层 Markdown 文件与子文件夹，用于文件树侧边栏。
@@ -279,29 +296,31 @@ function registerFileIpc({
 
   // ---------- 保存与另存为 ----------
 
-  /** @param {unknown} event @param {string} filePath @param {string} content */
-  ipcMain.handle(IPC.saveFile, async (event, filePath, content) => {
+  /** @param {unknown} event @param {string} filePath @param {string} content @param {unknown} [meta] */
+  ipcMain.handle(IPC.saveFile, async (event, filePath, content, meta) => {
     state.assertMainWindow(event)
     if (typeof filePath !== 'string' || !filePath) throw new Error('invalid path')
     if (typeof content !== 'string') throw new Error('invalid content')
+    const textMeta = normalizeTextMeta(meta)
     await snapshotBeforeWrite(filePath)
-    await fs.writeFile(filePath, content, 'utf-8')
+    await fs.writeFile(filePath, encodeTextFile(content, textMeta))
     // 写盘成功后更新监视指纹：本次写入不再触发「外部修改」误报
     fileWatcher.noteWrite(filePath, content)
     return true
   })
 
-  /** @param {unknown} event @param {string} content @param {string} defaultName */
-  ipcMain.handle(IPC.saveFileAs, async (event, content, defaultName) => {
+  /** @param {unknown} event @param {string} content @param {string} defaultName @param {unknown} [meta] */
+  ipcMain.handle(IPC.saveFileAs, async (event, content, defaultName, meta) => {
     state.assertMainWindow(event)
     if (typeof content !== 'string') throw new Error('invalid content')
+    const textMeta = normalizeTextMeta(meta)
     const result = await showSaveDialogSafe({
       defaultPath: typeof defaultName === 'string' ? defaultName : undefined,
       filters: MD_FILTERS,
     })
     if (result.canceled || !result.filePath) return null
     await snapshotBeforeWrite(result.filePath)
-    await fs.writeFile(result.filePath, content, 'utf-8')
+    await fs.writeFile(result.filePath, encodeTextFile(content, textMeta))
     fileWatcher.noteWrite(result.filePath, content)
     return { path: result.filePath, name: path.basename(result.filePath) }
   })
@@ -393,6 +412,7 @@ function registerFileIpc({
   // + 保存对话框落盘。不走 webContents.print 的系统打印对话框——Electron 44
   // 在 macOS 上该对话框会静默失败（点击无反应），且「选存储为 PDF」的间接
   // 路径体验也差于直接出文件。
+  /** @param {unknown} _event @param {unknown} name */
   ipcMain.handle(IPC.print, async (_event, name) => {
     const win = state.getMainWindow()
     if (!win || win.isDestroyed()) return false

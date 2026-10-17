@@ -7,11 +7,16 @@ import { tmpdir } from 'node:os'
 
 // electron/ipc-files.cjs 是「工厂 + 依赖注入」模块（不 require electron），
 // 可经 createRequire 直接加载，用假 ipcMain 捕获 handler 验证注册行为
-// （与 exporter.test.ts 同范式）。这里锁住三个曾回归/易回归的点：
+// （与 exporter.test.ts 同范式）。这里锁住四个曾回归/易回归的点：
 // 1. 主题目录必须落在 <tmdRoot>/.tmd/themes（而非漏掉 .tmd 段的 <tmdRoot>/themes）；
 // 2. v0.1.0–v0.1.3 误写到 <tmdRoot>/themes 的老主题会在首次访问时补拷；
-// 3. 敏感写盘通道只放行主窗口 sender，且 readFile 拒绝非普通文件。
+// 3. 敏感写盘通道只放行主窗口 sender，且 readFile 拒绝非普通文件；
+// 4. GBK + CRLF 文档读取时返回编码元信息，保存时按原编码/换行写回。
 const require = createRequire(import.meta.url)
+const iconv = require('iconv-lite') as {
+  encode: (text: string, encoding: string) => Buffer
+  decode: (buffer: Buffer, encoding: string) => string
+}
 const { registerFileIpc } = require('../../electron/ipc-files.cjs') as {
   registerFileIpc: (deps: Record<string, unknown>) => void
 }
@@ -136,6 +141,46 @@ describe('ipc-files.cjs readFile 的类型校验', () => {
       ) => Promise<unknown>
       await expect(read({}, root)).rejects.toThrow('not a regular file')
     } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('ipc-files.cjs 编码/换行保持', () => {
+  it('GBK + CRLF 文档读取元信息，保存按原编码/换行写回', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'tmd-ipc-files-encoding-'))
+    const webContents = { id: 'main-wc' }
+    state.setMainWindow({ isDestroyed: () => false, webContents })
+    try {
+      const file = path.join(root, 'gbk.md')
+      await writeFile(file, iconv.encode('中文\r\n内容\r\n', 'gbk'))
+      const handlers = registerWithFakeIpc()
+      const read = handlers.get(IPC.readFile) as unknown as (
+        event: unknown,
+        filePath: string,
+      ) => Promise<{ content: string; encoding: string; bom: boolean; lineEnding: string }>
+      const data = await read({}, file)
+      expect(data).toMatchObject({
+        content: '中文\r\n内容\r\n',
+        encoding: 'gbk',
+        bom: false,
+        lineEnding: 'crlf',
+      })
+
+      const save = handlers.get(IPC.saveFile) as unknown as (
+        event: unknown,
+        filePath: string,
+        content: string,
+        meta: unknown,
+      ) => Promise<unknown>
+      await save({ sender: webContents }, file, '改后\r\n内容\r\n', {
+        encoding: 'gbk',
+        bom: false,
+        lineEnding: 'crlf',
+      })
+      expect(iconv.decode(await readFile(file), 'gbk')).toBe('改后\r\n内容\r\n')
+    } finally {
+      state.setMainWindow(null)
       await rm(root, { recursive: true, force: true })
     }
   })

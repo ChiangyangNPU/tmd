@@ -33,10 +33,12 @@ const api = {
   /** 选择文件夹（用于侧边栏挂载工作区） */
   openFolder: () => ipcRenderer.invoke(IPC.openFolder),
   /** 把内容写入指定路径 */
-  saveFile: (filePath, content) => ipcRenderer.invoke(IPC.saveFile, filePath, content),
-  /** 另存为：弹对话框选路径后写入 */
-  saveFileAs: (content, defaultName) =>
-    ipcRenderer.invoke(IPC.saveFileAs, content, defaultName),
+  /** 保存：content 为编辑器序列化文本；meta 携带原文件编码与换行风格 */
+  saveFile: (filePath, content, meta) =>
+    ipcRenderer.invoke(IPC.saveFile, filePath, content, meta),
+  /** 另存为：弹对话框选路径后写入；meta 可选（新文件默认 UTF-8/LF） */
+  saveFileAs: (content, defaultName, meta) =>
+    ipcRenderer.invoke(IPC.saveFileAs, content, defaultName, meta),
   /** 通用导出：按过滤器弹保存对话框并写入 */
   exportAs: (options) => ipcRenderer.invoke(IPC.exportAs, options),
   /** 调起系统打印（导出 PDF 走此路径） */

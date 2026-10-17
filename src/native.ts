@@ -18,16 +18,37 @@ export interface LocaleInfo {
   locale: string
 }
 
+/** 文本文件编码（主进程 text-file.cjs 检测结果） */
+export type TextEncoding = 'utf-8' | 'utf-16le' | 'utf-16be' | 'gbk'
+/** 换行风格：保存时按打开文件的多数风格写回 */
+export type LineEnding = 'lf' | 'crlf'
+/** 打开文件时主进程返回的编码/换行元信息，保存时原样传回 */
+export interface TextFileMeta {
+  encoding: TextEncoding
+  bom: boolean
+  lineEnding: LineEnding
+}
+/** 读取到的文本文档（含保存回写所需的元信息） */
+export interface TextFileData extends TextFileMeta {
+  path: string
+  name: string
+  content: string
+}
+
 export interface NativeFileAPI {
   isNative: true
-  openFile(): Promise<{ path: string; name: string; content: string } | null>
-  readFile(filePath: string): Promise<{ path: string; name: string; content: string }>
+  openFile(): Promise<TextFileData | null>
+  readFile(filePath: string): Promise<TextFileData>
   readDir(
     dirPath: string,
   ): Promise<{ path: string; name: string; children: import('./filetree').FileEntry[] } | null>
   openFolder(): Promise<string | null>
-  saveFile(filePath: string, content: string): Promise<boolean>
-  saveFileAs(content: string, defaultName?: string): Promise<{ path: string; name: string } | null>
+  saveFile(filePath: string, content: string, meta?: TextFileMeta): Promise<boolean>
+  saveFileAs(
+    content: string,
+    defaultName?: string,
+    meta?: TextFileMeta,
+  ): Promise<{ path: string; name: string } | null>
   exportAs(options: {
     content: string
     defaultName: string

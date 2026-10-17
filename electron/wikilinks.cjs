@@ -23,6 +23,7 @@
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const { collectSearchFiles, SEARCH_MAX_FILES } = require('./search.cjs')
+const { decodeTextFile } = require('./text-file.cjs')
 
 /** 笔记文件（仅扫描 .md） */
 const NOTE_RE = /\.md$/i
@@ -62,7 +63,7 @@ async function scanFileLinks(filePath) {
   if (!stat || stat.size > MAX_FILE_SIZE) return null
   let content
   try {
-    content = await fs.readFile(filePath, 'utf8')
+    content = decodeTextFile(await fs.readFile(filePath)).content
   } catch {
     return null
   }

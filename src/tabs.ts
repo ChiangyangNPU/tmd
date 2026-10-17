@@ -8,6 +8,7 @@
 import { replaceEditor, currentMarkdown, destroyEditor } from './editor-core'
 import { setImageBaseDir } from './image-resolver'
 import { native } from './native'
+import type { LineEnding, TextEncoding } from './native'
 import { t } from './i18n'
 import { dirOf } from './fs-path'
 import { normalizeEmptyTableCells } from './table-markdown'
@@ -25,6 +26,10 @@ export interface DocTab {
   dirty: boolean
   /** 标记该标签是启动时从 localStorage 恢复的上次未保存内容（不可被"打开文件"原地替换） */
   recovered?: boolean
+  /** 打开文件的原始编码/换行：保存时按此写回，避免把 GBK/UTF-16/CRLF 改成 UTF-8/LF */
+  encoding?: TextEncoding
+  bom?: boolean
+  lineEnding?: LineEnding
   /** 切走时的滚动位置（切换回来时恢复） */
   scrollTop?: number
 }
@@ -159,7 +164,11 @@ export function markDirty() {
  * 导出供 files.ts / external-change.ts 的同款比对复用。
  */
 export function normalizeForDirtyCompare(md: string): string {
-  return normalizeEmptyTableCells(md).replace(/\n+$/, '')
+  // CRLF 与 LF 只是磁盘换行风格差异（保存时会按原风格写回），不应算内容修改；
+  // 否则打开一个 CRLF 文件后编辑器序列化出 LF，会立刻被误标脏
+  return normalizeEmptyTableCells(md)
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n+$/, '')
 }
 
 export function syncDirtyWith(md: string) {
@@ -173,8 +182,13 @@ export function syncDirtyWith(md: string) {
 }
 
 /** 创建一个标签页数据（不激活） */
-export function newTab(name: string, markdown: string, path?: string): DocTab {
-  const tab: DocTab = { id: `tab-${++tabSeq}`, name, markdown, dirty: false, path }
+export function newTab(
+  name: string,
+  markdown: string,
+  path?: string,
+  meta?: { encoding?: TextEncoding; bom?: boolean; lineEnding?: LineEnding },
+): DocTab {
+  const tab: DocTab = { id: `tab-${++tabSeq}`, name, markdown, dirty: false, path, ...meta }
   tabs.push(tab)
   return tab
 }

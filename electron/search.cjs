@@ -14,6 +14,7 @@
  */
 const fs = require('node:fs/promises')
 const path = require('node:path')
+const { decodeTextFile } = require('./text-file.cjs')
 
 /** 搜索时跳过的目录名（依赖 / 版本库 / 构建产物） */
 const SEARCH_SKIP_DIRS = new Set([
@@ -126,7 +127,7 @@ async function searchInFiles(files, needle, limit = SEARCH_MAX_MATCHES) {
     if (stat.size > SEARCH_MAX_FILE_SIZE) continue
     let content
     try {
-      content = await fs.readFile(file, 'utf8')
+      content = decodeTextFile(await fs.readFile(file)).content
     } catch {
       continue
     }

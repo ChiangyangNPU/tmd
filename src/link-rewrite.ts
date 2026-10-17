@@ -20,7 +20,7 @@
  */
 import { replaceEditor } from './editor-core'
 import { normalizePath } from './link-nav'
-import { native, type WikiLinkRef, type WikiScanResult } from './native'
+import { native, type TextFileMeta, type WikiLinkRef, type WikiScanResult } from './native'
 import { activeTab, findByPath } from './tabs'
 
 /** 行内 wikilink 匹配（与 electron/wikilinks.cjs 同款正则） */
@@ -138,10 +138,17 @@ export async function rewriteLinksForRename(opts: {
     if (source === oldPath || source === newPath) continue
     const tab = findByPath(source)
     let original: string | null
-    if (tab) original = tab.markdown
-    else {
+    let meta: TextFileMeta | undefined
+    if (tab) {
+      original = tab.markdown
+      if (tab.encoding) {
+        meta = { encoding: tab.encoding, bom: tab.bom ?? false, lineEnding: tab.lineEnding ?? 'lf' }
+      }
+    } else {
       try {
-        original = (await native.readFile(source)).content
+        const file = await native.readFile(source)
+        original = file.content
+        meta = { encoding: file.encoding, bom: file.bom, lineEnding: file.lineEnding }
       } catch {
         continue
       }
@@ -155,8 +162,11 @@ export async function rewriteLinksForRename(opts: {
         // 干净标签同步落盘保持干净，脏标签不落盘（待用户保存写回）
         if (activeTab() === tab && !tab.dirty) {
           await replaceEditor(rewritten)
-          await native.saveFile(source, rewritten)
+          if (meta) await native.saveFile(source, rewritten, meta)
+          else await native.saveFile(source, rewritten)
         }
+      } else if (meta) {
+        await native.saveFile(source, rewritten, meta)
       } else {
         await native.saveFile(source, rewritten)
       }

@@ -19,6 +19,7 @@
 const { watch } = require('node:fs')
 const { createHash } = require('node:crypto')
 const { readFile } = require('node:fs/promises')
+const { decodeTextFile } = require('./text-file.cjs')
 
 /** 同一路径事件的防抖窗口：编辑器级连续写入（自动保存、外部逐块写）只查一次盘 */
 const DEBOUNCE_MS = 200
@@ -28,6 +29,20 @@ const MAX_WATCHERS = 64
 /** @param {string} text */
 function sha1(text) {
   return createHash('sha1').update(text, 'utf8').digest('hex')
+}
+
+/** 换行归一：CRLF / 独立 CR 都按 LF 比较，避免仅换行风格变化被当成外部修改 */
+/** @param {string} text */
+function normalizeEol(text) {
+  return text.replace(/\r\n?/g, '\n')
+}
+
+/**
+ * 读盘并按编码检测解码；换行统一为 LF 后返回，供指纹比较。
+ * @param {string} path
+ */
+async function readComparable(path) {
+  return normalizeEol(decodeTextFile(await readFile(path)).content)
 }
 
 /**
@@ -51,7 +66,7 @@ function createFileWatcher({ onEvent }) {
     /** @type {string | undefined} */
     let content
     try {
-      content = await readFile(path, 'utf-8')
+      content = await readComparable(path)
     } catch (err) {
       if (err && /** @type {NodeJS.ErrnoException} */ (err).code === 'ENOENT') {
         if (known.has(path)) {
@@ -129,7 +144,7 @@ function createFileWatcher({ onEvent }) {
       attach(p)
       // 建立内容基线：基线落定前到达的事件至多触发一次多余通知，
       // 渲染层有「内容与内存一致则跳过」的兜底，不会误重载
-      readFile(p, 'utf-8').then(
+      readComparable(p).then(
         (content) => {
           if (watchers.has(p)) known.set(p, sha1(content))
         },
@@ -147,7 +162,7 @@ function createFileWatcher({ onEvent }) {
    * @param {string} path @param {string} content
    */
   function noteWrite(path, content) {
-    if (watchers.has(path)) known.set(path, sha1(content))
+    if (watchers.has(path)) known.set(path, sha1(normalizeEol(content)))
   }
 
   function stop() {
