@@ -26,14 +26,22 @@ export const TYPOGRAPHY_KEY = 'tmd:typography'
 export const FOCUS_MODE_KEY = 'tmd:focus-mode'
 export const TYPEWRITER_MODE_KEY = 'tmd:typewriter-mode'
 
+/** 上一次 saveDoc 是否已发出警告（true 时静默，避免 localStorage 持续写失败导致 console 刷屏） */
+let saveDocWarned = false
+
 /** 文档内容写入恢复副本。
  *  超出 localStorage 配额（QuotaExceededError）或隐私模式拒绝写入时静默降级——
- *  副本丢失优于崩溃：调用方在编辑器 onChange 节流链路里，任一路径上抛都会打断输入。 */
+ *  副本丢失优于崩溃：调用方在编辑器 onChange 节流链路里，任一路径上抛都会打断输入。
+ *  持续失败时只 warn 一次（首次失败提示，成功写入后重置警告位）。 */
 export function saveDoc(markdown: string) {
   try {
     localStorage.setItem(DOC_KEY, markdown)
+    saveDocWarned = false
   } catch (err) {
-    console.warn('[tmd] saveDoc failed', err)
+    if (!saveDocWarned) {
+      saveDocWarned = true
+      console.warn('[tmd] saveDoc failed (further warnings suppressed until next success)', err)
+    }
   }
 }
 
