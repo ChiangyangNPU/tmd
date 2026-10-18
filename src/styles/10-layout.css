@@ -219,12 +219,14 @@
   outline: none;
 }
 
-/* 文件树右键菜单：more-menu 基础样式 + JS 定位（覆盖 right 默认值） */
+/* 文件树右键菜单：more-menu 基础样式 + JS 定位（覆盖 right 默认值）。
+   宽度按最宽条目自适应（与 .context-menu 同口径）：条目文案长度不一
+   （新建文件 / 复制绝对路径等），写死 min-width 会让短文案菜单右侧留
+   大片空白、左右内边距不对称 */
 .file-context-menu {
   right: auto;
   left: 0;
   top: 0;
-  min-width: 148px;
   display: flex;
   flex-direction: column;
 }
