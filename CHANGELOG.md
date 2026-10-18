@@ -2,7 +2,7 @@
 
 本文件记录 TMD 的版本发布历史，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
-## [未发布]
+## [0.1.4] - 2026-10-18
 
 ### 新增
 
