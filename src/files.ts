@@ -44,6 +44,7 @@ import {
 } from './filetree'
 import { invalidateWikiIndex, wikiIndexOnSave, getWikiLinks } from './wikilink-index'
 import { rewriteLinksForRename } from './link-rewrite'
+import { relativeFsPath } from './fs-path'
 import { t } from './i18n'
 
 /** 已打开文件夹的目录列表缓存（绝对路径 → 该目录的直接子项）；每个目录首次展开时懒加载 */
@@ -551,7 +552,8 @@ function mountMenu(menu: HTMLElement, x: number, y: number) {
   setTimeout(() => document.addEventListener('click', hideFolderMenu, { once: true }), 0)
 }
 
-/** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示 */
+/** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示，
+ *  末尾追加「复制相对路径 / 复制绝对路径」 */
 function showFolderMenu(target: FolderMenuTarget) {
   hideFolderMenu()
   ensureFolderMenuCloser()
@@ -584,15 +586,18 @@ function showFolderMenu(target: FolderMenuTarget) {
     if (!ok) showToast(t('files.renameFailed'))
   })
   add(t('files.reveal'), () => void native?.revealInFolder(target.entry.path))
+  addPathItems(add, target.entry.path)
   mountMenu(menu, target.x, target.y)
 }
 
-/** 最近文件行右键菜单：仅「在系统中显示」（最近条目无重命名/新建语义） */
+/** 最近文件行右键菜单：「在系统中显示」+「复制相对路径 / 复制绝对路径」
+ *  （最近条目无重命名/新建语义） */
 function showRecentMenu(path: string, x: number, y: number) {
   hideFolderMenu()
   ensureFolderMenuCloser()
   const { menu, add } = buildMenu()
   add(t('files.reveal'), () => void native?.revealInFolder(path))
+  addPathItems(add, path)
   mountMenu(menu, x, y)
 }
 
@@ -629,7 +634,7 @@ export function renderFilesSidebar() {
       treeEl,
       folders,
       (p) => void openPath(p),
-      (p) => toggleFolder(p),
+      (p) => void toggleFolder(p),
       (p) => removeFolderEntry(p),
       native
         ? {
@@ -642,4 +647,59 @@ export function renderFilesSidebar() {
       expandedFolders,
     )
   }
+}
+
+// ---------- 路径复制菜单项（文件树 / 最近列表 / 标签页右键菜单共用） ----------
+
+/** 计算条目相对其所在挂载根的路径；不在任何根下返回 null（菜单里不出现「复制相对路径」）。
+ *  多根场景取前缀最长（相对段最短）的那个根；导出给标签页右键菜单复用 */
+export function relativeToMountedRoot(path: string): string | null {
+  let best: string | null = null
+  for (const root of folderList()) {
+    const rel = relativeFsPath(root.path, path)
+    if (rel !== null && (best === null || rel.length < best.length)) best = rel
+  }
+  return best
+}
+
+/**
+ * 剪贴板写入：优先 async Clipboard API，不可用（权限拒绝 / 降级环境）时
+ * 回落隐藏 textarea + execCommand。成功返回 true，调用方据此提示。
+ */
+async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text)
+    return true
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    let ok = false
+    try {
+      ok = document.execCommand('copy')
+    } catch {
+      /* 保持 false */
+    }
+    ta.remove()
+    return ok
+  }
+}
+
+/** 复制路径并 toast 反馈（文件树 / 最近列表 / 标签页右键菜单共用） */
+export function copyPathWithToast(value: string): void {
+  void copyTextToClipboard(value).then((ok) => {
+    if (ok) showToast(t('files.copied'))
+  })
+}
+
+/** 向菜单追加「复制相对路径 / 复制绝对路径」两项（相对路径不可算时只加绝对路径） */
+function addPathItems(add: (label: string, fn: () => void) => void, path: string) {
+  const relative = relativeToMountedRoot(path)
+  if (relative !== null) {
+    add(t('files.copyRelativePath'), () => copyPathWithToast(relative))
+  }
+  add(t('files.copyAbsolutePath'), () => copyPathWithToast(path))
 }

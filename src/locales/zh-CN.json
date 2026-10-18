@@ -85,7 +85,10 @@
     "clearRecentConfirm": "确定清空全部最近打开的文件吗？",
     "clearFolders": "清空",
     "clearFoldersTitle": "清空文件夹列表",
-    "clearFoldersConfirm": "确定清空全部已打开的文件夹吗？（不会删除磁盘文件）"
+    "clearFoldersConfirm": "确定清空全部已打开的文件夹吗？（不会删除磁盘文件）",
+    "copyRelativePath": "复制相对路径",
+    "copyAbsolutePath": "复制绝对路径",
+    "copied": "路径已复制"
   },
   "extchange": {
     "changed": "「{name}」已在磁盘上被外部修改",

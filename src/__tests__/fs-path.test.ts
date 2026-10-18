@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { isWindowsPath, normalizeFsPath, dirOf, isSameFsPath, toFileUrl } from '../fs-path'
+import {
+  isWindowsPath,
+  normalizeFsPath,
+  dirOf,
+  isSameFsPath,
+  toFileUrl,
+  relativeFsPath,
+} from '../fs-path'
 
 describe('normalizeFsPath', () => {
   it('统一反斜杠为正斜杠', () => {
@@ -80,9 +87,7 @@ describe('isSameFsPath', () => {
 
 describe('toFileUrl（逐段百分号编码）', () => {
   it('空格与中文正常编码', () => {
-    expect(toFileUrl('/docs', 'assets/my file.png')).toBe(
-      'file:///docs/assets/my%20file.png',
-    )
+    expect(toFileUrl('/docs', 'assets/my file.png')).toBe('file:///docs/assets/my%20file.png')
     expect(toFileUrl('/docs', '图片.png')).toBe('file:///docs/%E5%9B%BE%E7%89%87.png')
   })
 
@@ -102,5 +107,35 @@ describe('dirOf 根目录边界', () => {
     expect(dirOf('/a.md')).toBe('/')
     expect(dirOf('/b/c.md')).toBe('/b')
     expect(dirOf('c.md')).toBe('')
+  })
+})
+
+describe('relativeFsPath（文件树路径信息条）', () => {
+  it('基准内的目标返回相对段（正斜杠）', () => {
+    expect(relativeFsPath('/workspace', '/workspace/notes/a.md')).toBe('notes/a.md')
+    expect(relativeFsPath('E:\\docs', 'E:\\docs\\sub\\b.md')).toBe('sub/b.md')
+  })
+
+  it('目标即基准本身返回 .（挂载根行）', () => {
+    expect(relativeFsPath('/workspace', '/workspace')).toBe('.')
+    expect(relativeFsPath('E:\\docs', 'e:/docs/')).toBe('.')
+  })
+
+  it('Windows 风格忽略大小写（与 isSameFsPath 同口径）', () => {
+    expect(relativeFsPath('E:\\Docs', 'e:/docs/a.md')).toBe('a.md')
+  })
+
+  it('前缀必须落在分隔符边界（/a/b 不是 /a/b2 的前缀）', () => {
+    expect(relativeFsPath('/a/b', '/a/b2/c.md')).toBeNull()
+    expect(relativeFsPath('/a', '/a/b/c.md')).toBe('b/c.md')
+  })
+
+  it('基准之外或空基准返回 null', () => {
+    expect(relativeFsPath('/workspace', '/other/a.md')).toBeNull()
+    expect(relativeFsPath('', '/a.md')).toBeNull()
+  })
+
+  it('反斜杠入参同样归一', () => {
+    expect(relativeFsPath('E:\\docs', 'E:\\docs\\图片\\笔记.md')).toBe('图片/笔记.md')
   })
 })

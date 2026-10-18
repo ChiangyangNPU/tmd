@@ -85,7 +85,10 @@
     "clearRecentConfirm": "確定要清空全部最近開啟的檔案嗎？",
     "clearFolders": "清空",
     "clearFoldersTitle": "清空資料夾清單",
-    "clearFoldersConfirm": "確定要清空全部已開啟的資料夾嗎？（不會刪除磁碟檔案）"
+    "clearFoldersConfirm": "確定要清空全部已開啟的資料夾嗎？（不會刪除磁碟檔案）",
+    "copyRelativePath": "複製相對路徑",
+    "copyAbsolutePath": "複製絕對路徑",
+    "copied": "路徑已複製"
   },
   "extchange": {
     "changed": "「{name}」已在磁碟上被外部修改",

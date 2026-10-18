@@ -1,13 +1,14 @@
 /**
  * 标签栏右键菜单：关闭当前 / 其他 / 左侧 / 右侧 / 已保存 / 全部，以及
- * 「在系统中显示」（跳到该标签文件所在文件夹，复用 files.reveal 文案）。
+ * 「在系统中显示」「复制相对路径 / 复制绝对路径」（复用 files.* 文案与实现）。
  *
  * - 自绘 HTML 菜单：复用编辑区右键菜单的 .more-menu .menu-item 样式与
  *   document click 关外关闭模式，主题 CSS 变量自动跟随深浅色
  * - 各项可用性与关闭目标均为纯函数（tabMenuEnabled / closeTargets，可单测）：
  *   在第一个标签上右键时「关闭左侧」置灰，全部未保存时「关闭已保存」置灰
  * - 「在系统中显示」不是关闭类动作：未保存到磁盘的新文档没有绝对路径、
- *   浏览器降级壳层下无系统文件管理器可用，两种情况都置灰
+ *   浏览器降级壳层下无系统文件管理器可用，两种情况都置灰；两个复制项只依赖
+ *   标签的文件路径（复制不需要 native），相对路径项另需文件位于某个挂载根下
  * - 批量关闭整批只确认一次（见 tabs.ts closeTabsBulk）；单标签「关闭」走
  *   closeTab 保留按文件名确认的原有文案
  *
@@ -15,6 +16,7 @@
  */
 import { listTabs, closeTab, closeTabsBulk } from './tabs'
 import { native } from './native'
+import { copyPathWithToast, relativeToMountedRoot } from './files'
 
 /** 关闭类动作，DOM 用 data-tm-action 关联（closeTargets 与置灰逻辑只覆盖这些） */
 export type TabMenuAction =
@@ -29,6 +31,12 @@ const ACTIONS: TabMenuAction[] = [
   'closeSaved',
   'closeAll',
 ]
+
+/** 非关闭类菜单项：可用性按锚点标签的文件路径单独判定 */
+type TabMenuPathAction = 'reveal' | 'copyRelPath' | 'copyAbsPath'
+
+/** 全部非关闭类菜单项（reflectEnabled 按这几项写置灰） */
+const PATH_ACTIONS: TabMenuPathAction[] = ['reveal', 'copyRelPath', 'copyAbsPath']
 
 /**
  * 计算菜单各项可用性。
@@ -80,7 +88,10 @@ export function closeTargets(
 }
 
 /** 把可用性写到菜单项（不可用的置灰，pointer-events:none 不响应点击） */
-function reflectEnabled(enabled: Record<TabMenuAction, boolean>, revealEnabled: boolean) {
+function reflectEnabled(
+  enabled: Record<TabMenuAction, boolean>,
+  pathEnabled: Record<TabMenuPathAction, boolean>,
+) {
   const menu = document.getElementById('tab-context-menu')
   if (!menu) return
   for (const action of ACTIONS) {
@@ -88,10 +99,12 @@ function reflectEnabled(enabled: Record<TabMenuAction, boolean>, revealEnabled: 
       .querySelector<HTMLElement>(`[data-tm-action="${action}"]`)
       ?.classList.toggle('disabled', !enabled[action])
   }
-  // 「在系统中显示」不属关闭类动作，可用性与锚点标签的文件路径有关，单独置灰
-  menu
-    .querySelector<HTMLElement>('[data-tm-action="reveal"]')
-    ?.classList.toggle('disabled', !revealEnabled)
+  // 路径相关项（在系统中显示 / 复制相对 / 复制绝对）按锚点标签的路径可用性置灰
+  for (const action of PATH_ACTIONS) {
+    menu
+      .querySelector<HTMLElement>(`[data-tm-action="${action}"]`)
+      ?.classList.toggle('disabled', !pathEnabled[action])
+  }
 }
 
 /** 在光标处弹出菜单（视口内钳位）并按当前标签状态置灰 */
@@ -102,7 +115,13 @@ function openTabMenu(x: number, y: number, anchorId: string) {
   const index = tabs.findIndex((tb) => tb.id === anchorId)
   const saved = tabs.filter((tb) => !tb.dirty).length
   // 锚点已被关闭时 tabs[index] 为 undefined，路径判空自然置灰
-  reflectEnabled(tabMenuEnabled(index, tabs.length, saved), !!native && !!tabs[index]?.path)
+  const path = tabs[index]?.path
+  reflectEnabled(tabMenuEnabled(index, tabs.length, saved), {
+    // reveal 需要壳层能力；两个复制项只依赖文件路径（浏览器降级也能复制）
+    reveal: !!native && !!path,
+    copyRelPath: !!path && relativeToMountedRoot(path) !== null,
+    copyAbsPath: !!path,
+  })
   menu.hidden = false
   const rect = menu.getBoundingClientRect()
   menu.style.left = `${Math.min(x, window.innerWidth - rect.width - 8)}px`
@@ -134,12 +153,19 @@ export function wireTabMenu(): void {
   menu.querySelectorAll<HTMLElement>('[data-tm-action]').forEach((el) => {
     el.addEventListener('click', () => {
       menu.hidden = true
-      const action = el.dataset.tmAction as TabMenuAction | 'reveal'
+      const action = el.dataset.tmAction as TabMenuAction | TabMenuPathAction
       if (!anchorId) return
-      // 「在系统中显示」不关闭任何标签：跳到锚点文件所在的文件夹
+      const path = listTabs().find((tb) => tb.id === anchorId)?.path
+      // 路径类项不关闭任何标签：「在系统中显示」跳到锚点文件所在文件夹，
+      // 两个复制项写入剪贴板（相对路径按挂载根计算，算不出则该项已置灰）
       if (action === 'reveal') {
-        const path = listTabs().find((tb) => tb.id === anchorId)?.path
         if (path) void native?.revealInFolder(path)
+        return
+      }
+      if (action === 'copyAbsPath' || action === 'copyRelPath') {
+        if (!path) return
+        const value = action === 'copyAbsPath' ? path : relativeToMountedRoot(path)
+        if (value !== null) copyPathWithToast(value)
         return
       }
       const ids = closeTargets(action, anchorId, listTabs())

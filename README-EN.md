@@ -54,6 +54,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Wiki-link ecosystem**: `[[target]]` / `[[target|alias]]` / `[[target#heading]]` triple (rendered in both WYSIWYG and source mode; unresolved targets are dimmed with a hint and stay clickable); a **backlinks panel** (Cmd/Ctrl+Shift+B) lists every workspace reference to the current note; a **relation graph** (canvas + d3-force force layout, hover to highlight neighbours, click to open) and a **local graph** (sidebar mini-map of the current note's neighbourhood, 1/2 hops); renaming a note rewrites references across the whole workspace automatically; all shortcuts are remappable in the settings
 - File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk)
 - **Sidebar file management** (desktop): folder root rows show hover buttons "＋file / ＋folder" for inline creation (auto .md extension, duplicate names rejected, new files open immediately); right-click any row for "New / Rename / Reveal in Finder" — renaming syncs the associated path of open tabs, so later saves write to the new path
+- **Copy file paths** (desktop): the right-click menus of file tree / recent-list rows and editor tabs offer "Copy relative path" and "Copy absolute path" — the relative path is computed against its mounted root (longest-prefix match among multiple roots); clicking copies it to the clipboard with toast feedback; disabled for tabs not yet saved to disk
 - Resizable sidebar: drag the divider between the sidebar and the editor to adjust the width (hover highlight, width remembered, double-click to reset; clamped automatically when the window narrows)
 - Drag & drop: drop a .md file onto the window to open it (new tab); drop images to insert them per the paste strategy
 - Formatting shortcuts & Format menu: headings 1–6 (Ctrl/Cmd+1–6), bold/italic (Ctrl/Cmd+B/I), link (Ctrl/Cmd+K), blockquote, lists, code block — all undoable
@@ -218,7 +219,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
 │  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
-│  └─ __tests__/                 vitest pure-function unit tests (60 files / 723 cases)
+│  └─ __tests__/                 vitest pure-function unit tests (60 files / 735 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap

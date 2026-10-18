@@ -106,3 +106,25 @@ export function isSameFsPath(a: string, b: string): boolean {
   if (na === nb) return true
   return isWindowsPath(na) && na.toLowerCase() === nb.toLowerCase()
 }
+
+/**
+ * 计算目标路径相对基准目录的路径（文件树路径信息条用）。
+ * 规范化后做前缀匹配，Windows 风格路径忽略大小写（与 isSameFsPath 同口径）；
+ * 前缀必须落在分隔符边界上（/a/b 不包含 /a/b2）。目标即基准本身时返回 '.'。
+ *
+ * @param base - 基准目录（如挂载的工作区根）
+ * @param target - 目标文件或目录
+ * @returns 相对路径（不含基准段，正斜杠分隔）；不在基准之下返回 null
+ */
+export function relativeFsPath(base: string, target: string): string | null {
+  const nb = normalizeFsPath(base)
+  const nt = normalizeFsPath(target)
+  if (!nb) return null
+  const fold = (p: string) => (isWindowsPath(nb) ? p.toLowerCase() : p)
+  const fb = fold(nb)
+  const ft = fold(nt)
+  if (fb === ft) return '.'
+  const prefix = fb.endsWith('/') ? fb : `${fb}/`
+  if (!ft.startsWith(prefix)) return null
+  return nt.slice(prefix.length) || '.'
+}
