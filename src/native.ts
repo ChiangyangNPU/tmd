@@ -159,6 +159,10 @@ export interface NativeFileAPI {
   watchFiles(paths: string[]): void
   /** 订阅外部修改事件（kind: 'change' 内容变化 / 'unlink' 文件被移除） */
   onFileChanged(callback: (info: FileChangeInfo) => void): void
+  /** 侧边栏目录监视：全量同步「已加载目录集合」（主进程差量增删 watcher） */
+  watchDirs(paths: string[]): void
+  /** 订阅目录变化事件（外部增删/改名），回调参数为发生变化的目录绝对路径 */
+  onDirsChanged(callback: (dir: string) => void): void
   /** 文件管理：目录下新建 Markdown 文件（自动补 .md；重名/非法名 reject），返回新路径与名称 */
   createFile(dirPath: string, name: string): Promise<{ path: string; name: string }>
   /** 文件管理：目录下新建文件夹（重名/非法名 reject），返回新路径与名称 */
@@ -412,6 +416,10 @@ export interface IpcChannels {
   watchFiles: string
   /** 外部修改检测：主进程推送变化事件 */
   fileChanged: string
+  /** 侧边栏目录监视：渲染层全量同步已加载目录集合 */
+  watchDirs: string
+  /** 侧边栏目录监视：主进程推送目录变化事件 */
+  dirsChanged: string
   /** 文件管理：目录下新建 Markdown 文件 */
   createFile: string
   /** 文件管理：目录下新建文件夹 */

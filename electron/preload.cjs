@@ -152,6 +152,12 @@ const api = {
   onFileChanged: (callback) => {
     ipcRenderer.on(IPC.fileChanged, (_event, info) => callback(info))
   },
+  /** 侧边栏目录监视：全量同步「已加载目录集合」（主进程差量增删 watcher） */
+  watchDirs: (paths) => ipcRenderer.invoke(IPC.watchDirs, paths),
+  /** 订阅目录变化事件（外部增删/改名），payload 为发生变化的目录绝对路径 */
+  onDirsChanged: (callback) => {
+    ipcRenderer.on(IPC.dirsChanged, (_event, dir) => callback(dir))
+  },
   /** 文件管理：在目录下新建 Markdown 文件（无 .md 扩展名自动补；重名抛错），返回新路径与名称 */
   createFile: (dirPath, name) => ipcRenderer.invoke(IPC.createFile, dirPath, name),
   /** 文件管理：在目录下新建文件夹（重名抛错），返回新路径与名称 */

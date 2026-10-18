@@ -52,7 +52,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Command palette** (Ctrl/Cmd+Shift+A, remappable): fuzzy-search and run every menu action (file / export / version history / settings), formatting commands and view toggles (source / split / autosave) — commands share the exact same handlers as the menus, searchable by Chinese and English keywords
 - **Cross-file search** (Ctrl/Cmd+Shift+F): line-by-line search across the folders mounted in the sidebar; results are grouped by file with line numbers and context (keyword highlighting) — ↑↓ to select, Enter to open and jump to the match. Dependency folders are skipped and per-file/result limits are enforced, so large workspaces never freeze the UI
 - **Wiki-link ecosystem**: `[[target]]` / `[[target|alias]]` / `[[target#heading]]` triple (rendered in both WYSIWYG and source mode; unresolved targets are dimmed with a hint and stay clickable); a **backlinks panel** (Cmd/Ctrl+Shift+B) lists every workspace reference to the current note; a **relation graph** (canvas + d3-force force layout, hover to highlight neighbours, click to open) and a **local graph** (sidebar mini-map of the current note's neighbourhood, 1/2 hops); renaming a note rewrites references across the whole workspace automatically; all shortcuts are remappable in the settings
-- File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk). The **currently open file** is highlighted in the tree and the recent list with the same accent colour as folders, moving as you switch tabs
+- File sidebar: mount multiple folders at once (independent expansion, restored on restart, lazy-loaded on expand) plus a recent files list; both support hover × per-item removal and one-click clear (confirmation dialog; clearing folders only unmounts them, never deletes files on disk). The **currently open file** is highlighted in the tree and the recent list with the same accent colour as folders, moving as you switch tabs; files and folders created, deleted or renamed externally (e.g. in the OS file manager) are reflected in expanded trees automatically, without re-mounting
 - **Sidebar file management** (desktop): folder root rows show hover buttons "＋file / ＋folder" for inline creation (auto .md extension, duplicate names rejected, new files open immediately); right-click any row for "New / Rename / Reveal in Finder" — renaming syncs the associated path of open tabs, so later saves write to the new path
 - **Copy file paths** (desktop): the right-click menus of file tree / recent-list rows and editor tabs offer "Copy relative path" and "Copy absolute path" — the relative path is computed against its mounted root (longest-prefix match among multiple roots); clicking copies it to the clipboard with toast feedback; disabled for tabs not yet saved to disk
 - Resizable sidebar: drag the divider between the sidebar and the editor to adjust the width (hover highlight, width remembered, double-click to reset; clamped automatically when the window narrows)
@@ -126,6 +126,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │      ├─ search.cjs              Full-text search scanning & matching
 │      ├─ wikilinks.cjs           Wiki-link index scanning & resolution (reuses search enumeration + fence skip)
 │      ├─ filewatcher.cjs         External-change watcher for open files (content fingerprint filters self-writes)
+│      ├─ dirwatcher.cjs          External-change watcher for loaded sidebar folders (create/delete/rename auto-refresh)
 │      ├─ fsops.cjs               Sidebar file-management pure functions (name & path safety for new/rename)
 │      └─ themes.cjs              File-based theme folder scanning & safety checks
 │
@@ -219,7 +220,7 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
 │  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
-│  └─ __tests__/                 vitest pure-function unit tests (60 files / 735 cases)
+│  └─ __tests__/                 vitest pure-function unit tests (61 files / 739 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap

@@ -38,6 +38,7 @@ const {
 const path = require('node:path')
 const fsSync = require('node:fs')
 const { createFileWatcher } = require('./filewatcher.cjs')
+const { createDirWatcher } = require('./dirwatcher.cjs')
 const { createExporter } = require('./exporter.cjs')
 const { tmdHome, crashDumpsDir, createLogger, scanNewDumps } = require('./logger.cjs')
 // 应用菜单模板：纯数据工厂（零 Electron 依赖，独立单测），状态与副作用注入见 buildMenu
@@ -88,6 +89,12 @@ function sendToRenderer(channel, payload) {
 // 脏态弹条二选一）。指纹过滤保证自身保存不会误报。
 const fileWatcher = createFileWatcher({
   onEvent: (info) => sendToRenderer(IPC.fileChanged, info),
+})
+
+// 侧边栏目录监视：渲染层把「已加载目录集合」全量同步过来（挂载/展开后），
+// 外部增删改名时推给渲染层失效缓存并重读重渲染（非递归，只关心直接子项）
+const dirWatcher = createDirWatcher({
+  onChange: (dir) => sendToRenderer(IPC.dirsChanged, dir),
 })
 
 // 主进程 JS 异常：落盘后保持 Electron 默认语义（不主动退出），仅补本地记录。
@@ -243,6 +250,7 @@ registerFileIpc({
   app,
   IPC,
   fileWatcher,
+  dirWatcher,
   logger,
   showOpenDialogSafe,
   showSaveDialogSafe,

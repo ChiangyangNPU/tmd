@@ -52,6 +52,7 @@ const MAX_READ_FILE_BYTES = 50 * 1024 * 1024
  *   app: import('electron').App,
  *   IPC: typeof import('./ipc.cjs'),
  *   fileWatcher: ReturnType<typeof import('./filewatcher.cjs').createFileWatcher>,
+ *   dirWatcher: ReturnType<typeof import('./dirwatcher.cjs').createDirWatcher>,
  *   logger: ReturnType<typeof import('./logger.cjs').createLogger>,
  *   showOpenDialogSafe: (options: import('electron').OpenDialogOptions) => Promise<import('electron').OpenDialogReturnValue>,
  *   showSaveDialogSafe: (options: import('electron').SaveDialogOptions) => Promise<import('electron').SaveDialogReturnValue>,
@@ -63,6 +64,7 @@ function registerFileIpc({
   app,
   IPC,
   fileWatcher,
+  dirWatcher,
   logger,
   showOpenDialogSafe,
   showSaveDialogSafe,
@@ -332,6 +334,13 @@ function registerFileIpc({
   ipcMain.handle(IPC.watchFiles, (_event, paths) => {
     if (!Array.isArray(paths)) return
     fileWatcher.sync(paths.filter((p) => typeof p === 'string' && p !== ''))
+  })
+
+  /** 侧边栏目录监视：全量同步「已加载的目录集合」，主进程差量挂/卸 fs.watch */
+  /** @param {unknown} _event @param {unknown} paths */
+  ipcMain.handle(IPC.watchDirs, (_event, paths) => {
+    if (!Array.isArray(paths)) return
+    dirWatcher.sync(paths.filter((p) => typeof p === 'string' && p !== ''))
   })
 
   // ---------- 侧边栏文件管理（新建 / 重命名 / 在系统中显示） ----------

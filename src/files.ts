@@ -45,7 +45,7 @@ import {
 } from './filetree'
 import { invalidateWikiIndex, wikiIndexOnSave, getWikiLinks } from './wikilink-index'
 import { rewriteLinksForRename } from './link-rewrite'
-import { relativeFsPath, isSameFsPath } from './fs-path'
+import { relativeFsPath, isSameFsPath, dirOf } from './fs-path'
 import { t } from './i18n'
 
 /** 已打开文件夹的目录列表缓存（绝对路径 → 该目录的直接子项）；每个目录首次展开时懒加载 */
@@ -627,6 +627,87 @@ export function initActiveFileHighlight() {
   syncActiveFileHighlight()
 }
 
+// ---------- 外部目录变化：自动刷新文件树 ----------
+
+/** 已加载目录集合全量同步给主进程（目录监视差量挂/卸 fs.watch） */
+function syncDirWatchers() {
+  native?.watchDirs([...folderChildrenCache.keys()])
+}
+
+/** 目录列表是否与缓存一致：只比子项路径与顺序（readDir 已按界面语言排序）。
+ *  文件内容保存也会触发目录事件（Windows），列表未变时据此跳过刷新 */
+function listingEqual(prev: FileEntry[] | undefined, next: FileEntry[] | undefined): boolean {
+  if (!prev || !next) return prev === next
+  if (prev.length !== next.length) return false
+  return prev.every((entry, i) => entry.path === next[i].path)
+}
+
+/** 失效目录自身与全部后代缓存（目录被改名 / 移动时后代路径整体失效） */
+function invalidateDirCache(dir: string) {
+  for (const key of [...folderChildrenCache.keys()]) {
+    if (isSameFsPath(key, dir) || relativeFsPath(dir, key) !== null) {
+      folderChildrenCache.delete(key)
+    }
+  }
+}
+
+/** 重读所有展开中、但缓存已被失效的目录（多层同时变化时一次补齐；折叠目录
+ *  保持未加载态，等用户展开时自然重读） */
+async function reloadMissingExpandedDirs() {
+  if (!native) return
+  for (const expanded of [...expandedFolders]) {
+    if (folderChildrenCache.has(expanded)) continue
+    try {
+      const tree = await native.readDir(expanded)
+      if (tree) folderChildrenCache.set(expanded, tree.children)
+    } catch {
+      /* 目录已不存在等：保留展开态，对应行会随父目录重读消失 */
+    }
+  }
+}
+
+/** 清理失效的展开态：父目录缓存已重读且不再包含该子目录时移除
+ *  （外部改名 / 删除后旧路径的展开标记不再有意义） */
+function pruneExpandedPaths() {
+  for (const key of [...expandedFolders]) {
+    const siblings = folderChildrenCache.get(dirOf(key))
+    if (siblings && !siblings.some((entry) => isSameFsPath(entry.path, key))) {
+      expandedFolders.delete(key)
+    }
+  }
+}
+
+/** 外部目录变化刷新队列：一次操作常派发多个事件，串行执行避免并发读盘交错 */
+let dirRefreshQueue: Promise<void> = Promise.resolve()
+
+/**
+ * 外部目录变化：重读该目录并与缓存比对（内容保存触发的目录事件在列表未变时
+ * 直接忽略）→ 变了才失效该目录与后代缓存 → 重读展开中的目录 → 重渲染。
+ * @param dir 发生变化的目录绝对路径（主进程 dirwatcher 推送）
+ */
+function handleDirsChanged(dir: string) {
+  dirRefreshQueue = dirRefreshQueue
+    .then(async () => {
+      if (!native) return
+      const tree = await native.readDir(dir).catch(() => null)
+      if (listingEqual(folderChildrenCache.get(dir), tree?.children)) return
+      invalidateDirCache(dir)
+      if (tree) folderChildrenCache.set(dir, tree.children)
+      await reloadMissingExpandedDirs()
+      pruneExpandedPaths()
+      renderFilesSidebar()
+    })
+    .catch((err) => console.error('[tmd] 目录刷新失败', err))
+}
+
+/** 装配侧边栏目录监视（boot 调用一次）：外部增删 / 改名后自动刷新文件树 */
+export function initDirWatcherBridge() {
+  native?.onDirsChanged((dir) => {
+    if (typeof dir === 'string' && dir) handleDirsChanged(dir)
+  })
+  syncDirWatchers()
+}
+
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
 export function renderFilesSidebar() {
   const recent = recentList()
@@ -675,6 +756,8 @@ export function renderFilesSidebar() {
   }
   // 重渲染会重建行元素，高亮需按当前激活标签重新打标
   syncActiveFileHighlight()
+  // 已加载目录集合可能变化（展开/收起/新建/重命名），同步目录监视
+  syncDirWatchers()
 }
 
 // ---------- 路径复制菜单项（文件树 / 最近列表 / 标签页右键菜单共用） ----------

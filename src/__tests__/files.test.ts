@@ -15,6 +15,8 @@ vi.mock('../native', () => ({
     readFile: vi.fn(),
     recentAdd: vi.fn(),
     watchFiles: vi.fn(),
+    watchDirs: vi.fn(),
+    onDirsChanged: vi.fn(),
   },
 }))
 vi.mock('../editor-core', () => ({
@@ -35,6 +37,7 @@ vi.mock('../tabs', () => ({
   syncDirtyWith: vi.fn(),
   listTabs: vi.fn(() => []),
   setOnTabsSetChanged: vi.fn(),
+  setOnActiveTabChanged: vi.fn(),
 }))
 vi.mock('../store', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../store')>()
