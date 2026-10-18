@@ -47,6 +47,7 @@ import {
   clearRecentDocuments,
   clearFolderEntries,
   initFileWatcherBridge,
+  initActiveFileHighlight,
   closeFolderMenu,
   showToast,
 } from './files'
@@ -790,6 +791,7 @@ async function boot() {
     // 外部修改检测：同步打开文件集合给主进程监视器 + 订阅变化事件
     // （干净标签自动重载、脏标签弹条二选一；浏览器环境两者皆空操作）
     initFileWatcherBridge()
+    initActiveFileHighlight()
     wireFileChanged()
     // 文件关联：Finder 双击 / 系统打开方式
     native?.onOpenPath((path) => void openPath(path))

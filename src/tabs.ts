@@ -93,6 +93,18 @@ export function setOnTabsSetChanged(fn: (() => void) | null) {
   onTabsSetChanged = fn
 }
 
+/**
+ * 激活标签变化回调（切换 / 打开后激活）：files.ts 在启动时经
+ * setOnActiveTabChanged 注册「侧边栏当前文件高亮」同步，此处只负责触发。
+ * 空白标签原地替换（openFromData）不经 activateTab，由 files.ts 直接同步。
+ */
+let onActiveTabChanged: (() => void) | null = null
+
+/** 注册「激活标签变化」回调（幂等覆盖；传 null 注销） */
+export function setOnActiveTabChanged(fn: (() => void) | null) {
+  onActiveTabChanged = fn
+}
+
 /** 可被"打开文件"原地替换的空白标签索引（无路径、无修改、空内容、非恢复），无则 -1 */
 export function blankIndex(): number {
   return tabs.findIndex((t) => !t.path && !t.recovered && !t.dirty && t.markdown === '')
@@ -166,9 +178,7 @@ export function markDirty() {
 export function normalizeForDirtyCompare(md: string): string {
   // CRLF 与 LF 只是磁盘换行风格差异（保存时会按原风格写回），不应算内容修改；
   // 否则打开一个 CRLF 文件后编辑器序列化出 LF，会立刻被误标脏
-  return normalizeEmptyTableCells(md)
-    .replace(/\r\n?/g, '\n')
-    .replace(/\n+$/, '')
+  return normalizeEmptyTableCells(md).replace(/\r\n?/g, '\n').replace(/\n+$/, '')
 }
 
 export function syncDirtyWith(md: string) {
@@ -257,6 +267,7 @@ async function doActivateTab(id: string) {
   activeTabId = id
   renderTabs()
   updateTitle()
+  onActiveTabChanged?.()
   await replaceEditor(target.markdown, { scrollTop: target.scrollTop })
 }
 

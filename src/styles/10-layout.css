@@ -137,6 +137,12 @@
   color: var(--accent);
 }
 
+/* 当前打开文件：树行 / 最近行名称用与文件夹一致的强调色，标出正在编辑的文件
+   （files.ts syncActiveFileHighlight 按激活标签路径打标） */
+.tree-file-active {
+  color: var(--accent);
+}
+
 /* 文件夹行（根行 / 各层子目录行）：折叠箭头 + 名称横向排列；
    tree-recent 额外承载 hover × 等操作按钮的显隐 */
 .tree-recent,

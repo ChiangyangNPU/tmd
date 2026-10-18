@@ -21,6 +21,7 @@ import {
   normalizeForDirtyCompare,
   listTabs,
   setOnTabsSetChanged,
+  setOnActiveTabChanged,
   type DocTab,
 } from './tabs'
 import {
@@ -44,7 +45,7 @@ import {
 } from './filetree'
 import { invalidateWikiIndex, wikiIndexOnSave, getWikiLinks } from './wikilink-index'
 import { rewriteLinksForRename } from './link-rewrite'
-import { relativeFsPath } from './fs-path'
+import { relativeFsPath, isSameFsPath } from './fs-path'
 import { t } from './i18n'
 
 /** 已打开文件夹的目录列表缓存（绝对路径 → 该目录的直接子项）；每个目录首次展开时懒加载 */
@@ -188,6 +189,8 @@ export async function openFromData(data: {
     await replaceEditor(data.content)
     renderTabs()
     updateTitle()
+    // 原地替换不经 activateTab（无激活变化钩子），这里手动补一次高亮同步
+    syncActiveFileHighlight()
     syncFileWatchers()
     return
   }
@@ -601,6 +604,29 @@ function showRecentMenu(path: string, x: number, y: number) {
   mountMenu(menu, x, y)
 }
 
+/**
+ * 同步侧边栏「当前打开文件」高亮：树行与最近行中路径与激活标签一致的加
+ * `.tree-file-active`（与文件夹同款强调色）。路径比较走 isSameFsPath
+ * （Windows 忽略大小写、分隔符归一），避免同一文件因写法差异漏高亮。
+ * 未保存的新文档没有 path，全部行自然不高亮。
+ */
+function syncActiveFileHighlight() {
+  const path = activeTab()?.path
+  for (const id of ['folder-tree', 'recent-list'] as const) {
+    const container = document.getElementById(id)
+    if (!container) continue
+    for (const row of container.querySelectorAll<HTMLElement>('.tree-file')) {
+      row.classList.toggle('tree-file-active', !!path && isSameFsPath(row.title, path))
+    }
+  }
+}
+
+/** 装配当前文件高亮（boot 调用一次）：标签激活时同步 + 启动先扫一遍 */
+export function initActiveFileHighlight() {
+  setOnActiveTabChanged(() => syncActiveFileHighlight())
+  syncActiveFileHighlight()
+}
+
 /** 渲染文件树侧边栏（最近列表 + 文件夹树） */
 export function renderFilesSidebar() {
   const recent = recentList()
@@ -647,6 +673,8 @@ export function renderFilesSidebar() {
       expandedFolders,
     )
   }
+  // 重渲染会重建行元素，高亮需按当前激活标签重新打标
+  syncActiveFileHighlight()
 }
 
 // ---------- 路径复制菜单项（文件树 / 最近列表 / 标签页右键菜单共用） ----------
