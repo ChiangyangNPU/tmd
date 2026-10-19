@@ -87,6 +87,8 @@ const channels = {
   createDir: 'tmd:create-dir',
   renamePath: 'tmd:rename-path',
   revealInFolder: 'tmd:reveal-in-folder',
+  // 删除文件 / 文件夹：移入系统回收站（shell.trashItem，可恢复）；确认在渲染层
+  deletePath: 'tmd:delete-path',
 }
 
 module.exports = channels

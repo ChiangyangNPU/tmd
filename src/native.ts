@@ -171,6 +171,8 @@ export interface NativeFileAPI {
   renamePath(oldPath: string, name: string): Promise<{ path: string; name: string }>
   /** 文件管理：系统文件管理器中显示该文件/文件夹 */
   revealInFolder(targetPath: string): Promise<boolean>
+  /** 文件管理：删除文件/文件夹（移入系统回收站，可恢复；确认由渲染层承担），失败 reject 或返回 false */
+  deletePath(targetPath: string): Promise<boolean>
   /**
    * Word / 长图离屏导出：主进程先弹保存框（取消返回 null），
    * 再把任务下发给隐藏导出窗口执行并写入目标文件。
@@ -428,4 +430,6 @@ export interface IpcChannels {
   renamePath: string
   /** 文件管理：在系统文件管理器中显示 */
   revealInFolder: string
+  /** 文件管理：删除文件/文件夹（移入系统回收站） */
+  deletePath: string
 }

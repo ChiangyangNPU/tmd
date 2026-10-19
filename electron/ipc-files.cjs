@@ -384,6 +384,21 @@ function registerFileIpc({
     return true
   })
 
+  // 删除文件 / 文件夹：移入系统回收站（shell.trashItem，可在回收站恢复——
+  // 不做永久删除）。确认对话框由渲染层承担；失败返回 false，渲染层 toast
+  /** @param {unknown} event @param {unknown} targetPath */
+  ipcMain.handle(IPC.deletePath, async (event, targetPath) => {
+    state.assertMainWindow(event)
+    if (typeof targetPath !== 'string' || !targetPath) return false
+    try {
+      await shell.trashItem(targetPath)
+      return true
+    } catch (err) {
+      console.error('[tmd] 移入回收站失败', err)
+      return false
+    }
+  })
+
   // ---------- 本地历史版本 ----------
 
   /** 列出某文件的快照清单（最新在前），无历史返回 null */

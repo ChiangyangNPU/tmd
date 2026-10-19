@@ -166,6 +166,8 @@ const api = {
   renamePath: (oldPath, name) => ipcRenderer.invoke(IPC.renamePath, oldPath, name),
   /** 文件管理：在系统文件管理器中显示该文件/文件夹 */
   revealInFolder: (targetPath) => ipcRenderer.invoke(IPC.revealInFolder, targetPath),
+  /** 文件管理：删除文件/文件夹（移入系统回收站，可恢复；确认由渲染层承担） */
+  deletePath: (targetPath) => ipcRenderer.invoke(IPC.deletePath, targetPath),
   /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
   exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
 }

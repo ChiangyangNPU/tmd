@@ -540,7 +540,15 @@ function buildMenu() {
     })
     menu.appendChild(item)
   }
-  return { menu, add }
+  /** 分组分隔线：菜单为空或上一条已是分隔线时不重复插入 */
+  const sep = () => {
+    const last = menu.lastElementChild
+    if (!last || last.classList.contains('menu-sep')) return
+    const line = document.createElement('div')
+    line.className = 'menu-sep'
+    menu.appendChild(line)
+  }
+  return { menu, add, sep }
 }
 
 /** 挂载菜单并按光标位置钳位到视口内（两种行右键菜单共用） */
@@ -555,14 +563,44 @@ function mountMenu(menu: HTMLElement, x: number, y: number) {
   setTimeout(() => document.addEventListener('click', hideFolderMenu, { once: true }), 0)
 }
 
-/** 文件树行右键菜单：目录行多「新建」两项（子树已展开时），全部行可重命名/显示，
- *  末尾追加「复制相对路径 / 复制绝对路径」 */
+/**
+ * 「移到回收站」菜单动作：确认对话框（文件夹带「及其全部内容」提示）→
+ * native.deletePath（shell.trashItem，可在回收站恢复）→ 成功后立即刷新
+ * （删除的是挂载根本身则直接卸载该根；否则重读所在目录层，dirwatcher 的
+ * 防抖推送随后到达时列表已一致，不会重复重渲染）。被删除文件若正打开在
+ * 标签页中，「已从磁盘移除、编辑器内容保留」提示条由外部修改监视
+ * （filewatcher unlink）的既有流程处理，此处不额外关标签。
+ */
+async function deleteEntryToTrash(path: string, name: string, isDir: boolean) {
+  if (!native) return
+  const confirmKey = isDir ? 'files.trashConfirmFolder' : 'files.trashConfirmFile'
+  if (!window.confirm(t(confirmKey, { name }))) return
+  let ok = false
+  try {
+    ok = await native.deletePath(path)
+  } catch {
+    /* 入参非法等 reject：走下方统一提示 */
+  }
+  if (!ok) {
+    showToast(t('files.trashFailed'))
+    return
+  }
+  if (folderList().some((root) => isSameFsPath(root.path, path))) {
+    removeFolderEntry(path)
+    return
+  }
+  await refreshTreeRootContaining(path)
+}
+
+/** 文件树行右键菜单，按类别分组（分隔线）：
+ *  新建 / 重命名（改结构）｜在系统中显示 / 复制路径（只读）｜
+ *  从列表中移除（仅挂载根，只取消挂载）｜移到回收站（破坏性操作，独立末组） */
 function showFolderMenu(target: FolderMenuTarget) {
   hideFolderMenu()
   ensureFolderMenuCloser()
   const isDir = target.entry.children != null
   const subVisible = !!target.subContainer && !target.subContainer.hidden
-  const { menu, add } = buildMenu()
+  const { menu, add, sep } = buildMenu()
   if (isDir && subVisible) {
     const createIn = target.subContainer as HTMLElement
     add(t('files.newFile'), () => {
@@ -588,19 +626,31 @@ function showFolderMenu(target: FolderMenuTarget) {
     )
     if (!ok) showToast(t('files.renameFailed'))
   })
+  sep()
   add(t('files.reveal'), () => void native?.revealInFolder(target.entry.path))
   addPathItems(add, target.entry.path)
+  if (target.depth === 0) {
+    sep()
+    add(t('files.removeFolder'), () => removeFolderEntry(target.entry.path))
+  }
+  sep()
+  add(t('files.trash'), () => void deleteEntryToTrash(target.entry.path, target.entry.name, isDir))
   mountMenu(menu, target.x, target.y)
 }
 
-/** 最近文件行右键菜单：「在系统中显示」+「复制相对路径 / 复制绝对路径」
+/** 最近文件行右键菜单，按类别分组（分隔线）：
+ *  在系统中显示 / 复制路径（只读）｜从最近文件中移除（列表管理）｜移到回收站
  *  （最近条目无重命名/新建语义） */
 function showRecentMenu(path: string, x: number, y: number) {
   hideFolderMenu()
   ensureFolderMenuCloser()
-  const { menu, add } = buildMenu()
+  const { menu, add, sep } = buildMenu()
   add(t('files.reveal'), () => void native?.revealInFolder(path))
   addPathItems(add, path)
+  sep()
+  add(t('files.removeRecent'), () => removeRecentDocument(path))
+  sep()
+  add(t('files.trash'), () => void deleteEntryToTrash(path, baseName(path), false))
   mountMenu(menu, x, y)
 }
 
@@ -760,7 +810,13 @@ export function renderFilesSidebar() {
   syncDirWatchers()
 }
 
-// ---------- 路径复制菜单项（文件树 / 最近列表 / 标签页右键菜单共用） ----------
+// ---------- 右键菜单的删除 / 复制路径（文件树 / 最近列表共用） ----------
+
+/** 取路径末段作为展示名（树行有 entry.name，最近列表只有路径） */
+function baseName(path: string): string {
+  const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+  return i >= 0 ? path.slice(i + 1) : path
+}
 
 /** 计算条目相对其所在挂载根的路径；不在任何根下返回 null（菜单里不出现「复制相对路径」）。
  *  多根场景取前缀最长（相对段最短）的那个根；导出给标签页右键菜单复用 */
