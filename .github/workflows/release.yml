@@ -214,6 +214,28 @@ jobs:
             echo "Created Gitee Release ID: $RELEASE_ID"
           fi
 
+          # 3.5 配额维护：Gitee 免费仓库的 Release 附件总容量 1GB，每个版本约
+          #     175MB（dmg 85 + exe 95），不清理则从第 6 个版本起上传必失败
+          #     （v0.1.5 实测：总量 1036MB 时 0.1MB 的 blockmap 被配额挡下、
+          #     step 红灯）。发版前保留最近 KEEP_GITEE_RELEASES 个版本的附件，
+          #     更早版本的附件逐个删除——Release 页面与说明保留，旧安装包仍可
+          #     从 GitHub Release 下载。删除失败只告警不中断：上传阶段的配额
+          #     错误才是最终裁判。
+          KEEP_GITEE_RELEASES="${KEEP_GITEE_RELEASES:-2}"
+          PRUNE_IDS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+            "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases?per_page=100&access_token=$GITEE_TOKEN" \
+            | KEEP="$KEEP_GITEE_RELEASES" CURRENT_ID="$RELEASE_ID" node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const list=JSON.parse(d);if(!Array.isArray(list))throw new Error('not array');const keep=Number(process.env.KEEP)||2;const sorted=[...list].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));const keepIds=new Set(sorted.slice(0,keep).map(r=>String(r.id)));keepIds.add(String(process.env.CURRENT_ID||''));for(const r of sorted){if(!keepIds.has(String(r.id))) console.log(r.id)}}catch(e){console.error('::warning::Gitee Release 列表解析失败，跳过配额清理')}})")
+          for rid in $PRUNE_IDS; do
+            ATTACH_IDS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$rid/attach_files?access_token=$GITEE_TOKEN" \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const list=JSON.parse(d);if(Array.isArray(list)){for(const a of list) console.log(a.id)}}catch{}})")
+            for aid in $ATTACH_IDS; do
+              code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
+                "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$rid/attach_files/$aid?access_token=$GITEE_TOKEN")
+              echo "prune: release $rid attach $aid → HTTP $code"
+            done
+          done
+
           # 4. 上传附件——大文件（dmg/exe）并行，Gitee 对海外 IP 的限速若按单连接
           #    计算则吞吐翻倍；小文件（blockmap）串行。
           #    低速保护：15 分钟内平均速度低于 512B/s 才放弃（只拦死连接，
