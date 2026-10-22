@@ -572,6 +572,10 @@ export function openSettings() {
   const versionEl = document.getElementById('about-version')
   if (versionEl) versionEl.textContent = pkg.version
 
+  // 更新面板：当前版本号与「关于」同源（package.json），便于用户在检查更新前确认本机版本
+  const updateVersionEl = document.getElementById('update-version')
+  if (updateVersionEl) updateVersionEl.textContent = pkg.version
+
   // 关于面板：版权年份为「首次发布年份 - 最近发布年份」，起始年固定，结束年随当前年份自动更新
   const copyrightEl = document.getElementById('about-copyright')
   if (copyrightEl) {

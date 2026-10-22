@@ -605,7 +605,7 @@
   color: var(--accent);
 }
 
-/* 更新区块：检查按钮 + 状态文字 + 重启按钮 */
+/* 更新区块：检查按钮 + 状态文字 + 当前版本 + 重启按钮 */
 .settings-update-row {
   display: flex;
   align-items: center;
@@ -617,6 +617,18 @@
   font-size: 12px;
   color: var(--muted);
   min-height: 18px;
+  /* 状态文字可长（如 macOS 安装包落盘路径），允许收缩换行，
+     让右侧版本号保持贴右不被顶出容器 */
+  flex: 1;
+  min-width: 0;
+}
+
+/* 当前版本号：右对齐弱化展示，版本值来自 package.json（与「关于」同源） */
+.update-version {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 /* 窄窗口（浏览器模式小窗等）收起导航列，退化为单列滚动 */

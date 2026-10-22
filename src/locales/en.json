@@ -333,6 +333,7 @@
     "updateAutoCheck": "Check for updates on startup",
     "updateAutoCheckHint": "Automatically check for new versions on startup",
     "updateCheck": "Check for Updates",
+    "updateCurrentVersion": "Current version",
     "updateChecking": "Checking…",
     "updateAvailable": "New version {version} available",
     "updateNotAvailable": "You're on the latest version",

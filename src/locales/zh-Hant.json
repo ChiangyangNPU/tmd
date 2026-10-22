@@ -333,6 +333,7 @@
     "updateAutoCheck": "啟動時自動檢查更新",
     "updateAutoCheckHint": "啟動應用程式後自動檢查新版本",
     "updateCheck": "檢查更新",
+    "updateCurrentVersion": "目前版本",
     "updateChecking": "檢查中…",
     "updateAvailable": "發現新版本 {version}",
     "updateNotAvailable": "目前已是最新版本",
