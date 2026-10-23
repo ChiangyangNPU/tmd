@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createRequire } from 'node:module'
 
-// 用假 ipcMain 直接注册四个主进程模块，锁住 14 条敏感通道的 sender 校验接线：
+// 用假 ipcMain 直接注册各主进程模块，锁住 19 条敏感通道的 sender 校验接线：
 // 后续改动某个 handler 时若漏掉 assertMainWindow，这里会逐通道报出具体名字。
 // （app-state.test.ts 已验证 assertMainWindow 本身；ipc-files.test.ts 覆盖 saveFile
 // 的放行方向；本文件只做「外来 sender 一律 forbidden」的接线回归。）
@@ -21,9 +21,12 @@ const { createPicGo } = require('../../electron/picgo.cjs') as {
 const { createUpdater } = require('../../electron/updater.cjs') as {
   createUpdater: (deps: Record<string, unknown>) => { registerIpc: () => void }
 }
+const { registerAiIpc } = require('../../electron/ipc-ai.cjs') as {
+  registerAiIpc: (deps: Record<string, unknown>) => void
+}
 const IPC = require('../../electron/ipc.cjs') as Record<string, string>
 
-/** 注册四个模块的全部 IPC，返回 channel → handler */
+/** 注册主进程各领域模块的全部 IPC，返回 channel → handler */
 function registerAll() {
   const handlers = new Map<string, (...args: unknown[]) => unknown>()
   const ipcMain = {
@@ -79,11 +82,29 @@ function registerAll() {
     clearRendererRecoveryCopy: async () => {},
   }).registerIpc()
 
+  // AI 助手：配置含加密 Key 路径、对话属于网络外发，全部通道都在守卫范围内
+  registerAiIpc({
+    ipcMain,
+    IPC,
+    aiConfig: {
+      read: () => ({ enabled: true }),
+      publicView: () => ({}),
+      save: () => ({}),
+      getClientConfig: () => ({}),
+    },
+    aiClient: {
+      chat: async () => ({ content: '' }),
+      test: async () => ({ ok: true, latencyMs: 0 }),
+      abort: () => false,
+    },
+    sendToRenderer: () => {},
+  })
+
   return handlers
 }
 
 describe('敏感 IPC 的 sender 校验接线', () => {
-  it('14 条通道均拒绝非主窗口 sender（漏接 assertMainWindow 时逐条报名字）', async () => {
+  it('19 条通道均拒绝非主窗口 sender（漏接 assertMainWindow 时逐条报名字）', async () => {
     const handlers = registerAll()
     const mainWc = { id: 'main-web-contents' }
     const foreignWc = { id: 'foreign-web-contents' }
@@ -105,8 +126,13 @@ describe('敏感 IPC 的 sender 校验接线', () => {
         [IPC.savePicGoConfig, [{ current: 'smms' }]],
         [IPC.updateDownload, []],
         [IPC.updateInstall, []],
+        [IPC.aiGetConfig, []],
+        [IPC.aiSaveConfig, [{ enabled: true }]],
+        [IPC.aiTest, [{}]],
+        [IPC.aiChat, [{ requestId: 'r', messages: [{ role: 'user', content: 'hi' }] }]],
+        [IPC.aiAbort, ['r']],
       ]
-      expect(cases).toHaveLength(14)
+      expect(cases).toHaveLength(19)
 
       for (const [channel, args] of cases) {
         const fn = handlers.get(channel)

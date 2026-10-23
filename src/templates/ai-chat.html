@@ -1,0 +1,55 @@
+<div id="ai-panel" class="sidebar-panel ai-chat-panel" hidden>
+  <div class="sidebar-title">
+    <span data-i18n="ai.chat.title">AI 问答</span>
+    <span class="sidebar-title-actions">
+      <button
+        id="ai-chat-clear-btn"
+        type="button"
+        class="panel-close ai-chat-title-btn"
+        data-i18n="ai.chat.clear"
+        data-i18n-title="ai.chat.clear"
+      >
+        清空
+      </button>
+      <button
+        id="ai-chat-close-btn"
+        type="button"
+        class="panel-close"
+        data-i18n="common.close"
+        data-i18n-title="common.close"
+      >
+        ×
+      </button>
+    </span>
+  </div>
+  <div id="ai-chat-hint" class="ai-chat-hint" hidden></div>
+  <div id="ai-chat-messages" class="ai-chat-messages">
+    <div id="ai-chat-empty" class="ai-chat-empty" data-i18n="ai.chat.empty">
+      向 AI 提问，它会结合你的选区、当前文档与工作区内容作答。
+    </div>
+  </div>
+  <div id="ai-chat-badges" class="ai-chat-badges" hidden></div>
+  <div class="ai-chat-inputbar">
+    <textarea
+      id="ai-chat-input"
+      class="ai-chat-input"
+      rows="3"
+      data-i18n-placeholder="ai.chat.placeholder"
+      placeholder="提问…（Enter 发送，Shift+Enter 换行）"
+    ></textarea>
+    <div class="ai-chat-actions">
+      <button id="ai-chat-stop-btn" class="ai-btn" type="button" data-i18n="ai.chat.stop" hidden>
+        停止
+      </button>
+      <button
+        id="ai-chat-send-btn"
+        class="ai-btn ai-btn-primary"
+        type="button"
+        data-i18n="ai.chat.send"
+        disabled
+      >
+        发送
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,36 @@
+<div id="ai-bubble" class="ai-bubble" hidden role="dialog" aria-live="polite">
+  <div class="ai-bubble-head">
+    <span id="ai-bubble-title" class="ai-bubble-title" data-i18n="ai.title">AI 助手</span>
+    <button
+      id="ai-bubble-close"
+      class="ai-bubble-close"
+      type="button"
+      data-i18n-title="ai.close"
+      aria-label="关闭"
+    >
+      ✕
+    </button>
+  </div>
+  <div id="ai-action-list" class="ai-action-list"></div>
+  <div id="ai-result-area" class="ai-result-area" hidden>
+    <div id="ai-status-text" class="ai-status-text"></div>
+    <div id="ai-reasoning-area" class="ai-reasoning" hidden>
+      <span class="ai-reasoning-label" data-i18n="ai.reasoning">思考过程</span>
+      <div id="ai-reasoning" class="ai-reasoning-text"></div>
+    </div>
+    <div id="ai-output" class="ai-output"></div>
+    <div class="ai-result-actions">
+      <button
+        id="ai-accept-btn"
+        class="ai-btn ai-btn-primary"
+        type="button"
+        data-i18n="ai.accept"
+        disabled
+      >
+        替换
+      </button>
+      <button id="ai-retry-btn" class="ai-btn" type="button" data-i18n="ai.retry">重新生成</button>
+      <button id="ai-cancel-btn" class="ai-btn" type="button" data-i18n="ai.cancel">取消</button>
+    </div>
+  </div>
+</div>

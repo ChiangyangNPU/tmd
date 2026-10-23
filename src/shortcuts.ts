@@ -123,6 +123,13 @@ export const SHORTCUT_DEFS: ShortcutDef[] = [
     default: 'CmdOrCtrl+Shift+A',
     group: 'editor',
   },
+  {
+    // AI 助手：J 取「assistant」谐音，且不与既有编辑器组键位冲突
+    action: 'ai-assist',
+    labelKey: 'settings.shortcutAi',
+    default: 'CmdOrCtrl+J',
+    group: 'editor',
+  },
   { action: 'find', labelKey: 'settings.shortcutFind', default: 'CmdOrCtrl+F', group: 'editor' },
   {
     action: 'search-files',

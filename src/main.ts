@@ -56,6 +56,10 @@ import { wireFileChanged } from './external-change'
 import { wireDragDrop } from './dragdrop'
 import { applyFormatAction, wireLinkBar, closeLinkBar } from './format'
 import { wireContextMenu, closeContextMenu } from './context-menu'
+import { closeAiBubble, initAiBubble, openAiBubble, startAiAction } from './ai-popover'
+import { AI_ACTIONS } from './ai-actions'
+import { focusAiChatInput, wireAiChat } from './ai-chat'
+import { isAiEnabled } from './ai'
 import { wireTabMenu, closeTabMenu } from './tab-menu'
 import { setLinkNavContext, wireLinkNav } from './link-nav'
 import { setWikilinkContext, type WikiResolution } from './wikilink'
@@ -169,18 +173,20 @@ function toggleSplitView() {
   setViewMode(getViewMode() === 'split' ? 'wysiwyg' : 'split')
 }
 
-/** 切换侧边栏面板（大纲 / 文件二选一，互斥展开收起） */
-function toggleSidebar(which: 'outline' | 'files' | 'relations') {
+/** 切换侧边栏面板（大纲 / 文件 / 关系 / AI 问答四选一，互斥展开收起） */
+function toggleSidebar(which: 'outline' | 'files' | 'relations' | 'ai') {
   const sidebar = document.getElementById('sidebar')
   const outlinePanel = document.getElementById('outline-panel')
   const filesPanel = document.getElementById('files-panel')
   const relationsPanel = document.getElementById('relations-panel')
-  if (!sidebar || !outlinePanel || !filesPanel || !relationsPanel) return
+  const aiPanel = document.getElementById('ai-panel')
+  if (!sidebar || !outlinePanel || !filesPanel || !relationsPanel || !aiPanel) return
 
   const panels: Record<string, HTMLElement> = {
     outline: outlinePanel,
     files: filesPanel,
     relations: relationsPanel,
+    ai: aiPanel,
   }
   let target: HTMLElement | null = null
   for (const [name, panel] of Object.entries(panels)) {
@@ -196,6 +202,8 @@ function toggleSidebar(which: 'outline' | 'files' | 'relations') {
   // 上一次收起以来的陈旧内容
   if (which === 'outline' && target) refreshOutline()
   if (which === 'relations' && target) void refreshLocalGraph()
+  // 展开问答面板时聚焦输入框，直接可输入
+  if (which === 'ai' && target) focusAiChatInput()
 }
 
 /** 按当前文档重建大纲（面板不可见时跳过；编辑期间由低优拍点驱动） */
@@ -393,6 +401,11 @@ async function boot() {
       openFindBar()
       closeMoreMenu()
     })
+    // AI 问答：侧边栏面板（与大纲/文件/关系同一套互斥逻辑）
+    document.getElementById('menu-ai-chat-btn')?.addEventListener('click', () => {
+      toggleSidebar('ai')
+      closeMoreMenu()
+    })
     document.getElementById('menu-export-pdf-btn')?.addEventListener('click', () => {
       runExport((m) => m.exportPdf(activeTab()?.name))
       closeMoreMenu()
@@ -434,12 +447,14 @@ async function boot() {
       )
       closeMoreMenu()
     })
-    // 浏览器环境没有离屏渲染能力，隐藏这三项（HTML / PDF 导出仍可用）
+    // 浏览器环境没有离屏渲染能力，隐藏这三项（HTML / PDF 导出仍可用）；
+    // AI 问答依赖壳层网络与 Key 隔离，浏览器下一并隐藏
     if (!native) {
       for (const id of [
         'menu-export-word-btn',
         'menu-export-longimage-btn',
         'menu-export-epub-btn',
+        'menu-ai-chat-btn',
       ]) {
         const btn = document.getElementById(id)
         if (btn) btn.hidden = true
@@ -567,6 +582,8 @@ async function boot() {
         closeBacklinks()
         closeGraph()
         closeLocalGraph()
+        // AI 气泡：Esc 收起并中止在途请求（内部已处理按键，这里兜底统一入口）
+        closeAiBubble()
         // 焦点在编辑器里时也能用 Esc 收起查找栏（关闭后焦点归还编辑器）
         closeFindBar()
       }
@@ -608,6 +625,10 @@ async function boot() {
         e.preventDefault()
         // 侧边栏面板本身即开关式（再点一次收起）
         toggleSidebar('relations')
+      } else if (isSameAccelerator(acc, shortcuts['ai-assist'])) {
+        e.preventDefault()
+        // 有选区时浮出气泡供选择动作；无选区由气泡内提示引导
+        openAiBubble()
       } else if (isSameAccelerator(acc, shortcuts['find']) && !isSourceMode()) {
         e.preventDefault()
         openFindBar()
@@ -784,6 +805,23 @@ async function boot() {
           },
         })
       }
+      // AI 选区动作：仅在启用后出现（未启用时这些命令会直接提示去设置里开启）
+      if (isAiEnabled()) {
+        for (const action of AI_ACTIONS) {
+          items.push({
+            id: `ai-${action.id}`,
+            title: `${t('ai.title')}: ${t(action.labelKey)}`,
+            keywords: `ai assistant ${action.id} rewrite polish translate proofread`,
+            run: () => startAiAction(action.id),
+          })
+        }
+        items.push({
+          id: 'ai-chat',
+          title: `${t('ai.title')}: ${t('ai.chat.title')}`,
+          keywords: 'ai chat assistant ask workspace rag qa 问答 提问 检索',
+          run: () => toggleSidebar('ai'),
+        })
+      }
       return items
     })
     // 自动保存：渲染层为状态权威，启动对齐菜单并按需起定时器；菜单勾选走单入口
@@ -840,6 +878,15 @@ async function boot() {
     })
     // 表格工具栏按钮：源码模式下无 PM 视图，忽略
     wireTableToolbar(() => (isSourceMode() ? null : getPmView()))
+    // AI 选区气泡：装配按钮与事件，并按配置决定是否可用
+    initAiBubble()
+    // AI 问答面板：装配输入与流式渲染，文档内容由本处注入（避免模块级依赖 tabs）
+    wireAiChat({
+      getDocument: () => ({
+        name: activeTab()?.name ?? t('tab.untitled'),
+        content: currentMarkdown(),
+      }),
+    })
     renderFilesSidebar()
     // 最近文件列表全量同步给主进程，构建原生菜单「打开最近文件」子菜单
     native?.recentSync(recentList())

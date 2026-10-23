@@ -93,6 +93,8 @@
 
     <template data-partial="table-toolbar"></template>
 
+    <template data-partial="ai-bubble"></template>
+
     <template data-partial="settings"></template>
 
     <template data-partial="bars"></template>
@@ -165,6 +167,8 @@
           <canvas id="localgraph-canvas" class="localgraph-canvas"></canvas>
           <div id="localgraph-status" class="localgraph-status"></div>
         </div>
+        <!-- AI 问答面板：与大纲/文件/关系同一套侧边栏面板互斥逻辑（main.ts toggleSidebar） -->
+        <template data-partial="ai-chat"></template>
       </aside>
 
       <!-- 侧边栏分隔条：拖拽调整侧边栏与编辑区的宽度分配（随侧边栏显隐，样式层控制） -->

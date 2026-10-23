@@ -42,6 +42,14 @@
         <button
           type="button"
           class="settings-nav-item"
+          data-nav-target="sec-ai"
+          data-i18n="settings.navAi"
+        >
+          AI
+        </button>
+        <button
+          type="button"
+          class="settings-nav-item"
           data-nav-target="sec-shortcuts"
           data-i18n="settings.shortcuts"
         >
@@ -498,6 +506,124 @@
               保存图床配置
             </button>
             <span id="picgo-save-status" class="settings-hint"></span>
+          </div>
+        </section>
+
+        <section id="sec-ai" class="settings-section">
+          <div class="settings-label" data-i18n="settings.ai">AI 助手</div>
+          <label class="settings-option">
+            <input type="checkbox" id="set-ai-enabled" />
+            <span data-i18n="settings.aiEnable">启用 AI 助手</span>
+          </label>
+          <div class="settings-hint" data-i18n="settings.aiPrivacy">
+            默认关闭。只有你显式触发并点击发送时，才会把选中的内容发往自己配置的服务商；不想联网可使用本地
+            Ollama。
+          </div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="ai-provider" data-i18n="settings.aiProvider"
+              >服务商</label
+            >
+            <select id="ai-provider" class="settings-select"></select>
+          </div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="ai-base-url" data-i18n="settings.aiBaseUrl"
+              >接口地址</label
+            >
+            <input
+              id="ai-base-url"
+              class="settings-input"
+              type="text"
+              spellcheck="false"
+              placeholder="https://api.example.com/v1"
+            />
+          </div>
+          <div class="settings-hint" data-i18n="settings.aiBaseUrlHint">
+            OpenAI 兼容根地址，通常以 /v1 结尾
+          </div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="ai-model" data-i18n="settings.aiModel"
+              >模型</label
+            >
+            <input
+              id="ai-model"
+              class="settings-input"
+              type="text"
+              spellcheck="false"
+              placeholder="deepseek-chat"
+            />
+          </div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="ai-api-key" data-i18n="settings.aiApiKey"
+              >API Key</label
+            >
+            <input
+              id="ai-api-key"
+              class="settings-input"
+              type="password"
+              spellcheck="false"
+              autocomplete="off"
+            />
+            <button id="ai-clear-key-btn" class="settings-btn" data-i18n="settings.aiKeyClear">
+              清除
+            </button>
+          </div>
+          <div id="ai-key-hint" class="settings-hint"></div>
+          <div class="settings-row">
+            <label
+              class="settings-row-label"
+              for="ai-temperature"
+              data-i18n="settings.aiTemperature"
+              >温度</label
+            >
+            <input
+              id="ai-temperature"
+              class="settings-input"
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+            />
+          </div>
+          <div class="settings-hint" data-i18n="settings.aiTemperatureHint">0 更稳定，2 更发散</div>
+          <div class="settings-label" data-i18n="settings.aiContextTitle">发送上下文</div>
+          <label class="settings-option">
+            <input type="checkbox" id="ai-context-selection" />
+            <span data-i18n="settings.aiContextSelection">选中的内容（推荐）</span>
+          </label>
+          <label class="settings-option">
+            <input type="checkbox" id="ai-context-document" />
+            <span data-i18n="settings.aiContextDocument">当前文档</span>
+          </label>
+          <label class="settings-option">
+            <input type="checkbox" id="ai-context-workspace" />
+            <span data-i18n="settings.aiContextWorkspace">工作区检索结果</span>
+          </label>
+          <div class="settings-hint" data-i18n="settings.aiContextHint">
+            每次发送前都会显示实际发送范围
+          </div>
+          <div class="settings-row">
+            <label class="settings-row-label" for="ai-embed-model" data-i18n="settings.aiEmbedModel"
+              >向量模型</label
+            >
+            <input
+              id="ai-embed-model"
+              class="settings-input"
+              type="text"
+              spellcheck="false"
+              placeholder="text-embedding-3-small"
+            />
+          </div>
+          <div class="settings-hint" data-i18n="settings.aiEmbedHint">
+            用于工作区问答；留空则退化为关键词检索
+          </div>
+          <div class="settings-row">
+            <button id="ai-save-btn" class="settings-btn" data-i18n="settings.aiSave">
+              保存 AI 配置
+            </button>
+            <button id="ai-test-btn" class="settings-btn" data-i18n="settings.aiTest">
+              测试连接
+            </button>
+            <span id="ai-status" class="settings-hint"></span>
           </div>
         </section>
 

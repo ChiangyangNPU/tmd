@@ -1,6 +1,6 @@
 /**
  * 静态模板装配：index.html 只保留首屏壳（工具栏 / 侧边栏 / 编辑区），
- * 隐藏的浮层与面板（菜单 / 快速切换 / 搜索 / 历史 / 表格工具栏 / 设置 / 查找·链接栏）
+ * 隐藏的浮层与面板（菜单 / 快速切换 / 搜索 / 历史 / 表格工具栏 / AI 气泡 / 设置 / 查找·链接栏）
  * 拆分为 src/templates/*.html，构建期经 Vite `?raw` 内联为字符串。
  *
  * 注入机制：index.html 在各块原位置放置原生 `<template data-partial="名">` 占位
@@ -12,6 +12,8 @@
  * @author chiangyang
  */
 import barsHtml from './bars.html?raw'
+import aiBubbleHtml from './ai-bubble.html?raw'
+import aiChatHtml from './ai-chat.html?raw'
 import backlinksHtml from './backlinks.html?raw'
 import commandPaletteHtml from './command-palette.html?raw'
 import graphHtml from './graph.html?raw'
@@ -32,6 +34,8 @@ const PARTIALS: Record<string, string> = {
   backlinks: backlinksHtml,
   graph: graphHtml,
   'table-toolbar': tableToolbarHtml,
+  'ai-bubble': aiBubbleHtml,
+  'ai-chat': aiChatHtml,
   settings: settingsHtml,
   bars: barsHtml,
 }

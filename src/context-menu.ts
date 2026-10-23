@@ -18,10 +18,12 @@ import { getPmView, isSourceMode, getSourceView, canEditWysiwyg } from './editor
 import type { EditorView as SourceView } from 'codemirror'
 import { EditorView as CMFacets } from 'codemirror'
 import { applyFormatAction, toggleLink } from './format'
+import { isAiEnabled } from './ai'
+import { openAiBubble } from './ai-popover'
 
 /** 单个菜单项：DOM 用 data-cm-action 关联 */
 type MenuAction =
-  'cut' | 'copy' | 'paste' | 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'remove-link'
+  'cut' | 'copy' | 'paste' | 'bold' | 'italic' | 'strike' | 'code' | 'link' | 'remove-link' | 'ai'
 
 /** 右键命中的编辑侧：菜单动作分发据此选择 ProseMirror 或 CodeMirror */
 export type MenuSide = 'wysiwyg' | 'source'
@@ -56,6 +58,19 @@ export function resolveMenuEntries(
     'code',
     hasLink ? 'remove-link' : 'link',
   ]
+}
+
+/**
+ * 追加 AI 入口（仅所见即所得、有选区、AI 已启用时显示）。
+ *
+ * 单独函数而非塞进 resolveMenuEntries 参数：AI 启用状态是运行时可变的全局配置，
+ * 而 resolveMenuEntries 是纯函数，保持其可测性不受壳层状态影响。
+ * @param entries - resolveMenuEntries 的结果
+ * @returns 是否追加成功（追加时 AI 放在最末，与格式项用分隔线隔开）
+ */
+export function appendAiEntry(entries: MenuAction[]): MenuAction[] {
+  if (!isAiEnabled() || !entries.includes('copy') || !entries.includes('bold')) return entries
+  return [...entries, 'ai']
 }
 
 /** 按解析结果显隐菜单项与分组分隔线 */
@@ -155,6 +170,10 @@ function runAction(action: MenuAction) {
     case 'remove-link':
       toggleLink(view) // 已带链接时 toggleLink 即移除
       break
+    case 'ai':
+      // 气泡自己按当前选区定位，不依赖右键坐标
+      openAiBubble()
+      break
     default:
       applyFormatAction(view, `fmt-${action}`)
   }
@@ -194,7 +213,9 @@ export function wireContextMenu(): void {
     openContextMenu(
       e.clientX,
       e.clientY,
-      resolveMenuEntries(hasSelection, selectionHasLink(), 'wysiwyg', canEditWysiwyg()),
+      appendAiEntry(
+        resolveMenuEntries(hasSelection, selectionHasLink(), 'wysiwyg', canEditWysiwyg()),
+      ),
       'wysiwyg',
     )
   })

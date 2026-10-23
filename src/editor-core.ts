@@ -10,9 +10,9 @@ import { commonmark, hardbreakFilterNodes } from '@milkdown/kit/preset/commonmar
 import { gfm } from '@milkdown/kit/preset/gfm'
 import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
-import { getMarkdown } from '@milkdown/kit/utils'
-import { prism } from '@milkdown/plugin-prism'
+import { getMarkdown, replaceRange } from '@milkdown/kit/utils'
 import { math } from '@milkdown/plugin-math'
+import { prism } from '@milkdown/plugin-prism'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { Slice } from '@milkdown/kit/prose/model'
 import { Plugin as ProsePlugin, TextSelection } from '@milkdown/kit/prose/state'
@@ -33,6 +33,7 @@ import { imageSrcResolver } from './image-resolver'
 import { imageAttrsPlugins } from './image-attrs'
 import { linkNav } from './link-nav'
 import { tableToolbar } from './table-toolbar'
+import { aiBubblePlugin } from './ai-popover'
 import { tableInputPlugin } from './table-input'
 import {
   normalizeEmptyTableCells,
@@ -150,6 +151,26 @@ export function flushMarkdownSync() {
 /** 取当前 ProseMirror 视图实例（编辑器未挂载时为 null） */
 export function getPmView(): EditorView | null {
   return pmView
+}
+
+/**
+ * 用 Markdown 文本替换文档中的指定范围（AI 结果落地）。
+ *
+ * 走 Milkdown 的 replaceRange：先按 Markdown 解析成 Slice，再由 ProseMirror
+ * 按目标上下文裁剪（选中句内文本时是行内替换，选中多段时按块替换）。
+ * 整个替换是一次事务，Cmd+Z 一步撤销；调用方需保证范围仍指向原内容。
+ *
+ * @param from - 起始位置（文档坐标）
+ * @param to - 结束位置（文档坐标）
+ * @param markdown - 替换内容
+ * @returns 是否成功派发事务（编辑器缺失或范围越界时返回 false）
+ */
+export function applyMarkdownRange(from: number, to: number, markdown: string): boolean {
+  if (!editor || !pmView) return false
+  const size = pmView.state.doc.content.size
+  if (from < 0 || to > size || from > to) return false
+  editor.action(replaceRange(markdown, { from, to }))
+  return true
 }
 
 /** 当前是否处于「纯源码」模式（分屏不算：分屏里所见即所得仍是权威编辑区） */
@@ -363,6 +384,8 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(imageAttrsPlugins)
       .use(linkNav)
       .use(tableToolbar)
+      // AI 选区气泡：随事务同步显隐，流式结果只在浮层预览、确认后才替换正文
+      .use(aiBubblePlugin)
       // Typora 式表格按键：段落管道行回车即转真表格；
       // Mod-Enter（Ctrl/Cmd+Enter）在表格内当前行下方插入空行
       .use(tableInputPlugin)

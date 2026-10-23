@@ -31,6 +31,7 @@ const {
   dialog,
   ipcMain,
   nativeTheme,
+  safeStorage,
   screen,
   session,
   shell,
@@ -51,6 +52,9 @@ const { createPicGo } = require('./picgo.cjs')
 const { createUpdater } = require('./updater.cjs')
 const { registerFileIpc } = require('./ipc-files.cjs')
 const { registerAppIpc, isSafeExternalUrl } = require('./ipc-app.cjs')
+const { createAiConfig } = require('./ai-config.cjs')
+const { createAiClient } = require('./ai-client.cjs')
+const { registerAiIpc } = require('./ipc-ai.cjs')
 // 图床上传：PicGo-Core（仅 Node 环境可用，故放在主进程）
 const { PicGo } = require('picgo')
 // 自动更新：electron-updater。开发模式（app.isPackaged === false）下
@@ -217,6 +221,11 @@ const recent = createRecent({ app, ipcMain, IPC, onMenuChange: () => buildMenu()
 // 图床上传：PicGo 实例懒加载，配置存 userData/picgo-config.json
 const picgo = createPicGo({ ipcMain, IPC, app, PicGo })
 
+// AI 助手：配置存 userData/ai-config.json（Key 经 safeStorage 加密），
+// 请求只发生在主进程，渲染层拿不到 Key；网络外发通道在 ipc-ai 内校验发送方
+const aiConfig = createAiConfig({ app, safeStorage })
+const aiClient = createAiClient({ getConfig: (overrides) => aiConfig.getClientConfig(overrides) })
+
 // 离屏导出服务（Word / 长图）：隐藏窗口单例 + 串行队列，编排逻辑在离屏页
 const exporter = createExporter({
   BrowserWindow,
@@ -268,6 +277,7 @@ registerAppIpc({
 recent.register()
 picgo.register()
 updater.registerIpc()
+registerAiIpc({ ipcMain, IPC, aiConfig, aiClient, sendToRenderer })
 
 // ---------- 应用菜单 ----------
 

@@ -170,6 +170,22 @@ const api = {
   deletePath: (targetPath) => ipcRenderer.invoke(IPC.deletePath, targetPath),
   /** Word / 长图离屏导出：主进程弹保存框（取消返回 null）后交隐藏窗口执行并落盘 */
   exportRun: (options) => ipcRenderer.invoke(IPC.exportRun, options),
+  /** AI：读取配置视图（不含明文 Key） */
+  getAiConfig: () => ipcRenderer.invoke(IPC.aiGetConfig),
+  /** AI：保存配置增量（apiKey 非空才更新；clearApiKey 清除） */
+  saveAiConfig: (patch) => ipcRenderer.invoke(IPC.aiSaveConfig, patch),
+  /** AI：连通性测试（可传尚未保存的表单值） */
+  testAiConnection: (overrides) => ipcRenderer.invoke(IPC.aiTest, overrides),
+  /** AI：发起流式对话，立即返回；增量事件走 onAiStream */
+  chatAi: (requestId, messages) => ipcRenderer.invoke(IPC.aiChat, { requestId, messages }),
+  /** AI：中止在途请求 */
+  abortAi: (requestId) => ipcRenderer.invoke(IPC.aiAbort, requestId),
+  /** AI：向量嵌入（工作区检索用，按输入顺序返回） */
+  embedAiTexts: (texts) => ipcRenderer.invoke(IPC.aiEmbed, texts),
+  /** AI：订阅流式事件 */
+  onAiStream: (callback) => {
+    ipcRenderer.on(IPC.aiStream, (_event, payload) => callback(payload))
+  },
 }
 
 contextBridge.exposeInMainWorld('tmdAPI', api)

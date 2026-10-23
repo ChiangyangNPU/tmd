@@ -2,6 +2,8 @@
   <!-- 文件与视图 -->
   <button id="menu-files-btn" class="menu-item" data-i18n="toolbar.files">文件</button>
   <button id="menu-find-btn" class="menu-item" data-i18n="toolbar.find">查找</button>
+  <!-- AI 问答：侧边栏面板（仅桌面 + AI 启用，浏览器下由 main.ts 隐藏） -->
+  <button id="menu-ai-chat-btn" class="menu-item" data-i18n="menu.aiChat">AI 问答</button>
   <button
     id="menu-split-view-btn"
     class="menu-item"
@@ -50,6 +52,8 @@
   <button class="menu-item" data-cm-action="remove-link" data-i18n="contextMenu.removeLink">
     移除链接
   </button>
+  <div class="menu-sep"></div>
+  <button class="menu-item" data-cm-action="ai" data-i18n="contextMenu.ai">AI 助手…</button>
 </div>
 
 <!-- 标签栏右键菜单：批量关闭入口（可用性由 tab-menu.ts 按右键位置动态置灰） -->

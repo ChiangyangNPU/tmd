@@ -36,6 +36,87 @@ export interface TextFileData extends TextFileMeta {
   content: string
 }
 
+/** AI 服务商预设（由主进程 ai-config.cjs 下发，渲染层不重复维护） */
+export interface AiProviderPreset {
+  id: string
+  label: string
+  baseUrl: string
+  model: string
+  /** 是否必须填写 API Key（Ollama / 自定义本地端点可为 false） */
+  needsKey: boolean
+}
+
+/** AI 上下文发送范围：三档独立开关，默认只发选区 */
+export interface AiContextScope {
+  selection: boolean
+  document: boolean
+  workspace: boolean
+}
+
+/** 渲染层可见的 AI 配置：永远不含明文 Key，只能知道是否已保存 */
+export interface AiConfigView {
+  enabled: boolean
+  provider: string
+  baseUrl: string
+  model: string
+  temperature: number
+  streaming: boolean
+  context: AiContextScope
+  embedModel: string
+  hasApiKey: boolean
+  providers: AiProviderPreset[]
+}
+
+/**
+ * AI 配置增量补丁：缺省字段保持原值。
+ * apiKey 非空字符串时更新；clearApiKey 为 true 时清除；两者都不传则保留原 Key。
+ */
+export interface AiConfigPatch {
+  enabled?: boolean
+  provider?: string
+  baseUrl?: string
+  model?: string
+  temperature?: number
+  streaming?: boolean
+  context?: Partial<AiContextScope>
+  embedModel?: string
+  apiKey?: string
+  clearApiKey?: boolean
+}
+
+/** 连通性测试结果（失败不抛错，直接给结构化错误码与耗时） */
+export interface AiTestResult {
+  ok: boolean
+  code?: string
+  message?: string
+  latencyMs: number
+}
+
+/** 对话消息（角色白名单由主进程校验） */
+export interface AiChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+/** 主进程推送的流式事件：用 requestId 关联到具体请求 */
+export type AiStreamEvent =
+  | { requestId: string; type: 'delta'; text: string }
+  | { requestId: string; type: 'reasoning'; text: string }
+  | { requestId: string; type: 'done' }
+  | { requestId: string; type: 'error'; code: string; message: string }
+
+/** 发起对话的返回值：ok 为 false 时带结构化错误 */
+export interface AiChatStart {
+  ok: boolean
+  requestId?: string
+  error?: { code: string; message: string }
+}
+
+/** 向量嵌入的返回值：ok 为 false 时带结构化错误（渲染层据此回退关键词检索） */
+export type AiEmbedResult =
+  | { ok: true; vectors: number[][] }
+  | { ok: false; error: { code: string; message: string } }
+
 /** 离线 HTML 导出资源（主进程从 dist/export-assets 读取并内联字体） */
 export interface ExportAssets {
   mermaidJs: string
@@ -182,6 +263,20 @@ export interface NativeFileAPI {
     defaultName: string
     filters: { name: string; extensions: string[] }[]
   }): Promise<{ path: string; name: string } | null>
+  /** AI：读取配置视图（不含明文 Key，只能得知是否已保存） */
+  getAiConfig(): Promise<AiConfigView>
+  /** AI：保存配置增量并返回最新视图 */
+  saveAiConfig(patch: AiConfigPatch): Promise<AiConfigView>
+  /** AI：连通性测试（overrides 为尚未保存的表单值） */
+  testAiConnection(overrides?: Partial<AiConfigPatch>): Promise<AiTestResult>
+  /** AI：发起流式对话（立即返回，增量事件经 onAiStream 推送） */
+  chatAi(requestId: string, messages: AiChatMessage[]): Promise<AiChatStart>
+  /** AI：中止在途请求，返回是否命中 */
+  abortAi(requestId: string): Promise<boolean>
+  /** AI：向量嵌入（工作区检索用，按输入顺序返回） */
+  embedAiTexts(texts: string[]): Promise<AiEmbedResult>
+  /** AI：订阅流式事件（delta / reasoning / done / error） */
+  onAiStream(callback: (event: AiStreamEvent) => void): void
 }
 
 /** 最近文件菜单项（渲染层最近列表条目形状，见 store.ts RecentEntry） */
@@ -432,4 +527,18 @@ export interface IpcChannels {
   revealInFolder: string
   /** 文件管理：删除文件/文件夹（移入系统回收站） */
   deletePath: string
+  /** AI 助手：读取配置视图（不含明文 Key） */
+  aiGetConfig: string
+  /** AI 助手：保存配置增量 */
+  aiSaveConfig: string
+  /** AI 助手：连通性测试 */
+  aiTest: string
+  /** AI 助手：发起流式对话（立即返回，增量事件走 aiStream） */
+  aiChat: string
+  /** AI 助手：中止在途请求 */
+  aiAbort: string
+  /** AI 助手：向量嵌入（工作区检索用） */
+  aiEmbed: string
+  /** AI 助手：主进程推送的流式事件 */
+  aiStream: string
 }

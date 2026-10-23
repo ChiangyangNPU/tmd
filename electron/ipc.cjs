@@ -89,6 +89,15 @@ const channels = {
   revealInFolder: 'tmd:reveal-in-folder',
   // 删除文件 / 文件夹：移入系统回收站（shell.trashItem，可恢复）；确认在渲染层
   deletePath: 'tmd:delete-path',
+  // AI 助手：配置读写（Key 仅主进程持有）/ 连通性测试 / 流式对话 / 中止 / 向量嵌入
+  // 对话采用「invoke 立即返回 + aiStream 事件流」：长响应不阻塞 invoke
+  aiGetConfig: 'tmd:ai-get-config',
+  aiSaveConfig: 'tmd:ai-save-config',
+  aiTest: 'tmd:ai-test',
+  aiChat: 'tmd:ai-chat',
+  aiAbort: 'tmd:ai-abort',
+  aiEmbed: 'tmd:ai-embed',
+  aiStream: 'tmd:ai-stream',
 }
 
 module.exports = channels
