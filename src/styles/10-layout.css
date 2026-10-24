@@ -264,10 +264,11 @@
   white-space: nowrap;
 }
 
+/* 活动标签：文字用强调色，与文件边栏当前文件高亮（.tree-file-active）一致 */
 .tab.active {
   background: var(--pre-bg);
   border-color: var(--border);
-  color: var(--fg);
+  color: var(--accent);
 }
 
 .tab-close {
