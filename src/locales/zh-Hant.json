@@ -393,6 +393,8 @@
     "aiEmbedHint": "用於工作區問答；留空則退化為關鍵字檢索",
     "aiKeyClear": "清除",
     "aiKeyCleared": "已清除 API Key",
+    "aiKeySave": "儲存",
+    "aiKeyFillFirst": "請先填寫 API Key",
     "aiSave": "儲存 AI 設定",
     "aiSaved": "AI 設定已儲存",
     "aiSaveFailed": "AI 設定儲存失敗",

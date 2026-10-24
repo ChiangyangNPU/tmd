@@ -53,7 +53,7 @@ export interface AiContextScope {
   workspace: boolean
 }
 
-/** 渲染层可见的 AI 配置：永远不含明文 Key，只能知道是否已保存 */
+/** 渲染层可见的 AI 配置：永远不含明文 Key，只能知道是否已保存及其长度 */
 export interface AiConfigView {
   enabled: boolean
   provider: string
@@ -64,6 +64,8 @@ export interface AiConfigView {
   context: AiContextScope
   embedModel: string
   hasApiKey: boolean
+  /** 已保存 Key 的长度（0 表示未保存；仅长度，供界面渲染占位点） */
+  apiKeyLength: number
   providers: AiProviderPreset[]
 }
 

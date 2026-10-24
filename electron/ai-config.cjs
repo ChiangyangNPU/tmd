@@ -271,8 +271,9 @@ function createAiConfig({ app, safeStorage }) {
   }
 
   /**
-   * 渲染层可见的配置视图：剔除明文 Key，仅暴露 hasApiKey。
-   * providers 一并下发，避免渲染层重复维护一份预设表。
+   * 渲染层可见的配置视图：剔除明文 Key，仅暴露 hasApiKey 与 apiKeyLength
+   * （长度供界面渲染等宽占位点，不含明文与后缀）。providers 一并下发，
+   * 避免渲染层重复维护一份预设表。
    * @returns {{
    *   enabled: boolean,
    *   provider: string,
@@ -283,13 +284,18 @@ function createAiConfig({ app, safeStorage }) {
    *   context: AiContextScope,
    *   embedModel: string,
    *   hasApiKey: boolean,
+   *   apiKeyLength: number,
    *   providers: Array<{ id: string, label: string, baseUrl: string, model: string, needsKey: boolean }>,
    * }}
    */
   function publicView() {
     const config = read()
     /** @type {Record<string, unknown>} */
-    const view = { ...config, hasApiKey: !!config.apiKey }
+    const view = {
+      ...config,
+      hasApiKey: !!config.apiKey,
+      apiKeyLength: config.apiKey.length,
+    }
     delete view.apiKey
     view.providers = Object.entries(AI_PROVIDERS).map(([id, preset]) => ({ id, ...preset }))
     return /** @type {ReturnType<typeof publicView>} */ (view)

@@ -26,6 +26,7 @@ interface AiConfigApi {
     model: string
     temperature: number
     hasApiKey: boolean
+    apiKeyLength: number
     providers: { id: string; baseUrl: string; model: string; needsKey: boolean }[]
     context: { selection: boolean; document: boolean; workspace: boolean }
   }
@@ -81,6 +82,7 @@ describe('ai-config 默认值与合并', () => {
     expect(view.temperature).toBe(0.7)
     expect(view.context).toEqual({ selection: true, document: false, workspace: false })
     expect(view.hasApiKey).toBe(false)
+    expect(view.apiKeyLength).toBe(0)
   })
 
   it('增量保存只改传入字段，context 嵌套项单独合并', () => {
@@ -139,6 +141,7 @@ describe('ai-config 的 API Key 处理', () => {
     const raw = fs.readFileSync(path.join(dir, 'ai-config.json'), 'utf-8')
     expect(raw).not.toContain('sk-secret-value')
     expect(view.hasApiKey).toBe(true)
+    expect(view.apiKeyLength).toBe('sk-secret-value'.length)
     expect('apiKey' in view).toBe(false)
     expect(config.read().apiKey).toBe('sk-secret-value')
   })

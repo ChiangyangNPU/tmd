@@ -393,6 +393,8 @@
     "aiEmbedHint": "Used by workspace Q&A; leave blank to fall back to keyword search",
     "aiKeyClear": "Clear",
     "aiKeyCleared": "API key cleared",
+    "aiKeySave": "Save",
+    "aiKeyFillFirst": "Enter an API key first",
     "aiSave": "Save AI settings",
     "aiSaved": "AI settings saved",
     "aiSaveFailed": "Failed to save AI settings",

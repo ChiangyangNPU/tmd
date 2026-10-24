@@ -227,6 +227,22 @@ function renderAiProviders(view: AiConfigView) {
   }
 }
 
+/** 更新 Key 状态提示、占位点与「清除」按钮可用性（回填 / 保存 Key / 清除 Key 共用） */
+function updateAiKeyHint(view: AiConfigView) {
+  const keyHint = document.getElementById('ai-key-hint')
+  if (keyHint) {
+    keyHint.textContent = t(view.hasApiKey ? 'settings.aiKeyStored' : 'settings.aiKeyMissing')
+  }
+  // 输入框不回显明文（渲染层拿不到 Key），已保存时用等长占位点示意：
+  // 点是 placeholder，值仍为空，留空 = 保持不变 的语义不受影响
+  const keyInput = document.getElementById('ai-api-key') as HTMLInputElement | null
+  if (keyInput) {
+    keyInput.placeholder = view.hasApiKey ? '•'.repeat(view.apiKeyLength) : ''
+  }
+  const clearBtn = document.getElementById('ai-clear-key-btn') as HTMLButtonElement | null
+  if (clearBtn) clearBtn.disabled = !view.hasApiKey
+}
+
 /**
  * 把配置视图回填到表单。
  * Key 输入框永远留空：主进程不返回明文，占位提示「已保存」即代表有 Key；
@@ -239,12 +255,7 @@ function applyAiConfigView(view: AiConfigView, fromLoad = false) {
   if (fromLoad && aiFormDirty) {
     aiConfigView = view
     renderAiProviders(view)
-    const keyHint = document.getElementById('ai-key-hint')
-    if (keyHint) {
-      keyHint.textContent = t(view.hasApiKey ? 'settings.aiKeyStored' : 'settings.aiKeyMissing')
-    }
-    const clearBtn = document.getElementById('ai-clear-key-btn') as HTMLButtonElement | null
-    if (clearBtn) clearBtn.disabled = !view.hasApiKey
+    updateAiKeyHint(view)
     return
   }
   aiConfigView = view
@@ -268,13 +279,7 @@ function applyAiConfigView(view: AiConfigView, fromLoad = false) {
   setChecked('ai-context-selection', view.context.selection)
   setChecked('ai-context-document', view.context.document)
   setChecked('ai-context-workspace', view.context.workspace)
-
-  const keyHint = document.getElementById('ai-key-hint')
-  if (keyHint) {
-    keyHint.textContent = t(view.hasApiKey ? 'settings.aiKeyStored' : 'settings.aiKeyMissing')
-  }
-  const clearBtn = document.getElementById('ai-clear-key-btn') as HTMLButtonElement | null
-  if (clearBtn) clearBtn.disabled = !view.hasApiKey
+  updateAiKeyHint(view)
 }
 
 /** 从表单收集配置增量（Key 为空表示不修改；温度非法则交给主进程兜底） */
@@ -356,6 +361,31 @@ async function clearAiKey() {
   applyAiConfigView(view)
   window.dispatchEvent(new Event('tmd:ai-config-changed'))
   showAiStatus(t('settings.aiKeyCleared'))
+}
+
+/**
+ * 仅保存 Key 输入框当前值（Key 行内的「保存」按钮）。
+ *
+ * 走单字段增量 patch，不触发整表单回填——用户可能还有地址 / 模型等
+ * 未保存的输入，整表单刷新会把它们冲掉；这里只清空 Key 输入框并更新
+ * 状态提示，其余表单内容原样保留。
+ */
+async function saveAiKey() {
+  const input = document.getElementById('ai-api-key') as HTMLInputElement | null
+  const apiKey = input?.value.trim() ?? ''
+  if (!apiKey) {
+    showAiStatus(t('settings.aiKeyFillFirst'))
+    return
+  }
+  const view = await saveAiConfig({ apiKey })
+  if (!view) {
+    showAiStatus(t('settings.aiSaveFailed'))
+    return
+  }
+  if (input) input.value = ''
+  updateAiKeyHint(view)
+  window.dispatchEvent(new Event('tmd:ai-config-changed'))
+  showAiStatus(t('settings.aiSaved'))
 }
 
 /**
@@ -995,6 +1025,9 @@ export function wireSettings() {
   })
   document.getElementById('ai-clear-key-btn')?.addEventListener('click', () => {
     void clearAiKey()
+  })
+  document.getElementById('ai-save-key-btn')?.addEventListener('click', () => {
+    void saveAiKey()
   })
   document.getElementById('ai-provider')?.addEventListener('change', onAiProviderChange)
 
