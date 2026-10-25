@@ -31,6 +31,7 @@ pub(crate) const AI_PROVIDERS: &[(&str, &str, &str, &str, bool)] = &[
 ];
 
 const DEFAULT_PROVIDER: &str = "deepseek";
+#[cfg_attr(test, allow(dead_code))] // 测试构建隔离钥匙串，常量仅非测试路径使用
 const KEYCHAIN_SERVICE: &str = "tmd-ai-key";
 
 fn preset_of(provider: &str) -> Option<&(&str, &str, &str, &str, bool)> {

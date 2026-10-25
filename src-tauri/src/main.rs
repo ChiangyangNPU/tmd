@@ -19,6 +19,7 @@ mod ai_config;
 mod export_assets;
 mod fsops;
 mod history;
+mod logger;
 mod menu;
 mod search;
 mod shell;
@@ -31,12 +32,14 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json::Value;
 use history::{FileHistory, HistoryEntry};
+use logger::Logger;
 use menu::RecentEntry;
 use search::SearchResult;
 use shell::ShellState;
@@ -97,6 +100,8 @@ const TMD_API_SHIM: &str = r#"
     abortAi: function (requestId) { return invoke('tmd_ai_abort', { requestId: requestId }) },
     embedAiTexts: function (texts) { return invoke('tmd_ai_embed', { texts: texts }) },
     onAiStream: function (cb) { tmdOn('tmd-ai-stream', cb) },
+    reportError: function (entry) { invoke('tmd_report_error', { entry: entry }) },
+    openLogsDir: function () { return invoke('tmd_open_logs_dir') },
     saveImage: function (options) { return invoke('tmd_save_image', { dir: options.dir, name: options.name, base64: options.base64 }) },
     openExternal: function (url) { return invoke('tmd_open_external', { url: url }) },
     openLocalFile: function (filePath) { return invoke('tmd_open_local_file', { filePath: filePath }) },
@@ -497,6 +502,38 @@ fn tmd_get_export_assets() -> Option<export_assets::ExportAssets> {
     export_assets::load_export_assets()
 }
 
+// ---------- 本地日志（electron/logger.cjs + ipc-files 对应） ----------
+
+/// 对应 native.ts reportError：渲染层未捕获异常写入本地日志
+/// （级别固定 error、来源固定 renderer，客户端不可指定）。
+#[tauri::command]
+fn tmd_report_error(logger: tauri::State<'_, Arc<Logger>>, entry: Value) {
+    if let Some(report) = logger::normalize_renderer_report(&entry) {
+        logger.log(
+            "error",
+            "renderer",
+            &report.message,
+            report.stack.as_deref(),
+            &logger::LogMeta {
+                filename: report.filename.as_deref(),
+                lineno: report.lineno,
+                colno: report.colno,
+                ..Default::default()
+            },
+        );
+    }
+}
+
+/// 对应 native.ts openLogsDir：系统文件管理器打开日志目录（不存在则创建）。
+#[tauri::command]
+fn tmd_open_logs_dir() -> bool {
+    let dir = logger::logs_dir(&history::tmd_home());
+    if std::fs::create_dir_all(&dir).is_err() {
+        return false;
+    }
+    opener::open(&dir).is_ok()
+}
+
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
 struct SaveAsResult {
@@ -602,6 +639,12 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // 本地日志（~/.tmd/logs）：panic hook 与渲染层异常上报都写这里；
+            // 启动扫描崩溃目录补记上次运行留下的 minidump 线索（与 Electron 版共享资产根）
+            let logger = logger::init_global(history::tmd_home());
+            logger::install_panic_hook();
+            logger::scan_new_dumps(&logger, &history::tmd_home());
+            app.manage(logger);
             app.manage(WatchState::new(app.handle().clone()));
             app.manage(ShellState::new());
             app.manage(MaximizedFlag(AtomicBool::new(false)));
@@ -723,6 +766,8 @@ fn main() {
             tmd_read_theme,
             tmd_open_themes_dir,
             tmd_get_export_assets,
+            tmd_report_error,
+            tmd_open_logs_dir,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
