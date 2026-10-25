@@ -5,10 +5,12 @@
 //! （text_file.rs / search.rs / wikilinks.rs），与 JS 版逐语义对齐并可单测。
 //!
 //! 已实现通道：readFile / saveFile / readDir / openFile / openFolder /
-//! saveFileAs / exportAs / searchFiles / wikiScan。未实现通道 no-op + console.warn，
-//! 不阻塞启动（渲染层的 `!native` 降级判断不受影响）。
+//! saveFileAs / exportAs / searchFiles / wikiScan / watchFiles / watchDirs /
+//! listHistory / readHistory（+ 事件订阅 onFileChanged / onDirsChanged）。
+//! 未实现通道 no-op + console.warn，不阻塞启动（渲染层的 `!native` 降级判断不受影响）。
 //! identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron 版完全隔离。
 
+mod history;
 mod search;
 mod text_file;
 mod watcher;
@@ -18,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
+use history::{FileHistory, HistoryEntry};
 use search::SearchResult;
 use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
 use watcher::WatchState;
@@ -50,6 +53,8 @@ const TMD_API_SHIM: &str = r#"
     watchDirs: function (paths) { invoke('tmd_watch_dirs', { paths: paths }) },
     onFileChanged: function (cb) { tmdOn('tmd-file-changed', cb) },
     onDirsChanged: function (cb) { tmdOn('tmd-dirs-changed', cb) },
+    listHistory: function (filePath) { return invoke('tmd_list_history', { filePath: filePath }) },
+    readHistory: function (filePath, id) { return invoke('tmd_read_history', { filePath: filePath, id: id }) },
   }
   var listened = {}
   function tmdOn(event, cb) {
@@ -80,7 +85,8 @@ fn tmd_read_file(file_path: String) -> Result<TextFileData, String> {
 }
 
 /// 对应 native.ts saveFile（meta 缺省按 UTF-8 无 BOM 写回）。
-/// 写盘完成后向监视器登记新指纹，紧随其后的文件事件按指纹比对被过滤（自身写入回声）。
+/// 保存事务三步有序（评估 §3.2）：写前快照旧内容 → 写盘 → 监视指纹登记，
+/// 全部在同一 Rust 调用内完成；快照失败静默，绝不阻断保存。
 #[tauri::command]
 fn tmd_save_file(
     file_path: String,
@@ -92,6 +98,7 @@ fn tmd_save_file(
         .map(|m| (m.encoding, m.bom))
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
     let bytes = text_file::encode(&content, &encoding, bom);
+    history::snapshot_before_write(&history::history_root(), &file_path);
     fs::write(&file_path, bytes).map_err(|e| format!("{}: {}", file_path, e))?;
     watch.note_write(&file_path, &content);
     Ok(true)
@@ -188,6 +195,18 @@ fn tmd_watch_dirs(paths: Vec<String>, watch: tauri::State<'_, WatchState>) {
     watch.sync_dirs(paths);
 }
 
+/// 对应 native.ts listHistory：某源文件的快照清单（最新在前），无历史 null。
+#[tauri::command]
+fn tmd_list_history(file_path: String) -> Option<FileHistory> {
+    history::list_snapshots(&history::history_root(), &file_path)
+}
+
+/// 对应 native.ts readHistory：读取单条快照正文，id 非法/缺失/超大 null。
+#[tauri::command]
+fn tmd_read_history(file_path: String, id: String) -> Option<HistoryEntry> {
+    history::read_snapshot(&history::history_root(), &file_path, &id)
+}
+
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
 struct SaveAsResult {
@@ -265,6 +284,7 @@ async fn tmd_save_file_as(
         .map(|m| (m.encoding, m.bom))
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
     let bytes = text_file::encode(&content, &encoding, bom);
+    history::snapshot_before_write(&history::history_root(), &path);
     fs::write(&path, bytes).map_err(|e| format!("{}: {}", path, e))?;
     watch.note_write(&path, &content);
     Ok(Some(save_as_result_of(path)))
@@ -309,6 +329,8 @@ fn main() {
             tmd_wiki_scan,
             tmd_watch_files,
             tmd_watch_dirs,
+            tmd_list_history,
+            tmd_read_history,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,

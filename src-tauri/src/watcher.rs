@@ -52,7 +52,7 @@ pub(crate) struct FileChangeInfo {
 /// 事件投递函数（真实实现 = Tauri emit；测试注入收集器，脱壳单测状态机）
 pub(crate) type EmitFn = Arc<dyn Fn(&'static str, serde_json::Value) + Send + Sync>;
 
-fn sha1_hex(text: &str) -> String {
+pub(crate) fn sha1_hex(text: &str) -> String {
     let mut hasher = Sha1::new();
     hasher.update(text.as_bytes());
     format!("{:x}", hasher.finalize())
