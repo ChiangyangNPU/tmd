@@ -61,6 +61,7 @@ pub(crate) const DEFAULT_MENU_LABELS: &[(&str, &str)] = &[
     ("quit", "退出 TMD"),
 ];
 
+/// 中文兜底文案表（渲染层语言包缺键时回落）
 pub(crate) fn default_labels() -> HashMap<String, String> {
     DEFAULT_MENU_LABELS
         .iter()

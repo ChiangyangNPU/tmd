@@ -32,6 +32,7 @@ struct ShellInner {
 }
 
 impl ShellState {
+/// 创建壳状态（菜单文案取中文默认，其余为空/默认值）
     pub fn new() -> Self {
         ShellState {
             inner: Mutex::new(ShellInner {
@@ -87,6 +88,7 @@ impl ShellState {
         mapped
     }
 
+/// 对应 native.ts syncShortcuts：更新 accelerator 表并重建菜单
     pub fn sync_shortcuts(&self, app: &AppHandle, shortcuts: HashMap<String, String>) {
         {
             let mut g = self.inner.lock().expect("shell state 中毒");
@@ -127,6 +129,7 @@ impl ShellState {
         self.rebuild_menu(app);
     }
 
+/// 对应 native.ts recentClear：清空镜像列表并重建菜单
     pub fn recent_clear(&self, app: &AppHandle) {
         {
             let mut g = self.inner.lock().expect("shell state 中毒");
@@ -135,6 +138,7 @@ impl ShellState {
         self.rebuild_menu(app);
     }
 
+/// 对应 native.ts recentRemove：单条移除并重建菜单
     pub fn recent_remove(&self, app: &AppHandle, path: &str) {
         {
             let mut g = self.inner.lock().expect("shell state 中毒");
@@ -164,10 +168,12 @@ impl ShellState {
             .and_then(|item| item.is_checked().ok())
     }
 
+/// 对应 native.ts setDirty：渲染层同步未保存状态（关闭确认用）
     pub fn set_dirty(&self, dirty: bool) {
         self.inner.lock().expect("shell state 中毒").dirty = dirty;
     }
 
+/// 关闭确认时查询脏标记
     pub fn is_dirty(&self) -> bool {
         self.inner.lock().expect("shell state 中毒").dirty
     }

@@ -152,6 +152,7 @@ pub(crate) struct WikiIndex {
     by_name: HashMap<String, Vec<String>>,
 }
 
+/// 构建 notes 的解析索引（两键均小写化，与 JS buildIndex 一致）
 pub(crate) fn build_index(notes: &[String]) -> WikiIndex {
     let mut by_path = HashMap::with_capacity(notes.len());
     let mut by_name: HashMap<String, Vec<String>> = HashMap::new();

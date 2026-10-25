@@ -119,6 +119,7 @@ pub(crate) struct AiError {
 }
 
 impl AiError {
+/// 构造带错误码的 AI 错误
     pub fn new(code: &str, message: impl Into<String>) -> Self {
         AiError { code: code.into(), message: message.into() }
     }
@@ -136,6 +137,7 @@ pub(crate) enum SseItem {
 }
 
 impl SseParser {
+/// 创建客户端（共享连接池 + 空的在途请求表）
     pub fn new() -> Self {
         SseParser { buffer: String::new() }
     }
@@ -158,6 +160,7 @@ impl SseParser {
         // 非 JSON 的 data 行（部分网关的保活注释）直接忽略
     }
 
+/// 喂入一个网络分块；行缓冲保证跨 chunk 的行被正确拼接
     pub fn push<F: FnMut(SseItem)>(&mut self, chunk: &str, on_event: &mut F) {
         self.buffer.push_str(chunk);
         while let Some(index) = self.buffer.find('\n') {
@@ -235,6 +238,7 @@ fn assert_config(cfg: &crate::ai_config::ClientConfig, require_key: bool) -> Res
 }
 
 impl AiClientState {
+/// 创建空的增量 SSE 解析器
     pub fn new() -> Self {
         AiClientState {
             http: reqwest::Client::new(),

@@ -47,6 +47,7 @@ fn default_line_ending() -> String {
     "lf".into()
 }
 
+/// saveFile meta 缺省时的编码兜底（UTF-8，与 normalizeTextMeta 一致）
 pub(crate) fn default_encoding_str() -> &'static str {
     "utf-8"
 }
@@ -92,6 +93,7 @@ pub(crate) fn encode(text: &str, encoding: &str, bom: bool) -> Vec<u8> {
     out
 }
 
+/// 路径的裸文件名（跨平台取 file_name，非 UTF-8 名称有损替换）
 pub(crate) fn file_name_of(p: &str) -> String {
     Path::new(p)
         .file_name()

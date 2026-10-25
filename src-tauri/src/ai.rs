@@ -39,6 +39,7 @@ pub(crate) struct AiState {
 }
 
 impl AiState {
+/// 创建配置服务（config_file 为 userData 下的 ai-config.json 路径）
     pub fn new(config_file: std::path::PathBuf) -> Self {
         AiState {
             config: AiConfigState::new(config_file),

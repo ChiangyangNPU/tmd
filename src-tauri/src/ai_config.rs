@@ -189,6 +189,7 @@ pub(crate) struct AiConfigState {
 }
 
 impl AiConfigState {
+/// 创建配置服务（config_file 为 userData 下的 ai-config.json 路径）
     pub fn new(config_file: PathBuf) -> Self {
         AiConfigState { config_file }
     }
