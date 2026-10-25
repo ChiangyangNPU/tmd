@@ -1,21 +1,22 @@
-//! TMD Tauri spike 壳层。
+//! TMD Tauri 壳层（spike 通过后的正式迁移起点，双壳共存——Electron 壳不受影响）。
 //!
-//! 目标不是功能对等，而是用最小代码验证迁移评估（docs/Tauri迁移评估.md）的三个前提：
-//! 1. WKWebView 能原样加载 dist 渲染层（ProseMirror 编辑器 + Mermaid/KaTeX 实时渲染）
-//! 2. `window.tmdAPI` 契约可由 Tauri 侧同名实现——经 initialization_script 注入
-//!    Proxy 门面，`src/native.ts` 与渲染层 46 个调用点零改动
-//! 3. 真实 IPC 派发：readFile / saveFile / readDir 三条通道走 Rust 命令，
-//!    其中编码检测/写回直接用 encoding_rs 落地（对应 electron/text-file.cjs 的
-//!    Rust 化原型，即迁移评估 §3.2「编码读写」一节）
+//! 架构：`window.tmdAPI` 契约（src/native.ts）由本壳经 initialization_script
+//! 注入 Proxy 门面实现；纯逻辑按 electron/ 的模块边界下沉到独立文件
+//! （text_file.rs / search.rs / wikilinks.rs），与 JS 版逐语义对齐并可单测。
 //!
-//! 未实现的通道在渲染层调用时以 console.warn 提示通道名并按 no-op 处理，
-//! 不阻塞启动；菜单 / 推送类通道（onMenu 等）在 spike 中无主进程来源，no-op 即符合预期。
-//! identifier 使用 com.chiangyang.tmd.spike，userData 与已安装的 Electron 版完全隔离。
+//! 已实现通道：readFile / saveFile / readDir / openFile / openFolder /
+//! saveFileAs / exportAs / searchFiles。未实现通道 no-op + console.warn，
+//! 不阻塞启动（渲染层的 `!native` 降级判断不受影响）。
+//! identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron 版完全隔离。
+
+mod search;
+mod text_file;
 
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
 use tauri_plugin_dialog::DialogExt;
+use search::SearchResult;
+use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
 
 /// 注入到每个页面加载前的渲染层 shim：定义与 electron/preload.cjs 同名的
 /// `window.tmdAPI`。已实现通道走 Tauri invoke；其余通道 no-op + 一次性告警。
@@ -38,6 +39,7 @@ const TMD_API_SHIM: &str = r#"
       return invoke('tmd_save_file_as', { content: content, defaultName: defaultName || null, meta: meta || null })
     },
     exportAs: function (options) { return invoke('tmd_export_as', { options: options }) },
+    searchFiles: function (roots, query) { return invoke('tmd_search_files', { roots: roots, query: query }) },
   }
   window.tmdAPI = new Proxy(impl, {
     get: function (target, prop) {
@@ -50,112 +52,10 @@ const TMD_API_SHIM: &str = r#"
 })()
 "#;
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TextFileData {
-    path: String,
-    name: String,
-    content: String,
-    encoding: &'static str,
-    bom: bool,
-    line_ending: &'static str,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SaveMeta {
-    #[serde(default = "default_encoding")]
-    encoding: String,
-    #[serde(default)]
-    bom: bool,
-    /// 契约字段（native.ts TextFileMeta）：换行已含在 content 里，写回无需处理，
-    /// 保留反序列化以锁住通道入参形状
-    #[serde(default = "default_line_ending")]
-    #[allow(dead_code)]
-    line_ending: String,
-}
-
-fn default_encoding() -> String {
-    "utf-8".into()
-}
-
-fn default_line_ending() -> String {
-    "lf".into()
-}
-
-/// 解码启发式与 electron/text-file.cjs 对齐：BOM 优先（UTF-8 / UTF-16LE/BE），
-/// 无 BOM 时 UTF-8 合法则按 UTF-8，否则 GBK 兜底（spike 未做无 BOM UTF-16 启发式）。
-fn decode(bytes: &[u8]) -> (&'static str, bool, String) {
-    if bytes.starts_with(&[0xEF, 0xBB, 0xBF]) {
-        let (text, _, _) = encoding_rs::UTF_8.decode(&bytes[3..]);
-        return ("utf-8", true, text.into_owned());
-    }
-    if bytes.starts_with(&[0xFF, 0xFE]) {
-        let (text, _, _) = encoding_rs::UTF_16LE.decode(&bytes[2..]);
-        return ("utf-16le", true, text.into_owned());
-    }
-    if bytes.starts_with(&[0xFE, 0xFF]) {
-        let (text, _, _) = encoding_rs::UTF_16BE.decode(&bytes[2..]);
-        return ("utf-16be", true, text.into_owned());
-    }
-    let (text, _, had_errors) = encoding_rs::UTF_8.decode(bytes);
-    if !had_errors {
-        return ("utf-8", false, text.into_owned());
-    }
-    let (text, _, _) = encoding_rs::GBK.decode(bytes);
-    ("gbk", false, text.into_owned())
-}
-
-/// 按原编码与 BOM 写回。GBK 无法映射的字符由 encoding_rs 产出数字字符引用
-/// （浏览器同款行为）；text-file.cjs 走 iconv-lite 时是替换字符——差异在
-/// 迁移评估验收时再对齐，spike 不处理。
-fn encode(text: &str, encoding: &str, bom: bool) -> Vec<u8> {
-    let (bytes, _, _) = match encoding {
-        "gbk" => encoding_rs::GBK.encode(text),
-        "utf-16le" => encoding_rs::UTF_16LE.encode(text),
-        "utf-16be" => encoding_rs::UTF_16BE.encode(text),
-        _ => encoding_rs::UTF_8.encode(text),
-    };
-    let mut out = Vec::with_capacity(bytes.len() + 3);
-    match (bom, encoding) {
-        (true, "utf-8") => out.extend_from_slice(&[0xEF, 0xBB, 0xBF]),
-        (true, "utf-16le") => out.extend_from_slice(&[0xFF, 0xFE]),
-        (true, "utf-16be") => out.extend_from_slice(&[0xFE, 0xFF]),
-        _ => {}
-    }
-    out.extend_from_slice(&bytes);
-    out
-}
-
-fn file_name_of(p: &str) -> String {
-    Path::new(p)
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default()
-}
-
 /// 对应 native.ts readFile → TextFileData（含保存回写所需的编码元信息）。
 #[tauri::command]
 fn tmd_read_file(file_path: String) -> Result<TextFileData, String> {
     read_file_at(file_path)
-}
-
-fn read_file_at(file_path: String) -> Result<TextFileData, String> {
-    let bytes = fs::read(&file_path).map_err(|e| format!("{}: {}", file_path, e))?;
-    if !Path::new(&file_path).is_file() {
-        return Err(format!("not a regular file: {}", file_path));
-    }
-    let (encoding, bom, content) = decode(&bytes);
-    let line_ending = if content.contains("\r\n") { "crlf" } else { "lf" };
-    let name = file_name_of(&file_path);
-    Ok(TextFileData {
-        path: file_path,
-        name,
-        content,
-        encoding,
-        bom,
-        line_ending,
-    })
 }
 
 /// 对应 native.ts saveFile（meta 缺省按 UTF-8 无 BOM 写回）。
@@ -163,8 +63,8 @@ fn read_file_at(file_path: String) -> Result<TextFileData, String> {
 fn tmd_save_file(file_path: String, content: String, meta: Option<SaveMeta>) -> Result<bool, String> {
     let (encoding, bom) = meta
         .map(|m| (m.encoding, m.bom))
-        .unwrap_or_else(|| (default_encoding(), false));
-    let bytes = encode(&content, &encoding, bom);
+        .unwrap_or_else(|| (default_encoding_str().to_string(), false));
+    let bytes = text_file::encode(&content, &encoding, bom);
     fs::write(&file_path, bytes).map_err(|e| format!("{}: {}", file_path, e))?;
     Ok(true)
 }
@@ -221,6 +121,24 @@ fn tmd_read_dir(dir_path: String) -> Result<DirListing, String> {
         name,
         children,
     })
+}
+
+/// 对应 native.ts searchFiles → SearchResult。
+/// 上限（文件数/命中数）与截断语义在 search.rs 与 JS 版逐项对齐。
+#[tauri::command]
+fn tmd_search_files(roots: Vec<String>, query: String) -> SearchResult {
+    let start = std::time::Instant::now();
+    let needle = query.to_lowercase();
+    let (files, _) = search::collect_search_files(&roots, search::SEARCH_MAX_FILES);
+    let (matches, file_count, truncated) =
+        search::search_in_files(&files, &needle, search::SEARCH_MAX_MATCHES);
+    SearchResult {
+        matches,
+        file_count,
+        scanned_files: files.len(),
+        truncated,
+        elapsed_ms: start.elapsed().as_millis() as u64,
+    }
 }
 
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
@@ -297,8 +215,8 @@ async fn tmd_save_file_as(
     let Some(path) = dialog_path_string(picked) else { return Ok(None) };
     let (encoding, bom) = meta
         .map(|m| (m.encoding, m.bom))
-        .unwrap_or_else(|| (default_encoding(), false));
-    let bytes = encode(&content, &encoding, bom);
+        .unwrap_or_else(|| (default_encoding_str().to_string(), false));
+    let bytes = text_file::encode(&content, &encoding, bom);
     fs::write(&path, bytes).map_err(|e| format!("{}: {}", path, e))?;
     Ok(Some(save_as_result_of(path)))
 }
@@ -337,6 +255,7 @@ fn main() {
             tmd_read_file,
             tmd_save_file,
             tmd_read_dir,
+            tmd_search_files,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
