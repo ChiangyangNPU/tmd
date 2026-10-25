@@ -88,7 +88,8 @@ const TMD_API_SHIM: &str = r#"
     recentAdd: function (entry) { invoke('tmd_recent_add', { entry: entry }) },
     recentClear: function () { invoke('tmd_recent_clear') },
     recentRemove: function (path) { invoke('tmd_recent_remove', { path: path }) },
-    ready: function () {},
+    ready: function () { invoke('tmd_ready') },
+    onOpenPath: function (cb) { tmdOn('tmd-open-path', cb) },
     onMenu: function (cb) { tmdOn('tmd-menu', cb) },
     onRecentOpen: function (cb) { tmdOn('tmd-recent-open', cb) },
     onAutosave: function (cb) { tmdOn('tmd-autosave', cb) },
@@ -293,6 +294,13 @@ fn tmd_sync_shortcuts(
 #[tauri::command]
 fn tmd_set_autosave_enabled(shell: tauri::State<'_, ShellState>, enabled: bool) {
     shell.set_autosave_enabled(enabled);
+}
+
+/// 对应 native.ts ready：渲染层就绪信号，冲刷排队中的待打开文件
+/// （并恢复/聚焦窗口——对应 main.cjs 的 flushPendingOpenPaths）。
+#[tauri::command]
+fn tmd_ready(app: tauri::AppHandle) {
+    flush_pending_open_paths(&app);
 }
 
 /// 对应 native.ts setDirty：渲染层同步未保存状态（关闭确认用）。
@@ -636,7 +644,13 @@ async fn tmd_export_as(
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // 单实例锁：二次启动的 argv 转交主实例（官方要求该插件最先注册）
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            for path in argv {
+                queue_open_path(app, path);
+            }
+        }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // 本地日志（~/.tmd/logs）：panic hook 与渲染层异常上报都写这里；
@@ -648,6 +662,7 @@ fn main() {
             app.manage(WatchState::new(app.handle().clone()));
             app.manage(ShellState::new());
             app.manage(MaximizedFlag(AtomicBool::new(false)));
+            app.manage(PendingOpenPaths(Default::default()));
             // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）
             let data_dir = app.path().app_data_dir().expect("userData 目录不可用");
             app.manage(ai::AiState::new(data_dir.join("ai-config.json")));
@@ -767,14 +782,68 @@ fn main() {
             tmd_open_themes_dir,
             tmd_get_export_assets,
             tmd_report_error,
+            tmd_ready,
             tmd_open_logs_dir,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
             tmd_export_as
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("TMD (tauri spike) 启动失败");
+    app.run(|app, event| {
+        // 文件关联：Finder 双击 / 系统打开方式（macOS open-file、Windows 关联启动）
+        if let tauri::RunEvent::Opened { urls } = event {
+            for url in urls {
+                let path = url
+                    .to_file_path()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_else(|_| url.to_string());
+                queue_open_path(app, path);
+            }
+        }
+    });
+}
+
+/// 待打开文件队列：渲染层 ready 前入队（文件关联早于渲染层就绪），
+/// ready 命令或二次启动转交时冲刷（对应 main.cjs 的 pendingOpenPaths）
+#[derive(Default)]
+struct PendingOpenPaths(std::sync::Mutex<Vec<String>>);
+
+/// 可打开扩展名（与渲染层白名单同口径）
+fn is_openable_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".txt")
+}
+
+/// 入队并立即尝试冲刷（窗口存活时直接下发 + 带到前台）
+fn queue_open_path(app: &tauri::AppHandle, path: String) {
+    if !is_openable_path(&path) {
+        return;
+    }
+    app.state::<PendingOpenPaths>()
+        .0
+        .lock()
+        .expect("pending open 锁中毒")
+        .push(path);
+    flush_pending_open_paths(app);
+}
+
+/// 把排队中的待打开文件发给渲染层，并把窗口带到前台
+fn flush_pending_open_paths(app: &tauri::AppHandle) {
+    let paths = {
+        let pending = app.state::<PendingOpenPaths>();
+        let mut g = pending.0.lock().expect("pending open 锁中毒");
+        std::mem::take(&mut *g)
+    };
+    for path in paths {
+        let _ = app.emit("tmd-open-path", path);
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 /// 最大化状态去重标记（Resized 事件高频，只在状态翻转时推送）
