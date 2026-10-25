@@ -1,14 +1,17 @@
 //! TMD Tauri 壳层（spike 通过后的正式迁移起点，双壳共存——Electron 壳不受影响）。
 //!
 //! 架构：`window.tmdAPI` 契约（src/native.ts）由本壳经 initialization_script
-//! 注入 Proxy 门面实现；纯逻辑按 electron/ 的模块边界下沉到独立文件
-//! （text_file.rs / search.rs / wikilinks.rs），与 JS 版逐语义对齐并可单测。
+//! 注入 Proxy 门面实现；纯逻辑按 electron/ 的模块边界下沉到独立模块
+//! （text_file / search / wikilinks / watcher / history / menu / shell / ai_* /
+//! fsops / themes / export_assets），与 JS 版逐语义对齐并可单测。
 //!
-//! 已实现通道：readFile / saveFile / readDir / openFile / openFolder /
-//! saveFileAs / exportAs / searchFiles / wikiScan / watchFiles / watchDirs /
-//! listHistory / readHistory（+ 事件订阅 onFileChanged / onDirsChanged）。
-//! 未实现通道 no-op + console.warn，不阻塞启动（渲染层的 `!native` 降级判断不受影响）。
-//! identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron 版完全隔离。
+//! 通道进度：43 条 invoke + 7 条事件订阅已实现——**权威清单与各模块对齐说明、
+//! 已知缺口见 docs/spike-tauri.md**（此处不再枚举，避免两处清单漂移）。
+//! 未实现通道 no-op + console.warn，不阻塞启动（渲染层的 `!native` 降级判断
+//! 不受影响）。identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron
+//! 版完全隔离。
+//!
+//! @author chiangyang
 
 mod ai;
 mod ai_client;

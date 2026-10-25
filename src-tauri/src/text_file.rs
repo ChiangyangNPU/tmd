@@ -7,6 +7,8 @@
 //! 已知简化（对齐 text-file.cjs 留到正式迁移验收）：
 //! - 无 BOM 的 UTF-16 启发式未实现（text-file.cjs 有）
 //! - GBK 不可映射字符走数字字符引用（浏览器行为；iconv-lite 是替换字符）
+//!
+//! @author chiangyang
 
 use serde::{Deserialize, Serialize};
 use std::fs;

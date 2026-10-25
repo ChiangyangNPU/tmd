@@ -10,6 +10,8 @@
 //! - 目录不存在返回空列表（不主动创建——创建只发生在用户显式打开时）
 //!
 //! spike 已知缺口：排序用字典序而非 localeCompare（CJK 排序缺口同 readDir）。
+//!
+//! @author chiangyang
 
 use crate::history::tmd_home;
 use serde::Serialize;

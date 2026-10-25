@@ -14,6 +14,8 @@
 //!
 //! spike 简化：文件被删除后又在原路径重建，不自动恢复跟踪（等渲染层下次 sync
 //! 重新挂上）——与 JS 版已知边界一致。
+//!
+//! @author chiangyang
 
 use crate::text_file::decode;
 use notify::{RecursiveMode, Watcher};

@@ -9,6 +9,8 @@
 //!
 //! spike 简化：目录遍历顺序执行（JS 为并发 8 的分批——不改变产出顺序，
 //! 仅吞吐差异；正式迁移如需更快可用 rayon 并行读盘）。
+//!
+//! @author chiangyang
 
 use crate::text_file::{decode, file_name_of};
 use serde::Serialize;

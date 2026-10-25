@@ -8,6 +8,8 @@
 //! - 系统最近文档注册（Windows Jump List / macOS Dock）无 Tauri 对应 API，
 //!   仅维护菜单子菜单的镜像列表
 //! - shell-state.json 持久化（主题来源 / 窗口几何）未迁移，重启回落默认
+//!
+//! @author chiangyang
 
 use crate::menu::{build_menu, collation_locale, default_labels, RecentEntry};
 use std::collections::HashMap;

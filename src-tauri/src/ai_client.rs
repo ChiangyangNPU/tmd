@@ -11,6 +11,8 @@
 //! - 嵌入响应按 index 逐条校验（上游结构不可信）
 //!
 //! 网络只发生在壳层：渲染层拿不到 API Key。
+//!
+//! @author chiangyang
 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};

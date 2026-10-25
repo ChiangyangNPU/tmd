@@ -14,6 +14,8 @@
 //!
 //! 保存事务（评估 §3.2）：snapshot → write → note_write 三步有序，由
 //! main.rs 的保存命令在同一 Rust 调用内完成，前端不参与编排。
+//!
+//! @author chiangyang
 
 use crate::text_file::{decode, file_name_of};
 use crate::watcher::sha1_hex;

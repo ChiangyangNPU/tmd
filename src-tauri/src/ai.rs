@@ -5,6 +5,8 @@
 //! - messages / texts 由渲染层提供，壳层做角色白名单与体积上限校验后才发往网络
 //! - 对话采用「invoke 立即返回 + tmd-ai-stream 事件流」：长响应不阻塞 invoke，
 //!   渲染层用 requestId 关联增量事件；用户可随时经 abortAi 中止
+//!
+//! @author chiangyang
 
 use serde::Serialize;
 use serde_json::Value;

@@ -8,6 +8,8 @@
 //! - 内联 JS/CSS 转义闭合标签（防提前截断脚本）
 //! - KaTeX CSS 去掉 woff/ttf 回退，woff2 全部转 data URI（去重后逐个读字体）
 //! - 结果缓存（JS 用 Promise 缓存；Rust 用 OnceLock，缺失也缓存为已探明）
+//!
+//! @author chiangyang
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use regex::Regex;

@@ -11,6 +11,8 @@
 //!
 //! spike 简化：逐文件扫描顺序执行（JS 并发 8，不改变产出顺序——links 按 notes
 //! 顺序组装）；路径分隔符按 POSIX 处理，Windows 迁移验收时对齐。
+//!
+//! @author chiangyang
 
 use crate::search::{collect_search_files, SEARCH_MAX_FILES};
 use crate::text_file::{decode, file_name_of};

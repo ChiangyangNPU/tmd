@@ -10,6 +10,8 @@
 //! 塞在配置文件里；Tauri 侧用系统钥匙串（keyring crate），配置文件只落
 //! `secret.keychain: true` 标记。降级路径同 JS：钥匙串不可用时明文落
 //! `secret.plain`（用户私有目录权限）。两者 userData 目录互不相通，无兼容需求。
+//!
+//! @author chiangyang
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

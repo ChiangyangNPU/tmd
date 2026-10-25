@@ -8,6 +8,8 @@
 //! - macOS appMenu（about/services/hide）与编辑/视图 role 子菜单未建
 //!   （webview 原生响应 Cmd+C/V 等编辑快捷键，功能不受损，菜单 UI 缺失）
 //! - 退出项固定用默认中文文案「退出 TMD」（labels 无 quit 键）
+//!
+//! @author chiangyang
 
 use std::collections::HashMap;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
