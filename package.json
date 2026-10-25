@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "dev:electron": "concurrently -k -s first \"vite\" \"wait-on tcp:127.0.0.1:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
+    "tauri": "tauri",
     "build": "tsc && vite build && node scripts/copy-export-assets.mjs",
     "test": "vitest run",
     "test:desktop": "node scripts/desktop-app-check.mjs && node scripts/desktop-export-check.mjs",
@@ -33,6 +34,7 @@
     "@milkdown/kit": "^7.0.0",
     "@milkdown/plugin-math": "^7.5.9",
     "@milkdown/plugin-prism": "^7.22.1",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/d3-force": "^3.0.10",
     "@types/markdown-it": "^14.2.0",
     "@types/sanitize-html": "^2.16.2",
