@@ -42,7 +42,7 @@ use history::{FileHistory, HistoryEntry};
 use logger::Logger;
 use menu::RecentEntry;
 use search::SearchResult;
-use shell::ShellState;
+use shell::{ShellState, WinStateTracker};
 use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
 use watcher::WatchState;
 use wikilinks::WikiScanResult;
@@ -317,7 +317,17 @@ fn tmd_set_theme_source(window: tauri::WebviewWindow, is_dark: bool) -> Result<(
     use tauri::Theme;
     window
         .set_theme(Some(if is_dark { Theme::Dark } else { Theme::Light }))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    // 持久化到 shell-state.json（下次启动首帧即正确主题，对应 saveShellState）
+    shell::save_shell_state(
+        &window
+            .app_handle()
+            .state::<WinStateTracker>()
+            .path
+            .clone(),
+        serde_json::json!({ "themeSource": if is_dark { "dark" } else { "light" } }),
+    );
+    Ok(())
 }
 
 /// 对应 native.ts winMinimize：自绘标题栏最小化。
@@ -666,14 +676,41 @@ fn main() {
             // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）
             let data_dir = app.path().app_data_dir().expect("userData 目录不可用");
             app.manage(ai::AiState::new(data_dir.join("ai-config.json")));
+            // 壳层持久化：主题与窗口几何在首帧前恢复（与 Electron createWindow 前恢复同口径）
+            let shell_file = data_dir.join("shell-state.json");
+            let persisted = shell::read_shell_state(&shell_file);
+            app.manage(WinStateTracker::new(shell_file.clone()));
+            let restored_theme = match persisted.get("themeSource").and_then(Value::as_str) {
+                Some("dark") => Some(tauri::Theme::Dark),
+                Some("light") => Some(tauri::Theme::Light),
+                _ => None,
+            };
+            let display_rects = shell::monitor_rects(&app.available_monitors().unwrap_or_default());
+            let restored = shell::restore_win_state(&persisted, &display_rects);
             // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建
             app.state::<ShellState>().rebuild_menu(app.handle());
-            tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+            let mut builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
                 .title("TMD (tauri spike)")
-                .inner_size(1280.0, 820.0)
                 .min_inner_size(940.0, 600.0)
-                .initialization_script(TMD_API_SHIM)
-                .build()?;
+                .initialization_script(TMD_API_SHIM);
+            if let Some(theme) = restored_theme {
+                builder = builder.theme(Some(theme));
+            }
+            match restored {
+                Some(win) => {
+                    builder = builder.inner_size(win.width, win.height);
+                    if let (Some(x), Some(y)) = (win.x, win.y) {
+                        builder = builder.position(x as f64, y as f64);
+                    }
+                }
+                None => {
+                    builder = builder.inner_size(1280.0, 820.0);
+                }
+            }
+            let window = builder.build()?;
+            if restored.is_some_and(|w| w.maximized) {
+                let _ = window.maximize();
+            }
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -704,13 +741,46 @@ fn main() {
         })
         .on_window_event(|window, event| {
             match event {
-                tauri::WindowEvent::Resized(_) => {
-                    // 最大化状态推送（仅状态变化时发，对应 Electron maximize/unmaximize）
+                tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                    // 最大化状态推送（仅状态变化时发，对应 Electron maximize/unmaximize），
+                    // 变化瞬间同步落盘 winState（对应 JS 的 maximize/unmaximize 即时记录）
                     let maximized = window.is_maximized().unwrap_or(false);
                     let last = window.app_handle().state::<MaximizedFlag>();
                     if last.0.swap(maximized, Ordering::SeqCst) != maximized {
                         let _ = window.app_handle().emit("tmd-win-max-changed", maximized);
+                        window
+                            .app_handle()
+                            .state::<WinStateTracker>()
+                            .save_now(window.app_handle());
                     }
+                    // 几何记录 + 防抖 500ms 落盘（高频事件不刷盘；代数防抖——
+                    // 落盘线程醒来时代数未变才写）
+                    if let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) {
+                        let tracker = window.app_handle().state::<WinStateTracker>();
+                        tracker.record(
+                            pos.x,
+                            pos.y,
+                            size.width as f64,
+                            size.height as f64,
+                            maximized,
+                        );
+                        let gen_before = tracker.generation.load(Ordering::SeqCst);
+                        let app = window.app_handle().clone();
+                        std::thread::spawn(move || {
+                            std::thread::sleep(std::time::Duration::from_millis(500));
+                            let tracker = app.state::<WinStateTracker>();
+                            if tracker.generation.load(Ordering::SeqCst) == gen_before {
+                                tracker.save_now(&app);
+                            }
+                        });
+                    }
+                }
+                tauri::WindowEvent::Destroyed => {
+                    // 关闭时同步兜底：退出路径上防抖异步写不保证执行完
+                    window
+                        .app_handle()
+                        .state::<WinStateTracker>()
+                        .save_now(window.app_handle());
                 }
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // 未保存关闭确认：原生对话框拦截（渲染层 window.confirm 不可靠，
