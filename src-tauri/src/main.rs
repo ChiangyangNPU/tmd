@@ -11,13 +11,16 @@
 
 mod search;
 mod text_file;
+mod watcher;
 mod wikilinks;
 
 use serde::{Deserialize, Serialize};
 use std::fs;
+use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use search::SearchResult;
 use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
+use watcher::WatchState;
 use wikilinks::WikiScanResult;
 
 /// 注入到每个页面加载前的渲染层 shim：定义与 electron/preload.cjs 同名的
@@ -43,6 +46,21 @@ const TMD_API_SHIM: &str = r#"
     exportAs: function (options) { return invoke('tmd_export_as', { options: options }) },
     searchFiles: function (roots, query) { return invoke('tmd_search_files', { roots: roots, query: query }) },
     wikiScan: function (roots) { return invoke('tmd_wiki_scan', { roots: roots }) },
+    watchFiles: function (paths) { invoke('tmd_watch_files', { paths: paths }) },
+    watchDirs: function (paths) { invoke('tmd_watch_dirs', { paths: paths }) },
+    onFileChanged: function (cb) { tmdOn('tmd-file-changed', cb) },
+    onDirsChanged: function (cb) { tmdOn('tmd-dirs-changed', cb) },
+  }
+  var listened = {}
+  function tmdOn(event, cb) {
+    if (!listened[event]) {
+      listened[event] = []
+      window.__TAURI__.event.listen(event, function (e) {
+        var cbs = listened[event]
+        for (var i = 0; i < cbs.length; i++) cbs[i](e.payload)
+      })
+    }
+    listened[event].push(cb)
   }
   window.tmdAPI = new Proxy(impl, {
     get: function (target, prop) {
@@ -62,13 +80,20 @@ fn tmd_read_file(file_path: String) -> Result<TextFileData, String> {
 }
 
 /// 对应 native.ts saveFile（meta 缺省按 UTF-8 无 BOM 写回）。
+/// 写盘完成后向监视器登记新指纹，紧随其后的文件事件按指纹比对被过滤（自身写入回声）。
 #[tauri::command]
-fn tmd_save_file(file_path: String, content: String, meta: Option<SaveMeta>) -> Result<bool, String> {
+fn tmd_save_file(
+    file_path: String,
+    content: String,
+    meta: Option<SaveMeta>,
+    watch: tauri::State<'_, WatchState>,
+) -> Result<bool, String> {
     let (encoding, bom) = meta
         .map(|m| (m.encoding, m.bom))
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
     let bytes = text_file::encode(&content, &encoding, bom);
     fs::write(&file_path, bytes).map_err(|e| format!("{}: {}", file_path, e))?;
+    watch.note_write(&file_path, &content);
     Ok(true)
 }
 
@@ -151,6 +176,18 @@ fn tmd_wiki_scan(roots: Vec<String>) -> WikiScanResult {
     wikilinks::scan_wiki_links(&roots)
 }
 
+/// 对应 native.ts watchFiles：全量同步「打开文件集合」（差量增删 watcher）。
+#[tauri::command]
+fn tmd_watch_files(paths: Vec<String>, watch: tauri::State<'_, WatchState>) {
+    watch.sync_files(paths);
+}
+
+/// 对应 native.ts watchDirs：全量同步「已加载目录集合」（差量增删 watcher）。
+#[tauri::command]
+fn tmd_watch_dirs(paths: Vec<String>, watch: tauri::State<'_, WatchState>) {
+    watch.sync_dirs(paths);
+}
+
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
 struct SaveAsResult {
@@ -208,13 +245,14 @@ async fn tmd_open_folder(app: tauri::AppHandle) -> Result<Option<String>, String
     Ok(picked.and_then(dialog_path_string))
 }
 
-/// 对应 native.ts saveFileAs：保存对话框 → 按原编码写回。
+/// 对应 native.ts saveFileAs：保存对话框 → 按原编码写回（含自身写入指纹登记）。
 #[tauri::command]
 async fn tmd_save_file_as(
     app: tauri::AppHandle,
     content: String,
     default_name: Option<String>,
     meta: Option<SaveMeta>,
+    watch: tauri::State<'_, WatchState>,
 ) -> Result<Option<SaveAsResult>, String> {
     let mut dialog = app.dialog().file();
     if let Some(name) = default_name {
@@ -228,6 +266,7 @@ async fn tmd_save_file_as(
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
     let bytes = text_file::encode(&content, &encoding, bom);
     fs::write(&path, bytes).map_err(|e| format!("{}: {}", path, e))?;
+    watch.note_write(&path, &content);
     Ok(Some(save_as_result_of(path)))
 }
 
@@ -253,6 +292,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            app.manage(WatchState::new(app.handle().clone()));
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
                 .title("TMD (tauri spike)")
                 .inner_size(1280.0, 820.0)
@@ -267,6 +307,8 @@ fn main() {
             tmd_read_dir,
             tmd_search_files,
             tmd_wiki_scan,
+            tmd_watch_files,
+            tmd_watch_dirs,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,

@@ -31,19 +31,24 @@ npm run tauri dev     # 自动起 vite(5173) + cargo 构建 + 打开 WKWebView �
 > 下节保留作为验证记录与后续验证清单。
 
 - `src-tauri/src/main.rs`：窗口创建 + `initialization_script` 注入 `window.tmdAPI` Proxy 门面
-- 已实现通道（9 条，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
+- 已实现通道（11 条 invoke + 2 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
   `readFile` / `saveFile` / `readDir` / `openFile` / `openFolder` / `saveFileAs` /
   `exportAs`（对话框四件套走 tauri-plugin-dialog 的 Rust 侧 API，无需 capabilities 放行）、
-  `searchFiles` / `wikiScan`
+  `searchFiles` / `wikiScan`、`watchFiles` / `watchDirs` + 订阅 `onFileChanged` / `onDirsChanged`
+  （Tauri 事件 `tmd-file-changed` / `tmd-dirs-changed`，shim 侧 `event.listen` 转发）
 - 纯逻辑模块化（与 electron/ 模块边界一一对应，JS 版保留服务 Electron 壳，改动需两处同步）：
   - `text_file.rs` ← `electron/text-file.cjs`（encoding_rs：BOM/UTF-16/GBK + CRLF）
   - `search.rs` ← `electron/search.cjs`（BFS 收集 / 跳过目录 / 扩展名白名单 /
     2MB·5000 文件·500 命中三重上限 / occurrence 定位协议；匹配在字符空间，
     中文行的 column 与 JS 的 UTF-16 口径一致）
   - `wikilinks.rs` ← `electron/wikilinks.cjs`（围栏跳过 / 三档解析 / ambiguous）
+  - `watcher.rs` ← `electron/filewatcher.cjs + dirwatcher.cjs`（notify + 200ms 固定窗口
+    防抖 + sha1 内容指纹过滤自身写入回声 + change 投递后重建 watcher 防 inode 失效 +
+    CRLF 归一比对；emit 注入化，状态机脱壳单测）
 - 未实现通道：no-op + console.warn（不阻塞启动；渲染层的 `!native` 降级判断不受影响）
-- Rust 单测 9 例（收集过滤 / 上限截断 / column+occurrence / 二进制跳过 / 预览截断 /
-  inner 解析 / 围栏边界 / 三档解析含 ambiguous / e2e 形状）
+- Rust 单测 15 例（收集过滤 / 上限截断 / column+occurrence / 二进制跳过 / 预览截断 /
+  inner 解析 / 围栏边界 / 三档解析含 ambiguous / e2e 形状 / EOL 归一 / 回声过滤 /
+  外部变更一次性投递 / unlink 去重 / sync 差量与 64 上限 / 目录防抖合并）
 - 窗口由 Rust 侧 `WebviewWindowBuilder` 创建（而非 tauri.conf.json）——因为 initialization_script
   只能走 builder，这也是正式迁移的必经形态。
 
