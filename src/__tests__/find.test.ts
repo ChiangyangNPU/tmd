@@ -157,11 +157,7 @@ describe('expandReplacement 替换串展开', () => {
 // 编辑后旧坐标导致高亮错位、findStep 越界、替换写错位置）
 // ---------------------------------------------------------------------------
 import { EditorState } from '@milkdown/kit/prose/state'
-import {
-  computeFindState,
-  mapMatchesThroughTrs,
-  rangeMatchesQuery,
-} from '../find'
+import { computeFindState, mapMatchesThroughTrs, rangeMatchesQuery } from '../find'
 
 describe('computeFindState', () => {
   it('返回匹配列表并把序号钳制到有效范围', () => {

@@ -35,9 +35,9 @@ describe('decodeTextFile / encodeTextFile', () => {
       bom: false,
       lineEnding: 'lf',
     })
-    expect(textFile.encodeTextFile('中文\nline2\n', { encoding: 'utf-8', lineEnding: 'lf' })).toEqual(
-      plain,
-    )
+    expect(
+      textFile.encodeTextFile('中文\nline2\n', { encoding: 'utf-8', lineEnding: 'lf' }),
+    ).toEqual(plain)
 
     const withBom = Buffer.concat([utf8Bom, plain])
     const decoded = textFile.decodeTextFile(withBom)
@@ -92,7 +92,10 @@ describe('decodeTextFile / encodeTextFile', () => {
     expect(decoded.encoding).toBe('gbk')
     expect(decoded.content).toBe('中文')
     // 空文件 / 任意字节都不应抛错
-    expect(textFile.decodeTextFile(Buffer.from([]))).toMatchObject({ content: '', encoding: 'utf-8' })
+    expect(textFile.decodeTextFile(Buffer.from([]))).toMatchObject({
+      content: '',
+      encoding: 'utf-8',
+    })
     expect(() => textFile.decodeTextFile(Buffer.from([0x00, 0x80, 0xff]))).not.toThrow()
   })
 

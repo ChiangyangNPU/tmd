@@ -5,3 +5,5 @@ build/**
 package-lock.json
 docs/**
 *.md
+src-tauri/target/**
+src-tauri/gen/**

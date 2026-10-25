@@ -59,7 +59,10 @@ const config: ChatConfig = {
 }
 
 /** embed 配置：ChatConfig 加上向量模型字段 */
-const embedConfig: ChatConfig & { embedModel: string } = { ...config, embedModel: 'text-embedding-test' }
+const embedConfig: ChatConfig & { embedModel: string } = {
+  ...config,
+  embedModel: 'text-embedding-test',
+}
 
 /** 构造 embeddings JSON 响应 */
 function embeddingsResponse(data: unknown): Response {
@@ -386,7 +389,8 @@ describe('向量嵌入', () => {
   it('HTTP 错误归一化为错误码', async () => {
     const client = createAiClient({
       getConfig: () => embedConfig,
-      fetchImpl: (async () => errorResponse(401, '{"error":{"message":"bad key"}}')) as typeof fetch,
+      fetchImpl: (async () =>
+        errorResponse(401, '{"error":{"message":"bad key"}}')) as typeof fetch,
     })
     await expect(client.embed({ texts: ['x'] })).rejects.toMatchObject({
       code: 'unauthorized',
@@ -407,12 +411,12 @@ describe('向量嵌入', () => {
     await expect(
       make({ data: [{ index: 0, embedding: ['bad'] }] }).embed({ texts: ['x'] }),
     ).rejects.toMatchObject({ code: 'bad-response' })
-    await expect(make({ data: [{ index: 5, embedding: [1] }] }).embed({ texts: ['x'] })).rejects.toMatchObject(
-      { code: 'bad-response' },
-    )
-    await expect(make({ data: [{ embedding: [1] }] }).embed({ texts: ['x'] })).rejects.toMatchObject(
-      { code: 'bad-response' },
-    )
+    await expect(
+      make({ data: [{ index: 5, embedding: [1] }] }).embed({ texts: ['x'] }),
+    ).rejects.toMatchObject({ code: 'bad-response' })
+    await expect(
+      make({ data: [{ embedding: [1] }] }).embed({ texts: ['x'] }),
+    ).rejects.toMatchObject({ code: 'bad-response' })
   })
 })
 

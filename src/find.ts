@@ -270,7 +270,10 @@ export function computeFindState(
  */
 export function mapMatchesThroughTrs(
   matches: MatchRange[],
-  trs: readonly { docChanged: boolean; mapping: { map: (pos: number, assoc?: number) => number } }[],
+  trs: readonly {
+    docChanged: boolean
+    mapping: { map: (pos: number, assoc?: number) => number }
+  }[],
 ): MatchRange[] {
   let current = matches
   for (const tr of trs) {
@@ -450,7 +453,11 @@ export function findReplaceAll(view: EditorView, replacement: string): FindState
  * 编辑器重建后按给定查询词在新文档上重算匹配（换标签 / 打开新文件后，
  * 匹配坐标属于旧文档；查询词为空时为 no-op）。由 editor-core 的重建流程调用。
  */
-export function findRefreshAfterReplace(view: EditorView, query: string, options: FindOptions): void {
+export function findRefreshAfterReplace(
+  view: EditorView,
+  query: string,
+  options: FindOptions,
+): void {
   if (!query) return
   recompute(view, query, options, 0)
 }

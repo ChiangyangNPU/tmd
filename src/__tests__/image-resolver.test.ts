@@ -34,8 +34,7 @@ const docOf = (...children: (ReturnType<typeof img> | string)[]) =>
 
 /** 组装插件并读取装饰快照（节点装饰的 src 属性为私有形状，测试内断言用） */
 const plugin = createImageResolverPlugin()
-const decos = (state: EditorState): Decoration[] =>
-  imageBaseDirKey.getState(state)?.find() ?? []
+const decos = (state: EditorState): Decoration[] => imageBaseDirKey.getState(state)?.find() ?? []
 const snapshot = (state: EditorState) =>
   decos(state).map((d) => ({
     from: d.from,
@@ -57,7 +56,12 @@ describe('init 全量扫描', () => {
   it('只装饰相对路径图片；data:/https:/根相对路径不装饰', () => {
     setImageBaseDir('/docs')
     const state = EditorState.create({
-      doc: docOf(img('assets/x.png'), img('data:image/png;base64,AA'), img('https://a/b.png'), img('/root.png')),
+      doc: docOf(
+        img('assets/x.png'),
+        img('data:image/png;base64,AA'),
+        img('https://a/b.png'),
+        img('/root.png'),
+      ),
       plugins: [plugin],
     })
     expect(snapshot(state)).toEqual([{ from: 1, to: 2, src: 'file:///docs/assets/x.png' }])
@@ -106,10 +110,7 @@ describe('增量映射与局部扫描', () => {
     state = state.apply(state.tr.insertText('X', 2))
     const s = snapshot(state)
     expect(s).toHaveLength(2)
-    expect(s.map((d) => d.src)).toEqual([
-      'file:///docs/assets/a.png',
-      'file:///docs/assets/b.png',
-    ])
+    expect(s.map((d) => d.src)).toEqual(['file:///docs/assets/a.png', 'file:///docs/assets/b.png'])
   })
 
   it('mark-only 事务（changedRange 为 null）保持装饰不变', () => {

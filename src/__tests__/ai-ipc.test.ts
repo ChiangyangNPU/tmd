@@ -222,10 +222,13 @@ describe('嵌入 IPC 编排', () => {
   it('按输入顺序返回向量；未启用时结构化拒绝', async () => {
     const enabled = setup()
     const result = await enabled.handlers.get(IPC.aiEmbed)!(mainEvent, ['a', 'bb'])
-    expect(result).toEqual({ ok: true, vectors: [
-      [1, 1],
-      [2, 1],
-    ] })
+    expect(result).toEqual({
+      ok: true,
+      vectors: [
+        [1, 1],
+        [2, 1],
+      ],
+    })
     expect(enabled.embed).toHaveBeenCalledWith({ texts: ['a', 'bb'] })
 
     const disabled = setup({ enabled: false })

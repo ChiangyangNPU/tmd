@@ -19,7 +19,7 @@
 import zlib from 'node:zlib'
 
 const SIZE = 256
-const RIM = 0.10 // 折射带占半边比例（0~1）：0.12 = 每侧 12% 区域参与折射
+const RIM = 0.1 // 折射带占半边比例（0~1）：0.12 = 每侧 12% 区域参与折射
 const EASE = 2
 
 // ---- 逐像素位移图：RGB PNG（B 通道恒 128 未用，A 不需要）----
@@ -86,4 +86,6 @@ const png = Buffer.concat([
 ])
 
 process.stdout.write(`data:image/png;base64,${png.toString('base64')}\n`)
-process.stderr.write(`SIZE=${SIZE} RIM=${RIM} EASE=${EASE} png=${png.length}B base64=${Math.ceil((png.length * 4) / 3)}B\n`)
+process.stderr.write(
+  `SIZE=${SIZE} RIM=${RIM} EASE=${EASE} png=${png.length}B base64=${Math.ceil((png.length * 4) / 3)}B\n`,
+)

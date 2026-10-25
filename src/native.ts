@@ -116,8 +116,7 @@ export interface AiChatStart {
 
 /** 向量嵌入的返回值：ok 为 false 时带结构化错误（渲染层据此回退关键词检索） */
 export type AiEmbedResult =
-  | { ok: true; vectors: number[][] }
-  | { ok: false; error: { code: string; message: string } }
+  { ok: true; vectors: number[][] } | { ok: false; error: { code: string; message: string } }
 
 /** 离线 HTML 导出资源（主进程从 dist/export-assets 读取并内联字体） */
 export interface ExportAssets {

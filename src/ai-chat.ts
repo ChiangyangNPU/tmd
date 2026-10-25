@@ -209,7 +209,9 @@ function renderBadges(ctx: ChatContext, mode: 'embeddings' | 'keywords') {
  * 需在 await 前给出「检索中」状态提示。
  * @param question - 用户问题（作为检索查询）
  */
-async function gatherContext(question: string): Promise<ChatContext & { mode: 'embeddings' | 'keywords' }> {
+async function gatherContext(
+  question: string,
+): Promise<ChatContext & { mode: 'embeddings' | 'keywords' }> {
   const context = configView?.context ?? { selection: true, document: false, workspace: false }
   let selection: string | null = null
   let doc: { name: string; content: string } | null = null

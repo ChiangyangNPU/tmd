@@ -9,11 +9,15 @@ import type { AiChatMessage } from '../native'
 
 describe('buildChatMessages', () => {
   it('无上下文时只有系统提示词、历史与裸问题', () => {
-    const messages = buildChatMessages('什么是 Markdown？', {
-      selection: null,
-      document: null,
-      workspace: [],
-    }, [])
+    const messages = buildChatMessages(
+      '什么是 Markdown？',
+      {
+        selection: null,
+        document: null,
+        workspace: [],
+      },
+      [],
+    )
     expect(messages).toHaveLength(2)
     expect(messages[0].role).toBe('system')
     expect(messages[0].content).toContain('Markdown editor')
@@ -21,34 +25,46 @@ describe('buildChatMessages', () => {
   })
 
   it('选区上下文包在 selected_text 标签内', () => {
-    const messages = buildChatMessages('解释一下', {
-      selection: '选中的文字',
-      document: null,
-      workspace: [],
-    }, [])
+    const messages = buildChatMessages(
+      '解释一下',
+      {
+        selection: '选中的文字',
+        document: null,
+        workspace: [],
+      },
+      [],
+    )
     expect(messages.at(-1)!.content).toContain('<selected_text>')
     expect(messages.at(-1)!.content).toContain('选中的文字')
   })
 
   it('文档上下文带文件名属性', () => {
-    const messages = buildChatMessages('总结', {
-      selection: null,
-      document: { name: 'notes.md', content: '# 笔记' },
-      workspace: [],
-    }, [])
+    const messages = buildChatMessages(
+      '总结',
+      {
+        selection: null,
+        document: { name: 'notes.md', content: '# 笔记' },
+        workspace: [],
+      },
+      [],
+    )
     expect(messages.at(-1)!.content).toContain('<current_document path="notes.md">')
     expect(messages.at(-1)!.content).toContain('# 笔记')
   })
 
   it('工作区片段逐条带路径，路径特殊字符被转义', () => {
-    const messages = buildChatMessages('引用来源', {
-      selection: null,
-      document: null,
-      workspace: [
-        { path: 'a&"b".md', name: 'a&"b".md', text: '片段一' },
-        { path: 'c.md', name: 'c.md', text: '片段二' },
-      ],
-    }, [])
+    const messages = buildChatMessages(
+      '引用来源',
+      {
+        selection: null,
+        document: null,
+        workspace: [
+          { path: 'a&"b".md', name: 'a&"b".md', text: '片段一' },
+          { path: 'c.md', name: 'c.md', text: '片段二' },
+        ],
+      },
+      [],
+    )
     const content = messages.at(-1)!.content
     expect(content).toContain('<workspace_excerpts>')
     expect(content).toContain('path="a&amp;&quot;b&quot;.md"')
@@ -61,11 +77,15 @@ describe('buildChatMessages', () => {
       { role: 'user', content: '第一问' },
       { role: 'assistant', content: '第一答' },
     ]
-    const messages = buildChatMessages('第二问', {
-      selection: '选区',
-      document: null,
-      workspace: [],
-    }, history)
+    const messages = buildChatMessages(
+      '第二问',
+      {
+        selection: '选区',
+        document: null,
+        workspace: [],
+      },
+      history,
+    )
     expect(messages).toHaveLength(4)
     expect(messages[1]).toEqual({ role: 'user', content: '第一问' })
     expect(messages[2]).toEqual({ role: 'assistant', content: '第一答' })

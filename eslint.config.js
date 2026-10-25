@@ -10,8 +10,8 @@ import globals from 'globals'
  * 格式类规则全部交给 Prettier（eslint-config-prettier 关闭冲突项）。
  */
 export default [
-  // 构建产物与依赖不参与检查
-  { ignores: ['dist/**', 'release/**', 'node_modules/**', 'build/**'] },
+  // 构建产物与依赖不参与检查（src-tauri/target 为 cargo 构建产物）
+  { ignores: ['dist/**', 'release/**', 'node_modules/**', 'build/**', 'src-tauri/target/**'] },
 
   // 社区推荐规则基线
   eslint.configs.recommended,

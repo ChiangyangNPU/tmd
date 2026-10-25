@@ -195,11 +195,15 @@ describe('remapSelectionRange', () => {
     expect(remapSelectionRange(docLike('hello'), collapse, selection)).toBeNull()
     // 映射后越界
     expect(
-      remapSelectionRange(docLike('hi'), { map: (pos: number) => pos }, {
-        from: 0,
-        to: 99,
-        text: 'hi',
-      }),
+      remapSelectionRange(
+        docLike('hi'),
+        { map: (pos: number) => pos },
+        {
+          from: 0,
+          to: 99,
+          text: 'hi',
+        },
+      ),
     ).toBeNull()
   })
 })
