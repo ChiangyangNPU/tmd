@@ -52,10 +52,7 @@ pub(crate) fn log_file_name(date: &str) -> String {
 
 /// 轮转决策：超龄（mtime < now-7天）全删；未超龄按 mtime 从旧到新，
 /// 超出 10 个上限的最旧一批一并删除。纯函数。
-pub(crate) fn prune_log_files(
-    entries: &[(String, u128)],
-    now_ms: u128,
-) -> Vec<String> {
+pub(crate) fn prune_log_files(entries: &[(String, u128)], now_ms: u128) -> Vec<String> {
     let cutoff = now_ms.saturating_sub(LOG_RETENTION_DAYS as u128 * 24 * 60 * 60 * 1000);
     let aged: Vec<String> = entries
         .iter()
@@ -201,7 +198,11 @@ pub(crate) fn collect_dump_files(dir: &Path, prefix: &str) -> Vec<String> {
     let mut out = Vec::new();
     for ent in entries.flatten() {
         let name = ent.file_name().to_string_lossy().into_owned();
-        let rel = if prefix.is_empty() { name.clone() } else { format!("{}/{}", prefix, name) };
+        let rel = if prefix.is_empty() {
+            name.clone()
+        } else {
+            format!("{}/{}", prefix, name)
+        };
         let path = dir.join(&name);
         if path.is_dir() {
             out.extend(collect_dump_files(&path, &rel));
@@ -234,12 +235,21 @@ impl Logger {
     pub fn new(home: PathBuf) -> Arc<Self> {
         Arc::new(Logger {
             home,
-            inner: Mutex::new(LoggerInner { recent: HashMap::new() }),
+            inner: Mutex::new(LoggerInner {
+                recent: HashMap::new(),
+            }),
         })
     }
 
     /// 记录一条日志（level/source 白名单外的入参静默丢弃）
-    pub fn log(&self, level: &str, source: &str, message: &str, stack: Option<&str>, meta: &LogMeta) {
+    pub fn log(
+        &self,
+        level: &str,
+        source: &str,
+        message: &str,
+        stack: Option<&str>,
+        meta: &LogMeta,
+    ) {
         let now = Local::now();
         let at_ms = now.timestamp_millis() as u128;
         self.log_at(at_ms, level, source, message, stack, meta);
@@ -304,7 +314,14 @@ impl Logger {
                     rec.count,
                     rec.message
                 );
-                if let Some(entry) = build_entry("warn", &rec.source, &summary, None, &LogMeta::default(), &Local::now()) {
+                if let Some(entry) = build_entry(
+                    "warn",
+                    &rec.source,
+                    &summary,
+                    None,
+                    &LogMeta::default(),
+                    &Local::now(),
+                ) {
                     Self::append_raw(home, &entry);
                 }
             }
@@ -361,7 +378,12 @@ impl Logger {
 
     /// 记录子进程（渲染器 / GPU / utility）消失事件
     #[allow(dead_code)] // 对齐 JS API；Tauri 侧暂无 child-process-gone 事件源，保留协议
-    pub fn log_child_process_gone(&self, r#type: Option<&str>, reason: Option<&str>, exit_code: Option<f64>) {
+    pub fn log_child_process_gone(
+        &self,
+        r#type: Option<&str>,
+        reason: Option<&str>,
+        exit_code: Option<f64>,
+    ) {
         self.log(
             "error",
             "child-process",
@@ -371,7 +393,11 @@ impl Logger {
                 reason.unwrap_or("unknown")
             ),
             None,
-            &LogMeta { reason, exit_code, ..Default::default() },
+            &LogMeta {
+                reason,
+                exit_code,
+                ..Default::default()
+            },
         );
     }
 
@@ -386,7 +412,10 @@ impl Logger {
                 size.unwrap_or(0)
             ),
             None,
-            &LogMeta { dump: Some(dump_file), ..Default::default() },
+            &LogMeta {
+                dump: Some(dump_file),
+                ..Default::default()
+            },
         );
     }
 }
@@ -447,7 +476,9 @@ pub(crate) fn scan_new_dumps(logger: &Logger, home: &Path) {
     }
     let files = collect_dump_files(&dump_dir, "");
     for name in list_new_dumps(&files, &seen) {
-        let size = std::fs::metadata(dump_dir.join(&name)).ok().map(|m| m.len());
+        let size = std::fs::metadata(dump_dir.join(&name))
+            .ok()
+            .map(|m| m.len());
         logger.log_native_crash(&name, size);
     }
     // 清单以崩溃目录现状为准（用户手动删掉 dump 后清单同步收敛）
@@ -485,7 +516,10 @@ mod tests {
         assert_eq!(truncate_field(short), short);
         let long = "字".repeat(FIELD_MAX + 10);
         let out = truncate_field(&long);
-        assert_eq!(out.chars().count(), FIELD_MAX + "…[truncated]".chars().count());
+        assert_eq!(
+            out.chars().count(),
+            FIELD_MAX + "…[truncated]".chars().count()
+        );
         assert!(out.ends_with("…[truncated]"));
     }
 
@@ -498,7 +532,8 @@ mod tests {
             colno: Some(f64::NAN), // 非有限 → 丢弃
             ..Default::default()
         };
-        let entry = build_entry("error", "renderer", "出错了", Some("stack..."), &meta, &now).unwrap();
+        let entry =
+            build_entry("error", "renderer", "出错了", Some("stack..."), &meta, &now).unwrap();
         assert_eq!(entry["level"], "error");
         assert!(entry.get("filename").is_some());
         assert!(entry.get("colno").is_none());
@@ -529,7 +564,14 @@ mod tests {
         let base: u128 = 1_700_000_000_000;
         // 同消息 3 次（窗口内）→ 只落盘 1 条
         for i in 0..3 {
-            logger.log_at(base + i * 1000, "error", "renderer", "重复错误", None, &LogMeta::default());
+            logger.log_at(
+                base + i * 1000,
+                "error",
+                "renderer",
+                "重复错误",
+                None,
+                &LogMeta::default(),
+            );
         }
         let dir = logs_dir(&home);
         let day_file = dir.join(log_file_name(&local_date(&Local::now())));
@@ -547,7 +589,11 @@ mod tests {
         let content = std::fs::read_to_string(&day_file).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines.len(), 3, "应有 2 条原始日志 + 1 条汇总：{:?}", lines);
-        assert!(lines[1].contains("相同消息在 60 秒内重复 3 次"), "{:?}", lines[1]);
+        assert!(
+            lines[1].contains("相同消息在 60 秒内重复 3 次"),
+            "{:?}",
+            lines[1]
+        );
         let _ = std::fs::remove_dir_all(home);
     }
 
@@ -567,15 +613,19 @@ mod tests {
         assert!(seen.contains("pending/a.dmp") && seen.contains("b.dmp"));
         assert!(!seen.contains("c.txt"));
         // 第二次扫描：无新 dump，不再产生日志行
-        let log_before = std::fs::read_to_string(logs_dir(&home).join(log_file_name(&local_date(&Local::now()))))
-            .unwrap()
-            .lines()
-            .count();
+        let log_before = std::fs::read_to_string(
+            logs_dir(&home).join(log_file_name(&local_date(&Local::now()))),
+        )
+        .unwrap()
+        .lines()
+        .count();
         scan_new_dumps(&logger, &home);
-        let log_after = std::fs::read_to_string(logs_dir(&home).join(log_file_name(&local_date(&Local::now()))))
-            .unwrap()
-            .lines()
-            .count();
+        let log_after = std::fs::read_to_string(
+            logs_dir(&home).join(log_file_name(&local_date(&Local::now()))),
+        )
+        .unwrap()
+        .lines()
+        .count();
         assert_eq!(log_before, log_after);
         let _ = std::fs::remove_dir_all(home);
     }

@@ -134,7 +134,8 @@ impl Inner {
             // 建立内容基线（JS 为异步读、基线落定前至多多通知一次；这里同步读无窗口）
             if let Ok(bytes) = fs::read(p) {
                 let (_, _, content) = decode(&bytes);
-                self.known.insert(p.clone(), sha1_hex(&normalize_eol(&content)));
+                self.known
+                    .insert(p.clone(), sha1_hex(&normalize_eol(&content)));
             }
         }
         let stale: Vec<String> = self
@@ -188,7 +189,8 @@ impl Inner {
     /// 登记一次自身写入的新指纹：仅已监视路径登记，避免无界增长。
     fn note_write(&mut self, path: &str, content: &str) {
         if self.files.contains(path) {
-            self.known.insert(path.to_string(), sha1_hex(&normalize_eol(content)));
+            self.known
+                .insert(path.to_string(), sha1_hex(&normalize_eol(content)));
         }
     }
 
@@ -362,11 +364,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn temp_dir(tag: &str) -> String {
-        let dir = std::env::temp_dir().join(format!(
-            "tmd-spike-watch-{}-{}",
-            tag,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tmd-spike-watch-{}-{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir.to_string_lossy().into_owned()
@@ -512,10 +511,14 @@ mod tests {
         state.sync_dirs(vec![dir.clone()]);
         if let Ok(mut g) = state.inner.lock() {
             // 一次外部操作常派发多个事件：全部落在同一固定窗口 → 只投递一次
-            g.handle_event(notify::Event::new(notify::EventKind::Create(notify::event::CreateKind::File))
-                .add_path(PathBuf::from(format!("{}/new.md", dir))));
-            g.handle_event(notify::Event::new(notify::EventKind::Modify(notify::event::ModifyKind::Any))
-                .add_path(PathBuf::from(format!("{}/new.md", dir))));
+            g.handle_event(
+                notify::Event::new(notify::EventKind::Create(notify::event::CreateKind::File))
+                    .add_path(PathBuf::from(format!("{}/new.md", dir))),
+            );
+            g.handle_event(
+                notify::Event::new(notify::EventKind::Modify(notify::event::ModifyKind::Any))
+                    .add_path(PathBuf::from(format!("{}/new.md", dir))),
+            );
             assert!(g.dir_deadlines.contains_key(&dir));
             std::thread::sleep(DEBOUNCE + Duration::from_millis(30));
             g.flush_due(&state.emit);

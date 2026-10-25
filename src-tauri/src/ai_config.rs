@@ -22,11 +22,41 @@ use std::path::PathBuf;
 /// needsKey：云端必须填 Key；Ollama 与自定义本地端点允许留空。
 pub(crate) const AI_PROVIDERS: &[(&str, &str, &str, &str, bool)] = &[
     // (id, label, baseUrl, model, needsKey)
-    ("openai", "OpenAI", "https://api.openai.com/v1", "gpt-4o-mini", true),
-    ("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat", true),
-    ("moonshot", "Moonshot (Kimi)", "https://api.moonshot.cn/v1", "moonshot-v1-8k", true),
-    ("zhipu", "智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash", true),
-    ("ollama", "Ollama（本地）", "http://127.0.0.1:11434/v1", "qwen2.5:7b", false),
+    (
+        "openai",
+        "OpenAI",
+        "https://api.openai.com/v1",
+        "gpt-4o-mini",
+        true,
+    ),
+    (
+        "deepseek",
+        "DeepSeek",
+        "https://api.deepseek.com/v1",
+        "deepseek-chat",
+        true,
+    ),
+    (
+        "moonshot",
+        "Moonshot (Kimi)",
+        "https://api.moonshot.cn/v1",
+        "moonshot-v1-8k",
+        true,
+    ),
+    (
+        "zhipu",
+        "智谱 GLM",
+        "https://open.bigmodel.cn/api/paas/v4",
+        "glm-4-flash",
+        true,
+    ),
+    (
+        "ollama",
+        "Ollama（本地）",
+        "http://127.0.0.1:11434/v1",
+        "qwen2.5:7b",
+        false,
+    ),
     ("custom", "自定义（OpenAI 兼容）", "", "", false),
 ];
 
@@ -63,7 +93,11 @@ pub(crate) struct AiContextScope {
 impl Default for AiContextScope {
     fn default() -> Self {
         // 默认只发用户显式选中的内容
-        AiContextScope { selection: true, document: false, workspace: false }
+        AiContextScope {
+            selection: true,
+            document: false,
+            workspace: false,
+        }
     }
 }
 
@@ -92,7 +126,9 @@ pub(crate) fn normalize_base_url(value: &Value, provider: &str) -> String {
             }
         }
     }
-    preset_of(provider).map(|p| p.2.to_string()).unwrap_or_default()
+    preset_of(provider)
+        .map(|p| p.2.to_string())
+        .unwrap_or_default()
 }
 
 /// 按白名单归一化配置字段。
@@ -102,7 +138,9 @@ pub(crate) fn sanitize_settings(raw: &Value) -> AiSettings {
         .and_then(Value::as_str)
         .filter(|p| preset_of(p).is_some())
         .unwrap_or(DEFAULT_PROVIDER);
-    let preset_model = preset_of(provider).map(|p| p.3.to_string()).unwrap_or_default();
+    let preset_model = preset_of(provider)
+        .map(|p| p.3.to_string())
+        .unwrap_or_default();
     let model = raw
         .get("model")
         .and_then(Value::as_str)
@@ -122,7 +160,10 @@ pub(crate) fn sanitize_settings(raw: &Value) -> AiSettings {
         model,
         temperature: clamp_temperature(raw.get("temperature").unwrap_or(&Value::Null), 0.7),
         // streaming !== false → 默认 true
-        streaming: raw.get("streaming").and_then(Value::as_bool).unwrap_or(true),
+        streaming: raw
+            .get("streaming")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
         context: AiContextScope {
             selection: context
                 .and_then(|c| c.get("selection"))
@@ -172,7 +213,11 @@ fn encrypt_secret(plain: &str) -> Value {
 
 /// 解密 Key：钥匙串读不出（换机器/条目被清）返回空串，用户需重新填写
 fn decrypt_secret(secret: &Value) -> String {
-    if secret.get("keychain").and_then(Value::as_bool).unwrap_or(false) {
+    if secret
+        .get("keychain")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+    {
         return keychain_entry()
             .and_then(|e| e.get_password().ok())
             .unwrap_or_default();
@@ -190,7 +235,7 @@ pub(crate) struct AiConfigState {
 }
 
 impl AiConfigState {
-/// 创建配置服务（config_file 为 userData 下的 ai-config.json 路径）
+    /// 创建配置服务（config_file 为 userData 下的 ai-config.json 路径）
     pub fn new(config_file: PathBuf) -> Self {
         AiConfigState { config_file }
     }
@@ -257,10 +302,9 @@ impl AiConfigState {
                     obj.insert(k.clone(), v.clone());
                 }
             }
-            let base_ctx = obj
-                .get("context")
-                .cloned()
-                .unwrap_or_else(|| serde_json::to_value(&current.context).expect("context 序列化失败"));
+            let base_ctx = obj.get("context").cloned().unwrap_or_else(|| {
+                serde_json::to_value(&current.context).expect("context 序列化失败")
+            });
             let merged_ctx = match patch.get("context") {
                 Some(patch_ctx) if patch_ctx.is_object() => {
                     let mut merged = base_ctx;
@@ -278,12 +322,18 @@ impl AiConfigState {
         // 只切换服务商而没显式带地址/模型时，回落新服务商预设
         if next_provider != current.provider {
             if patch.get("baseUrl").and_then(Value::as_str).is_none() {
-                input["baseUrl"] =
-                    Value::String(preset_of(&next_provider).map(|p| p.2.into()).unwrap_or_default());
+                input["baseUrl"] = Value::String(
+                    preset_of(&next_provider)
+                        .map(|p| p.2.into())
+                        .unwrap_or_default(),
+                );
             }
             if patch.get("model").and_then(Value::as_str).is_none() {
-                input["model"] =
-                    Value::String(preset_of(&next_provider).map(|p| p.3.into()).unwrap_or_default());
+                input["model"] = Value::String(
+                    preset_of(&next_provider)
+                        .map(|p| p.3.into())
+                        .unwrap_or_default(),
+                );
             }
         }
         let merged = sanitize_settings(&input);
@@ -297,7 +347,11 @@ impl AiConfigState {
             .unwrap_or_default();
         if !raw_key.is_empty() {
             next["secret"] = encrypt_secret(&raw_key);
-        } else if patch.get("clearApiKey").and_then(Value::as_bool).unwrap_or(false) {
+        } else if patch
+            .get("clearApiKey")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
+        {
             if let Some(obj) = next.as_object_mut() {
                 obj.remove("secret");
             }
@@ -311,7 +365,10 @@ impl AiConfigState {
             if let Some(parent) = self.config_file.parent() {
                 let _ = fs::create_dir_all(parent);
             }
-            if fs::write(&tmp, json).and_then(|_| fs::rename(&tmp, &self.config_file)).is_err() {
+            if fs::write(&tmp, json)
+                .and_then(|_| fs::rename(&tmp, &self.config_file))
+                .is_err()
+            {
                 let _ = fs::remove_file(&tmp);
             }
         }
@@ -339,7 +396,9 @@ impl AiConfigState {
         let model = match overrides.get("model").and_then(Value::as_str) {
             Some(s) if !s.trim().is_empty() => s.trim().chars().take(120).collect(),
             _ if same_provider => base.model.clone(),
-            _ => preset_of(&merged_provider).map(|p| p.3.into()).unwrap_or_default(),
+            _ => preset_of(&merged_provider)
+                .map(|p| p.3.into())
+                .unwrap_or_default(),
         };
         let api_key = match overrides.get("apiKey").and_then(Value::as_str) {
             Some(s) if !s.trim().is_empty() => s.trim().to_string(),

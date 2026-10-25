@@ -77,7 +77,10 @@ pub(crate) fn parse_wiki_inner(inner: &str) -> (String, String, String) {
         None => (inner, String::new()),
     };
     let (target, heading) = match main.find('#') {
-        Some(hash) => (main[..hash].trim().to_string(), main[hash + 1..].trim().to_string()),
+        Some(hash) => (
+            main[..hash].trim().to_string(),
+            main[hash + 1..].trim().to_string(),
+        ),
         None => (main.trim().to_string(), String::new()),
     };
     (target, alias, heading)
@@ -208,8 +211,12 @@ pub(crate) fn resolve_target(target: &str, source_path: &str, index: &WikiIndex)
     let key = basename_no_md(t).to_lowercase();
     match index.by_name.get(&key) {
         None => Resolved::Missing,
-        Some(list) if list.len() == 1 => Resolved::Ok { path: list[0].clone() },
-        Some(list) => Resolved::Ambiguous { paths: list.clone() },
+        Some(list) if list.len() == 1 => Resolved::Ok {
+            path: list[0].clone(),
+        },
+        Some(list) => Resolved::Ambiguous {
+            paths: list.clone(),
+        },
     }
 }
 
@@ -284,11 +291,8 @@ mod tests {
     use super::*;
 
     fn temp_dir(tag: &str) -> String {
-        let dir = std::env::temp_dir().join(format!(
-            "tmd-spike-wiki-{}-{}",
-            tag,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tmd-spike-wiki-{}-{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir.to_string_lossy().into_owned()
@@ -296,7 +300,10 @@ mod tests {
 
     #[test]
     fn parse_wiki_inner_splits_alias_heading_and_trims() {
-        assert_eq!(parse_wiki_inner("目标"), ("目标".into(), "".into(), "".into()));
+        assert_eq!(
+            parse_wiki_inner("目标"),
+            ("目标".into(), "".into(), "".into())
+        );
         assert_eq!(
             parse_wiki_inner(" 目标 | 别名 "),
             ("目标".into(), "别名".into(), "".into())
@@ -341,7 +348,14 @@ mod tests {
         for f in [&a, &b, &c, &dup1, &dup2, &other] {
             fs::write(f, "x").unwrap();
         }
-        let notes = vec![a.clone(), b.clone(), c.clone(), dup1.clone(), dup2.clone(), other.clone()];
+        let notes = vec![
+            a.clone(),
+            b.clone(),
+            c.clone(),
+            dup1.clone(),
+            dup2.clone(),
+            other.clone(),
+        ];
         let index = build_index(&notes);
 
         // ① 相对路径档（含 ../）
@@ -376,7 +390,10 @@ mod tests {
             other => panic!("期望 ok，得到 {:?}", other),
         }
         // 完全不存在
-        assert!(matches!(resolve_target("ghost", &b, &index), Resolved::Missing));
+        assert!(matches!(
+            resolve_target("ghost", &b, &index),
+            Resolved::Missing
+        ));
         let _ = fs::remove_dir_all(root);
     }
 

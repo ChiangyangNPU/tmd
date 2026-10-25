@@ -108,7 +108,11 @@ pub(crate) fn read_file_at(file_path: String) -> Result<TextFileData, String> {
         return Err(format!("not a regular file: {}", file_path));
     }
     let (encoding, bom, content) = decode(&bytes);
-    let line_ending = if content.contains("\r\n") { "crlf" } else { "lf" };
+    let line_ending = if content.contains("\r\n") {
+        "crlf"
+    } else {
+        "lf"
+    };
     let name = file_name_of(&file_path);
     Ok(TextFileData {
         path: file_path,

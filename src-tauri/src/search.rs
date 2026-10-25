@@ -130,7 +130,9 @@ pub(crate) fn search_in_files(
             truncated = true;
             break;
         }
-        let Ok(meta) = fs::metadata(file) else { continue };
+        let Ok(meta) = fs::metadata(file) else {
+            continue;
+        };
         if meta.len() > SEARCH_MAX_FILE_SIZE {
             continue;
         }
@@ -218,11 +220,8 @@ mod tests {
     use super::*;
 
     fn temp_dir(tag: &str) -> String {
-        let dir = std::env::temp_dir().join(format!(
-            "tmd-spike-search-{}-{}",
-            tag,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tmd-spike-search-{}-{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir.to_string_lossy().into_owned()

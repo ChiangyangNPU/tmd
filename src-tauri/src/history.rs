@@ -129,7 +129,10 @@ fn write_index(dir: &Path, index: &HistoryIndex) {
     let tmp = dir.join("index.json.tmp");
     match serde_json::to_string_pretty(index) {
         Ok(json) => {
-            if fs::write(&tmp, json).and_then(|_| fs::rename(&tmp, &file)).is_err() {
+            if fs::write(&tmp, json)
+                .and_then(|_| fs::rename(&tmp, &file))
+                .is_err()
+            {
                 let _ = fs::remove_file(&tmp);
             }
         }
@@ -201,15 +204,18 @@ fn write_snapshot(
     };
     next.snapshots.push(IndexEntry {
         id: id.clone(),
-        ts: now.with_timezone(&Utc).to_rfc3339_opts(SecondsFormat::Millis, true),
+        ts: now
+            .with_timezone(&Utc)
+            .to_rfc3339_opts(SecondsFormat::Millis, true),
         size: content.as_bytes().len() as u64,
         hash,
     });
     next.snapshots.extend(snapshots);
 
     // 单文件数量上限内联收口：只触碰本文件的 index 与快照文件
-    let overflow: Vec<IndexEntry> =
-        next.snapshots.split_off(HISTORY_MAX_PER_FILE.min(next.snapshots.len()));
+    let overflow: Vec<IndexEntry> = next
+        .snapshots
+        .split_off(HISTORY_MAX_PER_FILE.min(next.snapshots.len()));
     write_index(&dir, &next);
     for s in &overflow {
         remove_snapshot(&dir, &s.id);
@@ -309,7 +315,10 @@ fn prune_history_with(root: &Path, max_total: u64) -> (usize, u64) {
         if removed_ids[i].is_empty() {
             continue;
         }
-        entry.index.snapshots.retain(|s| !removed_ids[i].contains(&s.id));
+        entry
+            .index
+            .snapshots
+            .retain(|s| !removed_ids[i].contains(&s.id));
         write_index(&entry.dir, &entry.index);
     }
     (removed, total.max(0))
@@ -413,11 +422,8 @@ mod tests {
     use super::*;
 
     fn temp_root(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "tmd-spike-history-{}-{}",
-            tag,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tmd-spike-history-{}-{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -441,7 +447,10 @@ mod tests {
             "duplicate"
         );
         // 空内容不存
-        assert_eq!(write_snapshot(&root, file, "a.md", "", Some(t)).unwrap_err(), "empty");
+        assert_eq!(
+            write_snapshot(&root, file, "a.md", "", Some(t)).unwrap_err(),
+            "empty"
+        );
         let list = list_snapshots(&root, file).unwrap();
         assert_eq!(list.path, file);
         assert_eq!(list.snapshots.len(), 1);
@@ -479,9 +488,15 @@ mod tests {
         assert_eq!(list.snapshots.len(), HISTORY_MAX_PER_FILE);
         assert_eq!(list.snapshots[0].id, "20260101-005100"); // 最新在前（i=51）
         assert_eq!(list.snapshots.last().unwrap().id, "20260101-000200"); // 最旧保留（i=2）
-        // 被剪掉的正文文件也已删除
-        assert!(!root.join(snapshot_key(file)).join("20260101-000000.md").exists());
-        assert!(!root.join(snapshot_key(file)).join("20260101-000100.md").exists());
+                                                                          // 被剪掉的正文文件也已删除
+        assert!(!root
+            .join(snapshot_key(file))
+            .join("20260101-000000.md")
+            .exists());
+        assert!(!root
+            .join(snapshot_key(file))
+            .join("20260101-000100.md")
+            .exists());
         let _ = fs::remove_dir_all(root);
     }
 

@@ -62,7 +62,10 @@ pub(crate) fn sanitize_messages(raw: &Value) -> Result<Vec<ChatMessage>, String>
         if !matches!(role, "system" | "user" | "assistant") {
             return Err("invalid role".into());
         }
-        let content = item.get("content").and_then(Value::as_str).unwrap_or_default();
+        let content = item
+            .get("content")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if content.is_empty() {
             return Err("invalid content".into());
         }
@@ -73,7 +76,10 @@ pub(crate) fn sanitize_messages(raw: &Value) -> Result<Vec<ChatMessage>, String>
         if total > MAX_TOTAL_CHARS {
             return Err("request too large".into());
         }
-        result.push(ChatMessage { role: role.into(), content: content.into() });
+        result.push(ChatMessage {
+            role: role.into(),
+            content: content.into(),
+        });
     }
     Ok(result)
 }
@@ -119,9 +125,12 @@ pub(crate) struct AiError {
 }
 
 impl AiError {
-/// 构造带错误码的 AI 错误
+    /// 构造带错误码的 AI 错误
     pub fn new(code: &str, message: impl Into<String>) -> Self {
-        AiError { code: code.into(), message: message.into() }
+        AiError {
+            code: code.into(),
+            message: message.into(),
+        }
     }
 }
 
@@ -137,15 +146,19 @@ pub(crate) enum SseItem {
 }
 
 impl SseParser {
-/// 创建客户端（共享连接池 + 空的在途请求表）
+    /// 创建客户端（共享连接池 + 空的在途请求表）
     pub fn new() -> Self {
-        SseParser { buffer: String::new() }
+        SseParser {
+            buffer: String::new(),
+        }
     }
 
     /// 消费一行：`data:` 前缀 + [DONE] + JSON；其余忽略
     fn consume_line<F: FnMut(SseItem)>(&mut self, line: &str, on_event: &mut F) {
         let trimmed = line.strip_suffix('\r').unwrap_or(line);
-        let Some(payload) = trimmed.strip_prefix("data:") else { return };
+        let Some(payload) = trimmed.strip_prefix("data:") else {
+            return;
+        };
         let payload = payload.trim();
         if payload.is_empty() {
             return;
@@ -160,7 +173,7 @@ impl SseParser {
         // 非 JSON 的 data 行（部分网关的保活注释）直接忽略
     }
 
-/// 喂入一个网络分块；行缓冲保证跨 chunk 的行被正确拼接
+    /// 喂入一个网络分块；行缓冲保证跨 chunk 的行被正确拼接
     pub fn push<F: FnMut(SseItem)>(&mut self, chunk: &str, on_event: &mut F) {
         self.buffer.push_str(chunk);
         while let Some(index) = self.buffer.find('\n') {
@@ -226,7 +239,10 @@ pub(crate) struct AiClientState {
 
 fn assert_config(cfg: &crate::ai_config::ClientConfig, require_key: bool) -> Result<(), AiError> {
     if cfg.base_url.is_empty() {
-        return Err(AiError::new("not-configured", "API base URL is not configured"));
+        return Err(AiError::new(
+            "not-configured",
+            "API base URL is not configured",
+        ));
     }
     if cfg.model.is_empty() {
         return Err(AiError::new("not-configured", "Model is not configured"));
@@ -238,7 +254,7 @@ fn assert_config(cfg: &crate::ai_config::ClientConfig, require_key: bool) -> Res
 }
 
 impl AiClientState {
-/// 创建空的增量 SSE 解析器
+    /// 创建空的增量 SSE 解析器
     pub fn new() -> Self {
         AiClientState {
             http: reqwest::Client::new(),
@@ -246,7 +262,10 @@ impl AiClientState {
         }
     }
 
-    fn endpoint(cfg: &crate::ai_config::ClientConfig, path: &str) -> (String, Vec<(String, String)>) {
+    fn endpoint(
+        cfg: &crate::ai_config::ClientConfig,
+        path: &str,
+    ) -> (String, Vec<(String, String)>) {
         let mut headers = vec![("Content-Type".into(), "application/json".into())];
         if !cfg.api_key.is_empty() {
             headers.push(("Authorization".into(), format!("Bearer {}", cfg.api_key)));
@@ -254,11 +273,7 @@ impl AiClientState {
         if path.ends_with("chat/completions") {
             headers.push(("Accept".into(), "text/event-stream".into()));
         }
-        let url = format!(
-            "{}/{}",
-            cfg.base_url.trim_end_matches('/'),
-            path
-        );
+        let url = format!("{}/{}", cfg.base_url.trim_end_matches('/'), path);
         (url, headers)
     }
 
@@ -296,7 +311,10 @@ impl AiClientState {
             .insert(request_id.to_string(), token.clone());
 
         let result = self.chat_inner(cfg, messages, &on_event, &token).await;
-        self.tasks.lock().expect("ai tasks 锁中毒").remove(request_id);
+        self.tasks
+            .lock()
+            .expect("ai tasks 锁中毒")
+            .remove(request_id);
         result
     }
 
@@ -319,7 +337,14 @@ impl AiClientState {
         if !(200..300).contains(&status) {
             let text = res.text().await.unwrap_or_default();
             let message = read_error_message(&text);
-            return Err(AiError::new(code_for_status(status), if message.is_empty() { format!("HTTP {}", status) } else { message }));
+            return Err(AiError::new(
+                code_for_status(status),
+                if message.is_empty() {
+                    format!("HTTP {}", status)
+                } else {
+                    message
+                },
+            ));
         }
 
         let content_type = res
@@ -346,9 +371,14 @@ impl AiClientState {
                 .and_then(|m| m.get("content"))
                 .and_then(Value::as_str);
             let Some(content) = content else {
-                return Err(AiError::new("bad-response", "Missing message content in response"));
+                return Err(AiError::new(
+                    "bad-response",
+                    "Missing message content in response",
+                ));
             };
-            on_event(StreamEvent::Delta { text: content.to_string() });
+            on_event(StreamEvent::Delta {
+                text: content.to_string(),
+            });
             on_event(StreamEvent::Done);
             return Ok(content.to_string());
         }
@@ -369,7 +399,8 @@ impl AiClientState {
                             .get("message")
                             .and_then(Value::as_str)
                             .unwrap_or("Upstream stream error");
-                        *stream_error_writer.lock().expect("stream error 锁中毒") = Some(AiError::new("server-error", msg));
+                        *stream_error_writer.lock().expect("stream error 锁中毒") =
+                            Some(AiError::new("server-error", msg));
                         return;
                     }
                     let Some(delta) = data
@@ -380,15 +411,20 @@ impl AiClientState {
                     else {
                         return;
                     };
-                    if let Some(reasoning) = delta.get("reasoning_content").and_then(Value::as_str) {
+                    if let Some(reasoning) = delta.get("reasoning_content").and_then(Value::as_str)
+                    {
                         if !reasoning.is_empty() {
-                            on_event(StreamEvent::Reasoning { text: reasoning.to_string() });
+                            on_event(StreamEvent::Reasoning {
+                                text: reasoning.to_string(),
+                            });
                         }
                     }
                     if let Some(text) = delta.get("content").and_then(Value::as_str) {
                         if !text.is_empty() {
                             content.push_str(text);
-                            on_event(StreamEvent::Delta { text: text.to_string() });
+                            on_event(StreamEvent::Delta {
+                                text: text.to_string(),
+                            });
                         }
                     }
                 }
@@ -423,10 +459,7 @@ impl AiClientState {
     }
 
     /// 连通性测试的完整流程（含请求）：返回结构化结果，不抛错。
-    pub(crate) async fn test_connection(
-        &self,
-        cfg: &crate::ai_config::ClientConfig,
-    ) -> Value {
+    pub(crate) async fn test_connection(&self, cfg: &crate::ai_config::ClientConfig) -> Value {
         let started = Instant::now();
         let latency = || started.elapsed().as_millis() as u64;
         if let Err(err) = assert_config(cfg, true) {
@@ -470,10 +503,16 @@ impl AiClientState {
         texts: &[String],
     ) -> Result<Vec<Vec<f64>>, AiError> {
         if cfg.base_url.is_empty() {
-            return Err(AiError::new("not-configured", "API base URL is not configured"));
+            return Err(AiError::new(
+                "not-configured",
+                "API base URL is not configured",
+            ));
         }
         if cfg.embed_model.is_empty() {
-            return Err(AiError::new("not-configured", "Embedding model is not configured"));
+            return Err(AiError::new(
+                "not-configured",
+                "Embedding model is not configured",
+            ));
         }
         if cfg.needs_key && cfg.api_key.is_empty() {
             return Err(AiError::new("no-api-key", "API key is not configured"));
@@ -487,17 +526,33 @@ impl AiClientState {
             if !(200..300).contains(&status) {
                 let text = res.text().await.unwrap_or_default();
                 let message = read_error_message(&text);
-                return Err(AiError::new(code_for_status(status), if message.is_empty() { format!("HTTP {}", status) } else { message }));
+                return Err(AiError::new(
+                    code_for_status(status),
+                    if message.is_empty() {
+                        format!("HTTP {}", status)
+                    } else {
+                        message
+                    },
+                ));
             }
-            let text = res.text().await.map_err(|err| AiError::new("bad-response", err.to_string()))?;
+            let text = res
+                .text()
+                .await
+                .map_err(|err| AiError::new("bad-response", err.to_string()))?;
             let data: Value = serde_json::from_str(&text)
                 .map_err(|err| AiError::new("bad-response", err.to_string()))?;
             // 各服务商以 index 标注输入对应关系；逐条运行时校验（上游结构不可信）
             let Some(rows) = data.get("data").and_then(Value::as_array) else {
-                return Err(AiError::new("bad-response", "Unexpected embeddings response shape"));
+                return Err(AiError::new(
+                    "bad-response",
+                    "Unexpected embeddings response shape",
+                ));
             };
             if rows.len() != texts.len() {
-                return Err(AiError::new("bad-response", "Unexpected embeddings response shape"));
+                return Err(AiError::new(
+                    "bad-response",
+                    "Unexpected embeddings response shape",
+                ));
             }
             let mut vectors: Vec<Option<Vec<f64>>> = (0..texts.len()).map(|_| None).collect();
             for row in rows {
@@ -582,22 +637,35 @@ mod tests {
         let bad_role = serde_json::json!([{ "role": "tool", "content": "x" }]);
         assert_eq!(sanitize_messages(&bad_role).unwrap_err(), "invalid role");
         // 空列表
-        assert_eq!(sanitize_messages(&serde_json::json!([])).unwrap_err(), "invalid messages");
+        assert_eq!(
+            sanitize_messages(&serde_json::json!([])).unwrap_err(),
+            "invalid messages"
+        );
         // 超长
-        let too_long = serde_json::json!([{ "role": "user", "content": "a".repeat(MAX_MESSAGE_CHARS + 1) }]);
-        assert_eq!(sanitize_messages(&too_long).unwrap_err(), "message too large");
+        let too_long =
+            serde_json::json!([{ "role": "user", "content": "a".repeat(MAX_MESSAGE_CHARS + 1) }]);
+        assert_eq!(
+            sanitize_messages(&too_long).unwrap_err(),
+            "message too large"
+        );
         // 合计超限：多条各自低于单条上限，总和超过总量上限
         let too_many: Vec<Value> = (0..5)
             .map(|_| serde_json::json!({ "role": "user", "content": "b".repeat(90_000) }))
             .collect();
-        assert_eq!(sanitize_messages(&Value::Array(too_many)).unwrap_err(), "request too large");
+        assert_eq!(
+            sanitize_messages(&Value::Array(too_many)).unwrap_err(),
+            "request too large"
+        );
     }
 
     #[test]
     fn sanitize_texts_enforces_limits() {
         let ok = serde_json::json!(["a", "b"]);
         assert_eq!(sanitize_texts(&ok).unwrap().len(), 2);
-        assert_eq!(sanitize_texts(&serde_json::json!([])).unwrap_err(), "invalid texts");
+        assert_eq!(
+            sanitize_texts(&serde_json::json!([])).unwrap_err(),
+            "invalid texts"
+        );
         let too_long = serde_json::json!(["c".repeat(MAX_EMBED_TEXT_CHARS + 1)]);
         assert_eq!(sanitize_texts(&too_long).unwrap_err(), "text too large");
     }
@@ -606,10 +674,7 @@ mod tests {
     fn sse_parser_tolerates_arbitrary_chunk_boundaries() {
         let mut p = SseParser::new();
         // 一行 JSON 被拆到三个 chunk
-        let items = collect(
-            &mut p,
-            &["data: {\"a\"", ":1}\ndat", "a: [DONE]\n"],
-        );
+        let items = collect(&mut p, &["data: {\"a\"", ":1}\ndat", "a: [DONE]\n"]);
         assert_eq!(items.len(), 2);
         assert!(matches!(items[0], SseItem::Data(_)));
         assert!(matches!(items[1], SseItem::Done));
@@ -652,7 +717,9 @@ mod tests {
     fn endpoint_builds_url_and_auth_header() {
         let (url, headers) = AiClientState::endpoint(&cfg(), "chat/completions");
         assert_eq!(url, "https://api.deepseek.com/v1/chat/completions");
-        assert!(headers.iter().any(|(k, v)| k == "Authorization" && v == "Bearer sk-test"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "Authorization" && v == "Bearer sk-test"));
         // 尾部斜杠被规整
         let mut c = cfg();
         c.base_url = "https://x.com/v1///".into();

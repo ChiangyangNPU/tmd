@@ -41,7 +41,7 @@ npm run dist:tauri:install    # 打包并覆盖安装到 /Applications/TMD-spike
 > 下节保留作为验证记录与后续验证清单。
 
 - `src-tauri/src/main.rs`：窗口创建 + `initialization_script` 注入 `window.tmdAPI` Proxy 门面
-- 已实现通道（43 条 invoke + 7 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
+- 已实现通道（48 条 invoke + 8 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
   `readFile` / `saveFile` / `readDir` / `openFile` / `openFolder` / `saveFileAs` /
   `exportAs`（对话框四件套走 tauri-plugin-dialog 的 Rust 侧 API，无需 capabilities 放行）、
   `searchFiles` / `wikiScan`、`watchFiles` / `watchDirs`、`listHistory` / `readHistory`、
@@ -82,16 +82,26 @@ npm run dist:tauri:install    # 打包并覆盖安装到 /Applications/TMD-spike
     Windows 保留字符与保留设备名平台差异按 JS 决策逐项保留——mac 半角冒号放行）
   - `themes.rs` ← `electron/themes.cjs`（单层扫描/防穿越读取/1MB 上限/空目录写示例
     主题/旧目录迁移：只增不覆盖 + 标记防复活）
+  - `logger.rs` ← `electron/logger.cjs`（JSONL 按天滚动 / 7 天+10 个双层清理 /
+    60 秒固定窗口去重汇总 / 字段白名单截断 / 崩溃线索 .seen-dumps 补记；
+    **panic hook 写 main 来源日志**——Tauri 侧无 crashReporter 的替代闭环）
+  - `shell.rs` 持久化段 ← `electron/shell-state.cjs`（主题来源 + 窗口几何，
+    首帧前恢复；getNormalBounds 以「非最大化最近几何」自管近似；防抖 500ms
+    代数去重 + Destroyed 同步兜底）
   - `export_assets.rs` ← `electron/export-assets.cjs`（KaTeX woff2 内联 data URI、
     woff/ttf 回退剔除、闭合标签转义大小写不敏感、OnceLock 缓存）
   - `shell.rs` ← `electron/app-state.cjs + recent.cjs + menu 装配`（菜单/快捷键/最近
     列表/脏标记/排序区域的权威状态；**脏文档关闭确认走原生对话框**，与 Electron
     同口径：拦截 CloseRequested → 放弃/取消，破坏性按钮不做默认）
 - 未实现通道：no-op + console.warn（不阻塞启动；渲染层的 `!native` 降级判断不受影响）
+- 单实例锁（tauri-plugin-single-instance）+ RunEvent::Opened 文件关联已接；
+  CJK 排序：zh-CN 用 pinyin crate 全拼近似（zh-TW 的 ICU 注音/笔画序不可达，
+  **降级为拼音序**——已知差异）；文件树与主题列表排序跟随界面语言
 - spike 已知缺口：macOS appMenu 与编辑/视图 role 子菜单、系统最近文档注册
-  （Jump List / Dock）、CJK 文件名按 UI 语言排序（ICU collation）、shell-state 持久化
-- Rust 单测 56 例（文件核心 23 + 菜单 4 + AI 14 + fsops 4 + 主题 8（含迁移
-  幂等与不覆盖语义）+ 导出资源 3（转义/字体内联/缺失回退））
+  （Jump List / Dock）、zh-TW 注音/笔画序（降级拼音）、原生 crashReporter
+  minidump 生成（仅保留线索扫描）
+- Rust 单测 66 例（文件核心 23 + 菜单 4 + AI 14 + fsops 4 + 主题 8 + 导出资源 3
+  + 日志 6（轮转/截断/白名单/归一化/去重窗口/崩溃扫描）+ 持久化与排序 4）
 - 窗口由 Rust 侧 `WebviewWindowBuilder` 创建（而非 tauri.conf.json）——因为 initialization_script
   只能走 builder，这也是正式迁移的必经形态。
 

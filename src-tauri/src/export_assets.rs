@@ -131,7 +131,11 @@ mod tests {
             "@font-face{src:url(fonts/KaTeX_Main-Regular.woff2) format(\"woff2\"),url(fonts/KaTeX_Main-Regular.woff) format(\"woff\"),url(fonts/KaTeX_Main-Regular.ttf) format(\"truetype\")}",
         )
         .unwrap();
-        std::fs::write(dir.join("fonts").join("KaTeX_Main-Regular.woff2"), b"WOFF2DATA").unwrap();
+        std::fs::write(
+            dir.join("fonts").join("KaTeX_Main-Regular.woff2"),
+            b"WOFF2DATA",
+        )
+        .unwrap();
         let css = inline_katex_css(&dir).unwrap();
         let expected = STANDARD.encode(b"WOFF2DATA");
         assert!(css.contains(&format!("url(data:font/woff2;base64,{})", expected)));

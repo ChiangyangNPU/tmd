@@ -39,7 +39,7 @@ pub(crate) struct AiState {
 }
 
 impl AiState {
-/// 创建配置服务（config_file 为 userData 下的 ai-config.json 路径）
+    /// 创建配置服务（config_file 为 userData 下的 ai-config.json 路径）
     pub fn new(config_file: std::path::PathBuf) -> Self {
         AiState {
             config: AiConfigState::new(config_file),
@@ -103,17 +103,20 @@ pub(crate) fn tmd_ai_chat(
             }),
         };
     };
-    let messages = match ai_client::sanitize_messages(request.get("messages").unwrap_or(&Value::Null))
-    {
-        Ok(m) => m,
-        Err(message) => {
-            return AiChatStart {
-                ok: false,
-                request_id: None,
-                error: Some(AiErrorBody { code: "bad-request".into(), message }),
+    let messages =
+        match ai_client::sanitize_messages(request.get("messages").unwrap_or(&Value::Null)) {
+            Ok(m) => m,
+            Err(message) => {
+                return AiChatStart {
+                    ok: false,
+                    request_id: None,
+                    error: Some(AiErrorBody {
+                        code: "bad-request".into(),
+                        message,
+                    }),
+                }
             }
-        }
-    };
+        };
 
     // 异步执行流式请求：结果与异常都通过事件流回到渲染层
     let cfg = state.config.get_client_config(&Value::Null);
@@ -134,7 +137,11 @@ pub(crate) fn tmd_ai_chat(
             };
             let _ = app_for_event.emit("tmd-ai-stream", payload);
         };
-        if let Err(err) = state.client.chat(&cfg, &client_task_id, &messages, on_event).await {
+        if let Err(err) = state
+            .client
+            .chat(&cfg, &client_task_id, &messages, on_event)
+            .await
+        {
             let _ = app.emit(
                 "tmd-ai-stream",
                 serde_json::json!({
@@ -146,7 +153,11 @@ pub(crate) fn tmd_ai_chat(
             );
         }
     });
-    AiChatStart { ok: true, request_id: Some(request_id), error: None }
+    AiChatStart {
+        ok: true,
+        request_id: Some(request_id),
+        error: None,
+    }
 }
 
 /// 对应 native.ts abortAi：中止在途请求，返回是否命中。

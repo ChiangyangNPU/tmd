@@ -70,11 +70,7 @@ pub(crate) fn default_labels() -> HashMap<String, String> {
 }
 
 /// 菜单项 accelerator：优先用户自定义，否则默认值（与 accOf 一致）。
-pub(crate) fn acc_of(
-    shortcuts: &HashMap<String, String>,
-    action: &str,
-    fallback: &str,
-) -> String {
+pub(crate) fn acc_of(shortcuts: &HashMap<String, String>, action: &str, fallback: &str) -> String {
     shortcuts
         .get(action)
         .cloned()
@@ -129,7 +125,10 @@ fn make_item(
 
 /// Box 动态条目列表 → with_items 需要的 &[&dyn] 形状。
 fn item_refs(items: &[Box<dyn IsMenuItem<Wry>>]) -> Vec<&dyn IsMenuItem<Wry>> {
-    items.iter().map(|i| i.as_ref() as &dyn IsMenuItem<Wry>).collect()
+    items
+        .iter()
+        .map(|i| i.as_ref() as &dyn IsMenuItem<Wry>)
+        .collect()
 }
 
 /// 构建应用菜单（纯转换：同一入参恒得同一结构，副作用由菜单事件分发承担）。
@@ -140,15 +139,14 @@ pub(crate) fn build_menu(
     recents: &[RecentEntry],
     autosave_enabled: bool,
 ) -> tauri::Result<BuiltMenu> {
-    let l = |key: &str| -> String {
-        labels.get(key).cloned().unwrap_or_else(|| key.to_string())
-    };
+    let l = |key: &str| -> String { labels.get(key).cloned().unwrap_or_else(|| key.to_string()) };
 
     // ---------- 打开最近文件子菜单 ----------
     let mut recent_items: Vec<Box<dyn IsMenuItem<Wry>>> = Vec::new();
     if recents.is_empty() {
         // 空列表为禁用占位项（与 JS 版一致）
-        let disabled = MenuItem::with_id(app, "recent-empty", l("recentEmpty"), false, None::<&str>)?;
+        let disabled =
+            MenuItem::with_id(app, "recent-empty", l("recentEmpty"), false, None::<&str>)?;
         recent_items.push(Box::new(disabled));
     } else {
         for entry in recents {
@@ -167,7 +165,8 @@ pub(crate) fn build_menu(
             None,
         )?));
     }
-    let recent_submenu = Submenu::with_items(app, l("openRecent"), true, &item_refs(&recent_items))?;
+    let recent_submenu =
+        Submenu::with_items(app, l("openRecent"), true, &item_refs(&recent_items))?;
 
     let autosave_item = CheckMenuItem::with_id(
         app,
@@ -180,7 +179,12 @@ pub(crate) fn build_menu(
 
     // ---------- 文件 ----------
     let file_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
-        Box::new(make_item(app, "open", l("open"), Some(acc_of(shortcuts, "open", "CmdOrCtrl+O")))?),
+        Box::new(make_item(
+            app,
+            "open",
+            l("open"),
+            Some(acc_of(shortcuts, "open", "CmdOrCtrl+O")),
+        )?),
         Box::new(make_item(
             app,
             "open-folder",
@@ -188,7 +192,12 @@ pub(crate) fn build_menu(
             Some(acc_of(shortcuts, "open-folder", "CmdOrCtrl+Shift+O")),
         )?),
         Box::new(recent_submenu),
-        Box::new(make_item(app, "save", l("save"), Some(acc_of(shortcuts, "save", "CmdOrCtrl+S")))?),
+        Box::new(make_item(
+            app,
+            "save",
+            l("save"),
+            Some(acc_of(shortcuts, "save", "CmdOrCtrl+S")),
+        )?),
         Box::new(make_item(
             app,
             "save-as",
@@ -214,9 +223,19 @@ pub(crate) fn build_menu(
         Box::new(autosave_item.clone()),
         Box::new(PredefinedMenuItem::separator(app)?),
         // 设置面板 accelerator 走系统惯例，不进快捷键自定义表（与 JS 版口径一致）
-        Box::new(make_item(app, "open-settings", l("settings"), Some("CmdOrCtrl+,".into()))?),
+        Box::new(make_item(
+            app,
+            "open-settings",
+            l("settings"),
+            Some("CmdOrCtrl+,".into()),
+        )?),
         Box::new(PredefinedMenuItem::separator(app)?),
-        Box::new(make_item(app, "quit", l("quit"), Some("CmdOrCtrl+Q".into()))?),
+        Box::new(make_item(
+            app,
+            "quit",
+            l("quit"),
+            Some("CmdOrCtrl+Q".into()),
+        )?),
     ];
     let file_menu = Submenu::with_items(app, l("file"), true, &item_refs(&file_items))?;
 
@@ -237,7 +256,12 @@ pub(crate) fn build_menu(
         Box::new(PredefinedMenuItem::separator(app)?),
         // Word / 长图走离屏渲染（重任务不绑快捷键）；LaTeX 纯文本转换——口径同 JS 版
         Box::new(make_item(app, "export-word", l("exportWord"), None)?),
-        Box::new(make_item(app, "export-longimage", l("exportLongimage"), None)?),
+        Box::new(make_item(
+            app,
+            "export-longimage",
+            l("exportLongimage"),
+            None,
+        )?),
         Box::new(make_item(app, "export-epub", l("exportEpub"), None)?),
         Box::new(make_item(app, "export-latex", l("exportLatex"), None)?),
     ];
@@ -245,8 +269,18 @@ pub(crate) fn build_menu(
 
     // ---------- 格式 ----------
     let mut format_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
-        Box::new(make_item(app, "fmt-bold", l("bold"), Some(acc_of(shortcuts, "fmt-bold", "CmdOrCtrl+B")))?),
-        Box::new(make_item(app, "fmt-italic", l("italic"), Some(acc_of(shortcuts, "fmt-italic", "CmdOrCtrl+I")))?),
+        Box::new(make_item(
+            app,
+            "fmt-bold",
+            l("bold"),
+            Some(acc_of(shortcuts, "fmt-bold", "CmdOrCtrl+B")),
+        )?),
+        Box::new(make_item(
+            app,
+            "fmt-italic",
+            l("italic"),
+            Some(acc_of(shortcuts, "fmt-italic", "CmdOrCtrl+I")),
+        )?),
         Box::new(make_item(app, "fmt-strike", l("strike"), None)?),
         Box::new(make_item(app, "fmt-code", l("inlineCode"), None)?),
         Box::new(make_item(
@@ -280,7 +314,11 @@ pub(crate) fn build_menu(
             app,
             &format!("fmt-h{}", level),
             l(&format!("h{}", level)),
-            Some(acc_of(shortcuts, &format!("fmt-h{}", level), &format!("CmdOrCtrl+{}", level))),
+            Some(acc_of(
+                shortcuts,
+                &format!("fmt-h{}", level),
+                &format!("CmdOrCtrl+{}", level),
+            )),
         )?));
     }
     format_items.push(Box::new(make_item(
@@ -291,7 +329,11 @@ pub(crate) fn build_menu(
     )?));
     format_items.push(Box::new(PredefinedMenuItem::separator(app)?));
     // mac 上 Cmd+Q 是退出应用，引用改用 Ctrl+Q（与 JS 版避让口径一致）
-    let quote_acc = if cfg!(target_os = "macos") { "Ctrl+Q" } else { "CmdOrCtrl+Q" };
+    let quote_acc = if cfg!(target_os = "macos") {
+        "Ctrl+Q"
+    } else {
+        "CmdOrCtrl+Q"
+    };
     format_items.push(Box::new(make_item(
         app,
         "fmt-quote",

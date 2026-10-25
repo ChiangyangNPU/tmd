@@ -55,9 +55,28 @@ fn is_win32_reserved_name(name: &str) -> bool {
     let stem = lower.split('.').next().unwrap_or("");
     matches!(
         stem,
-        "con" | "prn" | "aux" | "nul" | "com1" | "com2" | "com3" | "com4" | "com5" | "com6"
-        | "com7" | "com8" | "com9" | "lpt1" | "lpt2" | "lpt3" | "lpt4" | "lpt5" | "lpt6"
-        | "lpt7" | "lpt8" | "lpt9"
+        "con"
+            | "prn"
+            | "aux"
+            | "nul"
+            | "com1"
+            | "com2"
+            | "com3"
+            | "com4"
+            | "com5"
+            | "com6"
+            | "com7"
+            | "com8"
+            | "com9"
+            | "lpt1"
+            | "lpt2"
+            | "lpt3"
+            | "lpt4"
+            | "lpt5"
+            | "lpt6"
+            | "lpt7"
+            | "lpt8"
+            | "lpt9"
     )
 }
 
@@ -92,7 +111,10 @@ mod tests {
 
     #[test]
     fn sanitize_rejects_unsafe_names() {
-        assert_eq!(sanitize_file_name("  笔记  ", false).as_deref(), Some("笔记"));
+        assert_eq!(
+            sanitize_file_name("  笔记  ", false).as_deref(),
+            Some("笔记")
+        );
         assert_eq!(sanitize_file_name("", false), None);
         assert_eq!(sanitize_file_name("   ", false), None);
         assert_eq!(sanitize_file_name(".hidden", false), None);
@@ -108,13 +130,19 @@ mod tests {
     #[test]
     fn sanitize_windows_specific_rules() {
         assert_eq!(sanitize_file_name("a:b.md", true), None); // 冒号 Win 非法
-        assert_eq!(sanitize_file_name("a:b.md", false).as_deref(), Some("a:b.md")); // mac 放行
+        assert_eq!(
+            sanitize_file_name("a:b.md", false).as_deref(),
+            Some("a:b.md")
+        ); // mac 放行
         assert_eq!(sanitize_file_name("name.", true), None); // 尾部点
         assert_eq!(sanitize_file_name("name.", false).as_deref(), Some("name."));
         assert_eq!(sanitize_file_name("con.md", true), None); // 保留设备名
         assert_eq!(sanitize_file_name("CON", true), None);
         assert_eq!(sanitize_file_name("lpt9.md", true), None);
-        assert_eq!(sanitize_file_name("conx.md", true).as_deref(), Some("conx.md")); // 非保留
+        assert_eq!(
+            sanitize_file_name("conx.md", true).as_deref(),
+            Some("conx.md")
+        ); // 非保留
         assert_eq!(sanitize_file_name("a<b", true), None);
     }
 

@@ -17,6 +17,7 @@
 //! @author chiangyang
 
 use crate::menu::{build_menu, collation_locale, default_labels, RecentEntry};
+use pinyin::ToPinyin;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, Wry};
@@ -37,7 +38,7 @@ struct ShellInner {
 }
 
 impl ShellState {
-/// 创建壳状态（菜单文案取中文默认，其余为空/默认值）
+    /// 创建壳状态（菜单文案取中文默认，其余为空/默认值）
     pub fn new() -> Self {
         ShellState {
             inner: Mutex::new(ShellInner {
@@ -76,7 +77,12 @@ impl ShellState {
     }
 
     /// 渲染层下发语言包：合并中文兜底后重建菜单；返回映射后的排序区域。
-    pub fn set_locale_info(&self, app: &AppHandle, labels: HashMap<String, String>, locale: &str) -> String {
+    pub fn set_locale_info(
+        &self,
+        app: &AppHandle,
+        labels: HashMap<String, String>,
+        locale: &str,
+    ) -> String {
         let mapped = {
             let mut g = self.inner.lock().expect("shell state 中毒");
             let mut merged = default_labels();
@@ -93,7 +99,7 @@ impl ShellState {
         mapped
     }
 
-/// 对应 native.ts syncShortcuts：更新 accelerator 表并重建菜单
+    /// 对应 native.ts syncShortcuts：更新 accelerator 表并重建菜单
     pub fn sync_shortcuts(&self, app: &AppHandle, shortcuts: HashMap<String, String>) {
         {
             let mut g = self.inner.lock().expect("shell state 中毒");
@@ -134,7 +140,7 @@ impl ShellState {
         self.rebuild_menu(app);
     }
 
-/// 对应 native.ts recentClear：清空镜像列表并重建菜单
+    /// 对应 native.ts recentClear：清空镜像列表并重建菜单
     pub fn recent_clear(&self, app: &AppHandle) {
         {
             let mut g = self.inner.lock().expect("shell state 中毒");
@@ -143,7 +149,7 @@ impl ShellState {
         self.rebuild_menu(app);
     }
 
-/// 对应 native.ts recentRemove：单条移除并重建菜单
+    /// 对应 native.ts recentRemove：单条移除并重建菜单
     pub fn recent_remove(&self, app: &AppHandle, path: &str) {
         {
             let mut g = self.inner.lock().expect("shell state 中毒");
@@ -158,11 +164,15 @@ impl ShellState {
             let mut g = self.inner.lock().expect("shell state 中毒");
             g.autosave_enabled = enabled;
         }
-        if let Some(item) = self.autosave_item.lock().expect("autosave item 锁中毒").as_ref() {
+        if let Some(item) = self
+            .autosave_item
+            .lock()
+            .expect("autosave item 锁中毒")
+            .as_ref()
+        {
             let _ = item.set_checked(enabled);
         }
     }
-
 
     /// 自动保存 checkbox 被点击后的当前状态（muda 已自动翻转）
     pub fn autosave_checked_after_click(&self) -> Option<bool> {
@@ -173,12 +183,17 @@ impl ShellState {
             .and_then(|item| item.is_checked().ok())
     }
 
-/// 对应 native.ts setDirty：渲染层同步未保存状态（关闭确认用）
+    /// 对应 native.ts setDirty：渲染层同步未保存状态（关闭确认用）
     pub fn set_dirty(&self, dirty: bool) {
         self.inner.lock().expect("shell state 中毒").dirty = dirty;
     }
 
-/// 关闭确认时查询脏标记
+    /// 当前排序区域（setLocaleInfo 设置；空串表示未同步，调用方按码点排序）
+    pub fn sort_locale(&self) -> String {
+        self.inner.lock().expect("shell state 中毒").sort_locale.clone()
+    }
+
+    /// 关闭确认时查询脏标记
     pub fn is_dirty(&self) -> bool {
         self.inner.lock().expect("shell state 中毒").dirty
     }
@@ -244,7 +259,9 @@ pub(crate) fn restore_win_state(
 ) -> Option<RestoredWin> {
     let s = state.get("winState")?;
     let num = |v: Option<&Value>| -> Option<f64> {
-        v.and_then(Value::as_f64).filter(|n| n.is_finite()).map(|n| n.round())
+        v.and_then(Value::as_f64)
+            .filter(|n| n.is_finite())
+            .map(|n| n.round())
     };
     let width = num(s.get("width"))?;
     let height = num(s.get("height"))?;
@@ -295,6 +312,26 @@ pub(crate) fn monitor_rects(monitors: &[Monitor]) -> Vec<(i32, i32, u32, u32)> {
         .collect()
 }
 
+/// locale 感知的名称排序键（对应 JS `name.localeCompare(name, locale)` 的
+/// Rust 近似）：zh-CN 按汉字全拼排序（pinyin crate）；zh-TW 的 ICU 注音/笔画序
+/// 在 Rust 侧不可达，**降级为同 zh-CN 拼音序**（已记录的已知差异）；其他
+/// locale 原样按码点排序。非汉字字符原样保留，天然支持中英混排。
+pub(crate) fn sort_key(name: &str, locale: &str) -> String {
+    match locale {
+        "zh-CN" | "zh-TW" => {
+            let mut key = String::with_capacity(name.len() * 2);
+            for (ch, pinyin) in name.chars().zip(name.to_pinyin()) {
+                match pinyin {
+                    Some(p) => key.push_str(p.plain()),
+                    None => key.push(ch),
+                }
+            }
+            key
+        }
+        _ => name.to_string(),
+    }
+}
+
 /// 窗口几何持久化追踪器：记录「非最大化时的最近几何」（对应
 /// getNormalBounds——最大化时记录的仍是还原后的几何），防抖 500ms 落盘。
 pub(crate) struct WinStateTracker {
@@ -329,7 +366,9 @@ impl WinStateTracker {
             .and_then(|w| w.is_maximized().ok())
             .unwrap_or(false);
         let geom = *self.last_normal.lock().expect("win tracker 锁中毒");
-        let Some((x, y, width, height)) = geom else { return };
+        let Some((x, y, width, height)) = geom else {
+            return;
+        };
         save_shell_state(
             &self.path,
             serde_json::json!({
@@ -344,11 +383,8 @@ mod persist_tests {
     use super::*;
 
     fn temp_file(tag: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "tmd-shell-state-{}-{}",
-            tag,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tmd-shell-state-{}-{}", tag, std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir.join("shell-state.json")
@@ -358,7 +394,10 @@ mod persist_tests {
     fn save_read_roundtrip_merges_patches() {
         let path = temp_file("merge");
         save_shell_state(&path, serde_json::json!({ "themeSource": "dark" }));
-        save_shell_state(&path, serde_json::json!({ "winState": { "width": 1000, "height": 700 } }));
+        save_shell_state(
+            &path,
+            serde_json::json!({ "winState": { "width": 1000, "height": 700 } }),
+        );
         let state = read_shell_state(&path);
         assert_eq!(state["themeSource"], "dark");
         assert_eq!(state["winState"]["width"], 1000);
@@ -390,6 +429,21 @@ mod persist_tests {
         let win = restore_win_state(&no_pos, &displays).unwrap();
         assert_eq!(win.x, None);
         assert_eq!(win.width, 1000.0);
+    }
+
+    #[test]
+    fn sort_key_orders_chinese_by_pinyin() {
+        // 区分度用例：北(bei, U+5317) 与 阿(a, U+963F)——拼音序 阿<北，
+        // 码点序恰好相反，两种排序可判然区分
+        let mut names = vec!["北", "阿", "English", "123"];
+        names.sort_by_key(|n| sort_key(n, "zh-CN"));
+        assert_eq!(names, vec!["123", "English", "阿", "北"]);
+        // 非 zh locale：原样码点序（北 U+5317 < 阿 U+963F）
+        let mut names = vec!["北", "阿"];
+        names.sort_by_key(|n| sort_key(n, "en"));
+        assert_eq!(names, vec!["北", "阿"]);
+        // zh-TW 降级为拼音序（与 zh-CN 同键）
+        assert_eq!(sort_key("北", "zh-TW"), sort_key("北", "zh-CN"));
     }
 
     #[test]

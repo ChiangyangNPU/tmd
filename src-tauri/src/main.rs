@@ -28,21 +28,21 @@ mod themes;
 mod watcher;
 mod wikilinks;
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{Emitter, Manager};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use base64::{engine::general_purpose::STANDARD, Engine as _};
-use serde_json::Value;
 use history::{FileHistory, HistoryEntry};
 use logger::Logger;
 use menu::RecentEntry;
 use search::SearchResult;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use shell::{ShellState, WinStateTracker};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
 use watcher::WatchState;
 use wikilinks::WikiScanResult;
@@ -184,7 +184,10 @@ struct DirListing {
 /// 过滤与 Electron readDir 对齐：跳过点开头条目，文件只收 .md / .markdown / .txt；
 /// 目录 children 返回空数组（渲染层懒加载时会对子目录再次 readDir）。
 #[tauri::command]
-fn tmd_read_dir(dir_path: String) -> Result<DirListing, String> {
+fn tmd_read_dir(
+    dir_path: String,
+    shell_state: tauri::State<'_, ShellState>,
+) -> Result<DirListing, String> {
     let mut children: Vec<FileEntryRust> = Vec::new();
     let entries = fs::read_dir(&dir_path).map_err(|e| format!("{}: {}", dir_path, e))?;
     for entry in entries {
@@ -209,7 +212,9 @@ fn tmd_read_dir(dir_path: String) -> Result<DirListing, String> {
             });
         }
     }
-    children.sort_by(|a, b| a.name.cmp(&b.name));
+    // 文件树排序跟随界面语言（zh-CN 拼音序近似，见 shell::sort_key）
+    let locale = shell_state.sort_locale();
+    children.sort_by(|a, b| shell::sort_key(&a.name, &locale).cmp(&shell::sort_key(&b.name, &locale)));
     let name = file_name_of(&dir_path);
     Ok(DirListing {
         path: dir_path,
@@ -320,11 +325,7 @@ fn tmd_set_theme_source(window: tauri::WebviewWindow, is_dark: bool) -> Result<(
         .map_err(|e| e.to_string())?;
     // 持久化到 shell-state.json（下次启动首帧即正确主题，对应 saveShellState）
     shell::save_shell_state(
-        &window
-            .app_handle()
-            .state::<WinStateTracker>()
-            .path
-            .clone(),
+        &window.app_handle().state::<WinStateTracker>().path.clone(),
         serde_json::json!({ "themeSource": if is_dark { "dark" } else { "light" } }),
     );
     Ok(())
@@ -418,7 +419,10 @@ fn tmd_open_local_file(file_path: String) -> String {
     if file_path.is_empty() {
         return "invalid path".into();
     }
-    opener::open(&file_path).err().map(|e| e.to_string()).unwrap_or_default()
+    opener::open(&file_path)
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default()
 }
 
 /// 对应 native.ts revealInFolder：系统文件管理器中显示该文件/文件夹。
@@ -487,13 +491,14 @@ fn tmd_rename_path(old_path: String, name: String) -> Result<Value, String> {
 
 /// 对应 native.ts listThemes：先跑旧目录迁移，返回 { dir, themes }。
 #[tauri::command]
-fn tmd_list_themes() -> themes::ThemeFileList {
+fn tmd_list_themes(shell_state: tauri::State<'_, ShellState>) -> themes::ThemeFileList {
     let home = history::tmd_home();
     themes::migrate_legacy_themes(&home);
     let dir = themes::themes_dir(&home);
+    let locale = shell_state.sort_locale();
     themes::ThemeFileList {
         dir: dir.to_string_lossy().into_owned(),
-        themes: themes::list_theme_files(&dir),
+        themes: themes::list_theme_files(&dir, &locale),
     }
 }
 
@@ -597,8 +602,12 @@ async fn tmd_open_file(app: tauri::AppHandle) -> Result<Option<TextFileData>, St
         .file()
         .add_filter("Markdown / 文本", &["md", "markdown", "txt"])
         .blocking_pick_file();
-    let Some(picked) = picked else { return Ok(None) };
-    let Some(path) = dialog_path_string(picked) else { return Ok(None) };
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let Some(path) = dialog_path_string(picked) else {
+        return Ok(None);
+    };
     read_file_at(path).map(Some)
 }
 
@@ -623,8 +632,12 @@ async fn tmd_save_file_as(
         dialog = dialog.set_file_name(name);
     }
     let picked = dialog.blocking_save_file();
-    let Some(picked) = picked else { return Ok(None) };
-    let Some(path) = dialog_path_string(picked) else { return Ok(None) };
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let Some(path) = dialog_path_string(picked) else {
+        return Ok(None);
+    };
     let (encoding, bom) = meta
         .map(|m| (m.encoding, m.bom))
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
@@ -647,8 +660,12 @@ async fn tmd_export_as(
         dialog = dialog.add_filter(&filter.name, &exts);
     }
     let picked = dialog.blocking_save_file();
-    let Some(picked) = picked else { return Ok(None) };
-    let Some(path) = dialog_path_string(picked) else { return Ok(None) };
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let Some(path) = dialog_path_string(picked) else {
+        return Ok(None);
+    };
     fs::write(&path, options.content).map_err(|e| format!("{}: {}", path, e))?;
     Ok(Some(save_as_result_of(path)))
 }
@@ -689,10 +706,11 @@ fn main() {
             let restored = shell::restore_win_state(&persisted, &display_rects);
             // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建
             app.state::<ShellState>().rebuild_menu(app.handle());
-            let mut builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
-                .title("TMD (tauri spike)")
-                .min_inner_size(940.0, 600.0)
-                .initialization_script(TMD_API_SHIM);
+            let mut builder =
+                tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+                    .title("TMD (tauri spike)")
+                    .min_inner_size(940.0, 600.0)
+                    .initialization_script(TMD_API_SHIM);
             if let Some(theme) = restored_theme {
                 builder = builder.theme(Some(theme));
             }

@@ -49,8 +49,9 @@ pub(crate) fn theme_display_name(file_name: &str) -> String {
     }
 }
 
-/// 扫描主题目录（目录不存在/不可读 → 空数组，不主动创建）
-pub(crate) fn list_theme_files(dir: &Path) -> Vec<ThemeFileEntry> {
+/// 扫描主题目录（目录不存在/不可读 → 空数组，不主动创建）。
+/// locale 传 shell::sort_key 的口径（zh-CN/zh-TW 拼音近似，见 shell.rs）。
+pub(crate) fn list_theme_files(dir: &Path, locale: &str) -> Vec<ThemeFileEntry> {
     let Ok(entries) = fs::read_dir(dir) else {
         return Vec::new();
     };
@@ -61,7 +62,7 @@ pub(crate) fn list_theme_files(dir: &Path) -> Vec<ThemeFileEntry> {
         .filter(|n| is_theme_file_name(n))
         .map(|name| ThemeFileEntry { name })
         .collect();
-    themes.sort_by(|a, b| a.name.cmp(&b.name));
+    themes.sort_by(|a, b| crate::shell::sort_key(&a.name, locale).cmp(&crate::shell::sort_key(&b.name, locale)));
     themes
 }
 
@@ -167,7 +168,13 @@ pub(crate) fn migrate_legacy_themes(home: &Path) -> usize {
         .flatten()
         .filter(|e| e.file_type().map(|t| t.is_file()).unwrap_or(false))
         .map(|e| e.path())
-        .filter(|p| is_theme_file_name(&p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()))
+        .filter(|p| {
+            is_theme_file_name(
+                &p.file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            )
+        })
         .collect();
     if files.is_empty() {
         return 0;
@@ -177,15 +184,15 @@ pub(crate) fn migrate_legacy_themes(home: &Path) -> usize {
     }
     let mut copied = 0;
     for src in files {
-        let Some(name) = src.file_name() else { continue };
+        let Some(name) = src.file_name() else {
+            continue;
+        };
         // 目标已有同名主题时跳过而非覆盖（迁移失败不影响主题列表）
         if fs::OpenOptions::new()
             .write(true)
             .create_new(true)
             .open(target_dir.join(&name))
-            .and_then(|mut f| {
-                std::io::Write::write_all(&mut f, &fs::read(&src)?)
-            })
+            .and_then(|mut f| std::io::Write::write_all(&mut f, &fs::read(&src)?))
             .is_ok()
         {
             copied += 1;
@@ -213,11 +220,8 @@ mod tests {
     use super::*;
 
     fn temp_home(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "tmd-spike-themes-{}-{}",
-            tag,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tmd-spike-themes-{}-{}", tag, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -264,13 +268,13 @@ mod tests {
         fs::write(dir.join("a.css"), "").unwrap();
         fs::write(dir.join("a.scss"), "").unwrap();
         fs::write(dir.join(".x.css"), "").unwrap();
-        let themes = list_theme_files(&dir);
+        let themes = list_theme_files(&dir, "");
         assert_eq!(
             themes.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
             vec!["a.css", "b.css"]
         );
         // 目录不存在 → 空数组
-        assert!(list_theme_files(&home.join("ghost")).is_empty());
+        assert!(list_theme_files(&home.join("ghost"), "").is_empty());
         let _ = fs::remove_dir_all(home);
     }
 
@@ -321,7 +325,10 @@ mod tests {
         fs::write(target.join("a.css"), "用户当前版本").unwrap();
         let copied = migrate_legacy_themes(&home);
         assert_eq!(copied, 0);
-        assert_eq!(fs::read_to_string(target.join("a.css")).unwrap(), "用户当前版本");
+        assert_eq!(
+            fs::read_to_string(target.join("a.css")).unwrap(),
+            "用户当前版本"
+        );
         let _ = fs::remove_dir_all(home);
     }
 
