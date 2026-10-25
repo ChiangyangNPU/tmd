@@ -15,6 +15,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use tauri_plugin_dialog::DialogExt;
 
 /// 注入到每个页面加载前的渲染层 shim：定义与 electron/preload.cjs 同名的
 /// `window.tmdAPI`。已实现通道走 Tauri invoke；其余通道 no-op + 一次性告警。
@@ -31,6 +32,12 @@ const TMD_API_SHIM: &str = r#"
       return invoke('tmd_save_file', { filePath: filePath, content: content, meta: meta || null })
     },
     readDir: function (dirPath) { return invoke('tmd_read_dir', { dirPath: dirPath }) },
+    openFile: function () { return invoke('tmd_open_file') },
+    openFolder: function () { return invoke('tmd_open_folder') },
+    saveFileAs: function (content, defaultName, meta) {
+      return invoke('tmd_save_file_as', { content: content, defaultName: defaultName || null, meta: meta || null })
+    },
+    exportAs: function (options) { return invoke('tmd_export_as', { options: options }) },
   }
   window.tmdAPI = new Proxy(impl, {
     get: function (target, prop) {
@@ -130,6 +137,10 @@ fn file_name_of(p: &str) -> String {
 /// 对应 native.ts readFile → TextFileData（含保存回写所需的编码元信息）。
 #[tauri::command]
 fn tmd_read_file(file_path: String) -> Result<TextFileData, String> {
+    read_file_at(file_path)
+}
+
+fn read_file_at(file_path: String) -> Result<TextFileData, String> {
     let bytes = fs::read(&file_path).map_err(|e| format!("{}: {}", file_path, e))?;
     if !Path::new(&file_path).is_file() {
         return Err(format!("not a regular file: {}", file_path));
@@ -212,8 +223,107 @@ fn tmd_read_dir(dir_path: String) -> Result<DirListing, String> {
     })
 }
 
+/// native.ts saveFileAs / exportAs 的返回形状 { path, name }
+#[derive(Serialize)]
+struct SaveAsResult {
+    path: String,
+    name: String,
+}
+
+fn save_as_result_of(path: String) -> SaveAsResult {
+    let name = file_name_of(&path);
+    SaveAsResult { path, name }
+}
+
+/// native.ts exportAs 的入参 { content, defaultName, filters }
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportFilter {
+    name: String,
+    extensions: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ExportAsOptions {
+    content: String,
+    default_name: String,
+    #[serde(default)]
+    filters: Vec<ExportFilter>,
+}
+
+/// tauri-plugin-dialog 的 FilePath → 字符串路径。
+fn dialog_path_string(p: tauri_plugin_dialog::FilePath) -> Option<String> {
+    match p {
+        tauri_plugin_dialog::FilePath::Path(pb) => Some(pb.to_string_lossy().into_owned()),
+        tauri_plugin_dialog::FilePath::Url(u) => Some(u.to_string()),
+    }
+}
+
+/// 对应 native.ts openFile：文件对话框 → 读取（编码元信息齐全）。
+#[tauri::command]
+async fn tmd_open_file(app: tauri::AppHandle) -> Result<Option<TextFileData>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("Markdown / 文本", &["md", "markdown", "txt"])
+        .blocking_pick_file();
+    let Some(picked) = picked else { return Ok(None) };
+    let Some(path) = dialog_path_string(picked) else { return Ok(None) };
+    read_file_at(path).map(Some)
+}
+
+/// 对应 native.ts openFolder：文件夹对话框 → 绝对路径。
+#[tauri::command]
+async fn tmd_open_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let picked = app.dialog().file().blocking_pick_folder();
+    Ok(picked.and_then(dialog_path_string))
+}
+
+/// 对应 native.ts saveFileAs：保存对话框 → 按原编码写回。
+#[tauri::command]
+async fn tmd_save_file_as(
+    app: tauri::AppHandle,
+    content: String,
+    default_name: Option<String>,
+    meta: Option<SaveMeta>,
+) -> Result<Option<SaveAsResult>, String> {
+    let mut dialog = app.dialog().file();
+    if let Some(name) = default_name {
+        dialog = dialog.set_file_name(name);
+    }
+    let picked = dialog.blocking_save_file();
+    let Some(picked) = picked else { return Ok(None) };
+    let Some(path) = dialog_path_string(picked) else { return Ok(None) };
+    let (encoding, bom) = meta
+        .map(|m| (m.encoding, m.bom))
+        .unwrap_or_else(|| (default_encoding(), false));
+    let bytes = encode(&content, &encoding, bom);
+    fs::write(&path, bytes).map_err(|e| format!("{}: {}", path, e))?;
+    Ok(Some(save_as_result_of(path)))
+}
+
+/// 对应 native.ts exportAs：导出落盘（导出产物恒为 UTF-8 文本）。
+#[tauri::command]
+async fn tmd_export_as(
+    app: tauri::AppHandle,
+    options: ExportAsOptions,
+) -> Result<Option<SaveAsResult>, String> {
+    let mut dialog = app.dialog().file().set_file_name(options.default_name);
+    for filter in &options.filters {
+        let exts: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
+        dialog = dialog.add_filter(&filter.name, &exts);
+    }
+    let picked = dialog.blocking_save_file();
+    let Some(picked) = picked else { return Ok(None) };
+    let Some(path) = dialog_path_string(picked) else { return Ok(None) };
+    fs::write(&path, options.content).map_err(|e| format!("{}: {}", path, e))?;
+    Ok(Some(save_as_result_of(path)))
+}
+
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
                 .title("TMD (tauri spike)")
@@ -226,7 +336,11 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             tmd_read_file,
             tmd_save_file,
-            tmd_read_dir
+            tmd_read_dir,
+            tmd_open_file,
+            tmd_open_folder,
+            tmd_save_file_as,
+            tmd_export_as
         ])
         .run(tauri::generate_context!())
         .expect("TMD (tauri spike) 启动失败");
