@@ -13,6 +13,7 @@
 mod ai;
 mod ai_client;
 mod ai_config;
+mod fsops;
 mod history;
 mod menu;
 mod search;
@@ -24,9 +25,12 @@ mod wikilinks;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
+use serde_json::Value;
 use history::{FileHistory, HistoryEntry};
 use menu::RecentEntry;
 use search::SearchResult;
@@ -88,6 +92,14 @@ const TMD_API_SHIM: &str = r#"
     abortAi: function (requestId) { return invoke('tmd_ai_abort', { requestId: requestId }) },
     embedAiTexts: function (texts) { return invoke('tmd_ai_embed', { texts: texts }) },
     onAiStream: function (cb) { tmdOn('tmd-ai-stream', cb) },
+    saveImage: function (options) { return invoke('tmd_save_image', { dir: options.dir, name: options.name, base64: options.base64 }) },
+    openExternal: function (url) { return invoke('tmd_open_external', { url: url }) },
+    openLocalFile: function (filePath) { return invoke('tmd_open_local_file', { filePath: filePath }) },
+    revealInFolder: function (targetPath) { return invoke('tmd_reveal_in_folder', { targetPath: targetPath }) },
+    deletePath: function (targetPath) { return invoke('tmd_delete_path', { targetPath: targetPath }) },
+    createFile: function (dirPath, name) { return invoke('tmd_create_file', { dirPath: dirPath, name: name }) },
+    createDir: function (dirPath, name) { return invoke('tmd_create_dir', { dirPath: dirPath, name: name }) },
+    renamePath: function (oldPath, name) { return invoke('tmd_rename_path', { oldPath: oldPath, name: name }) },
   }
   var listened = {}
   function tmdOn(event, cb) {
@@ -337,6 +349,108 @@ fn tmd_recent_remove(app: tauri::AppHandle, shell: tauri::State<'_, ShellState>,
     shell.recent_remove(&app, &path);
 }
 
+// ---------- 文件管理与系统打开（electron/ipc-app.cjs + ipc-files.cjs 对应） ----------
+
+/// 对应 native.ts saveImage：粘贴图片落盘到文档同目录 assets/（base64 解码）。
+/// 入参白名单：name 必须是非隐藏裸文件名（拒绝路径分隔与 .. 穿越）。
+#[tauri::command]
+fn tmd_save_image(dir: String, name: String, base64: String) -> Result<Value, String> {
+    let bare = Path::new(&name)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .is_some_and(|n| n == name);
+    if dir.is_empty() || name.is_empty() || base64.is_empty() || !bare || name.starts_with('.') {
+        return Err("saveImage: 非法入参".into());
+    }
+    let bytes = STANDARD
+        .decode(&base64)
+        .map_err(|_| "saveImage: base64 解码失败".to_string())?;
+    let assets_dir = Path::new(&dir).join("assets");
+    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
+    fs::write(assets_dir.join(&name), bytes).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "name": name }))
+}
+
+/// 对应 native.ts openExternal：外链打开（协议白名单 http/https/mailto）。
+#[tauri::command]
+fn tmd_open_external(url: String) -> bool {
+    if !menu::is_safe_external_url(&url) {
+        return false;
+    }
+    opener::open(&url).is_ok()
+}
+
+/// 对应 native.ts openLocalFile：系统默认应用打开本地文件，空串为成功。
+#[tauri::command]
+fn tmd_open_local_file(file_path: String) -> String {
+    if file_path.is_empty() {
+        return "invalid path".into();
+    }
+    opener::open(&file_path).err().map(|e| e.to_string()).unwrap_or_default()
+}
+
+/// 对应 native.ts revealInFolder：系统文件管理器中显示该文件/文件夹。
+#[tauri::command]
+fn tmd_reveal_in_folder(target_path: String) -> bool {
+    !target_path.is_empty() && opener::reveal(&target_path).is_ok()
+}
+
+/// 对应 native.ts deletePath：移入系统回收站（确认由渲染层承担）。
+#[tauri::command]
+fn tmd_delete_path(target_path: String) -> bool {
+    if target_path.is_empty() {
+        return false;
+    }
+    trash::delete(&target_path).is_ok()
+}
+
+/// 对应 native.ts createFile：目录下新建 Markdown 文件（自动补 .md，wx 不覆盖）。
+#[tauri::command]
+fn tmd_create_file(dir_path: String, name: String) -> Result<Value, String> {
+    let is_win = cfg!(target_os = "windows");
+    let safe = fsops::sanitize_file_name(&name, is_win).ok_or("invalid file name")?;
+    let target = fsops::child_path(&dir_path, &fsops::ensure_markdown_ext(&safe), is_win)
+        .ok_or("invalid file name")?;
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target)
+        .map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
+}
+
+/// 对应 native.ts createDir：目录下新建文件夹（已存在时报错）。
+#[tauri::command]
+fn tmd_create_dir(dir_path: String, name: String) -> Result<Value, String> {
+    let is_win = cfg!(target_os = "windows");
+    let target = fsops::child_path(&dir_path, &name, is_win).ok_or("invalid folder name")?;
+    fs::create_dir(&target).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
+}
+
+/// 对应 native.ts renamePath：同目录内重命名（重名/非法名 reject）。
+#[tauri::command]
+fn tmd_rename_path(old_path: String, name: String) -> Result<Value, String> {
+    if old_path.is_empty() {
+        return Err("invalid path".into());
+    }
+    let is_win = cfg!(target_os = "windows");
+    let target = fsops::child_path(
+        &Path::new(&old_path)
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        &name,
+        is_win,
+    )
+    .ok_or("invalid rename target")?;
+    if target == old_path {
+        return Err("invalid rename target".into());
+    }
+    fs::rename(&old_path, &target).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
+}
+
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
 struct SaveAsResult {
@@ -551,6 +665,14 @@ fn main() {
             ai::tmd_ai_chat,
             ai::tmd_ai_abort,
             ai::tmd_ai_embed,
+            tmd_save_image,
+            tmd_open_external,
+            tmd_open_local_file,
+            tmd_reveal_in_folder,
+            tmd_delete_path,
+            tmd_create_file,
+            tmd_create_dir,
+            tmd_rename_path,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
