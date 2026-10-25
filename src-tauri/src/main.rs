@@ -19,6 +19,7 @@ mod ai_config;
 mod export_assets;
 mod export_native;
 mod export_probe;
+mod exporter;
 mod fsops;
 mod history;
 mod logger;
@@ -117,6 +118,8 @@ const TMD_API_SHIM: &str = r#"
     readTheme: function (name) { return invoke('tmd_read_theme', { name: name }) },
     openThemesDir: function () { return invoke('tmd_open_themes_dir') },
     getExportAssets: function () { return invoke('tmd_get_export_assets') },
+    exportRun: function (options) { return invoke('tmd_export_run', { options: options }) },
+    print: function (name, options) { return invoke('tmd_print', { name: name || null, options: options || null }) },
   }
   var listened = {}
   function tmdOn(event, cb) {
@@ -563,12 +566,12 @@ fn tmd_open_logs_dir() -> bool {
 
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
-struct SaveAsResult {
+pub(crate) struct SaveAsResult {
     path: String,
     name: String,
 }
 
-fn save_as_result_of(path: String) -> SaveAsResult {
+pub(crate) fn save_as_result_of(path: String) -> SaveAsResult {
     let name = file_name_of(&path);
     SaveAsResult { path, name }
 }
@@ -591,7 +594,7 @@ struct ExportAsOptions {
 }
 
 /// tauri-plugin-dialog 的 FilePath → 字符串路径。
-fn dialog_path_string(p: tauri_plugin_dialog::FilePath) -> Option<String> {
+pub(crate) fn dialog_path_string(p: tauri_plugin_dialog::FilePath) -> Option<String> {
     match p {
         tauri_plugin_dialog::FilePath::Path(pb) => Some(pb.to_string_lossy().into_owned()),
         tauri_plugin_dialog::FilePath::Url(u) => Some(u.to_string()),
@@ -691,6 +694,8 @@ fn main() {
             logger::scan_new_dumps(&logger, &history::tmd_home());
             app.manage(logger);
             app.manage(WatchState::new(app.handle().clone()));
+            // 离屏导出服务（Word/长图/ePub 专职 worker + 探边窗口）
+            exporter::init(app.handle());
             app.manage(ShellState::new());
             app.manage(MaximizedFlag(AtomicBool::new(false)));
             app.manage(PendingOpenPaths {
@@ -744,6 +749,16 @@ fn main() {
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(5));
                     export_probe::run_matrix(&app);
+                });
+            }
+            // spike 正式导出链端到端验证（TMD_SPIKE_EXPORT_RUN=1）：
+            // 最小 longimage 任务走真实链路（探边窗/桥接/分段截图/拼接），
+            // 产物 /tmp/tmd-export-verify.png；须 open -a 触发（应用激活）
+            if std::env::var("TMD_SPIKE_EXPORT_RUN").as_deref() == Ok("1") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(8));
+                    exporter::verify_pipeline(&app);
                 });
             }
             // spike 阶段 B 原型自动验证：仅当 TMD_SPIKE_EXPORT=1 时启用
@@ -993,6 +1008,11 @@ fn main() {
             tmd_read_theme,
             tmd_open_themes_dir,
             tmd_get_export_assets,
+            exporter::tmd_export_run,
+            exporter::tmd_exporter_done,
+            exporter::tmd_exporter_capture,
+            exporter::tmd_exporter_read_image,
+            exporter::tmd_print,
             tmd_report_error,
             tmd_ready,
             tmd_open_logs_dir,

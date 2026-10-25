@@ -41,7 +41,9 @@ npm run dist:tauri:install    # 打包并覆盖安装到 /Applications/TMD-spike
 > 下节保留作为验证记录与后续验证清单。
 
 - `src-tauri/src/main.rs`：窗口创建 + `initialization_script` 注入 `window.tmdAPI` Proxy 门面
-- 已实现通道（48 条 invoke + 8 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
+- 已实现通道（50 条 invoke + 9 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`；
+  导出链新增：渲染层 `exportRun` / `print` + 导出窗内部 `exporterDone` / `exporterCapture` /
+  `exporterReadImage` 三条与 `tmd-exporter-task` 事件下发）：
   `readFile` / `saveFile` / `readDir` / `openFile` / `openFolder` / `saveFileAs` /
   `exportAs`（对话框四件套走 tauri-plugin-dialog 的 Rust 侧 API，无需 capabilities 放行）、
   `searchFiles` / `wikiScan`、`watchFiles` / `watchDirs`、`listHistory` / `readHistory`、
@@ -217,11 +219,57 @@ Electron 离屏导出 = 隐藏窗口 + `backgroundThrottling:false`。WKWebView 
 - 附带验证：export-renderer.html 在 Tauri 壳内正常启动；无 exporterAPI
   桥接时静默空转（`if (window.exporterAPI)` 守卫生效）
 
+## 导出链正式实现（2026-10-25，长图端到端已验证）
+
+`src-tauri/src/exporter.rs` 对齐 electron/exporter.cjs 薄壳分工：壳只管窗口
+生命周期与平台原语，编排仍全在离屏页 export-renderer.ts（零改动共用）。
+
+- **通道**：`tmd_export_run`（保存框 → 队列 → 落盘）、`tmd_exporter_done`
+  （base64 字节回传，JSON IPC 下体积 4/3 而非数字数组的 ~6 倍）、
+  `tmd_exporter_capture`（视口模式 set_size+滚动定位+整帧；区域模式 rect 截取，
+  对齐 capturePage 两形态）、`tmd_exporter_read_image`（扩展名白名单 + 32MB
+  上限 + data URI）、`tmd_print`（createPDF 降级路径，见下）
+- **窗口**：专职 worker 线程 + mpsc 串行队列；任务结束即销毁探边窗（不留
+  常驻边条），异常/超时销毁自愈（与 Electron destroyWindow 同策略）
+- **桥接**：初始化脚本注入 `exporterAPI` 门面（onTask/taskDone/capture/
+  readImage），export-renderer.ts 的 `if (window.exporterAPI)` 守卫零改动命中
+- **端到端验证**（`open --env TMD_SPIKE_EXPORT_RUN=1`，8s 后最小 longimage
+  任务走真实链路）：探边窗 → 任务事件 → 页面管线（KaTeX/字体/Mermaid
+  等待）→ 2x 分段截图 → canvas 拼接 → base64 回传 → **/tmp/tmd-export-verify.png
+  83273 字节**，像素核验 1848×560（= 924×280 CSS × 2x）、4301 红色标题像素
+  （h1 #b00020 真渲染）、白底黑字分布正常
+
+### 实现过程中排掉的四个坑（复用价值高）
+
+1. **capabilities 窗口覆盖**：Tauri 2 权限系统按窗口 label 放行——导出窗
+   不在 capabilities 里则 invoke/listen 全被拒（症状：任务下发后页面 180s
+   无响应超时）。`capabilities/default.json` 的 windows 数组须含 `tmd-exporter`
+2. **同步命令跑在主线程**：capture 命令里 `with_webview` 又把闭包派发回主
+   线程并阻塞等回传——主线程自等死锁，症状恰为 evaluate 10s 超时。凡有
+   eval/截帧的命令必须 `async fn` + `spawn_blocking`
+3. **takeSnapshot 默认 afterScreenUpdates=true 等新一帧**：探边窗屏内仅
+   60pt，滚动常只改屏外部分 → 等不到屏内新帧 → 永不回调（30s 超时）。
+   `setAfterScreenUpdates(false)` 取当前已提交状态（调用方本就显式沉降）
+4. **焦点即渲染循环**：`focused(false)` 的探边窗行为非确定性（rAF/eval
+   时通时挂）；`focused(true)` 后稳定通过——探边窗必须成为 key window。
+   UX 代价：导出期间短暂抢焦点（Electron 无感），后续 polish 项
+
+### 已知降级与待办
+
+- **print（PDF）**：macOS 无 printToPDF 等价物，走 createPDF 全文档直出——
+  **页尺寸/页边距/页眉页脚/大纲选项暂不生效**（渲染层 PdfOptions 保留入参）；
+  语义为「连续版式 PDF」。是否补打印管线（分页 CSS 或系统打印面板）待定
+- **Word / ePub**：与长图共用同一条链（区域截图公式栅格化 + readImage 图片
+  本地化），链路已由长图端到端验证背书；正式 GUI 验收（真实菜单 + 保存框）
+  待做
+- **GUI 验收待做**：导出菜单 → 保存框 → 落盘的全 UX 路径（自动化面板键盘
+  输入受限，建议人工点一轮 Word/长图/PDF 三项）
+- 超时尸检与桥接心跳（`__tmdSteps`）为验证期观测手段，保留至 GUI 验收后
+
 ## 后续验证项（未开工）
 
-1. **导出链正式迁移（阶段 B 后续）**：macOS 原语已验证，接 `exportRun` /
-   print 通道 + export-bridge.ts 契约 + `.ProseMirror` 全文档高度 + 分段滚动拼接；
-   Windows 侧 `PrintToPdfAsync` / `CapturePreview` 等价原型待 Windows 环境验证
+1. **Windows 导出原语**：WebView2 `PrintToPdfAsync` / `CapturePreview` 等价
+   原型（exporter.rs 的 objc2 段为 macOS 专属，Windows 侧需对应实现）
 2. **PicGo 方案**：Rust 重写范围圈定（7 家图床取舍）或 sidecar 或产品降级
 3. **E2E 驱动**：CDP 不可用后的回归方案（tauri-driver / 单测下沉 / 人工清单）
 

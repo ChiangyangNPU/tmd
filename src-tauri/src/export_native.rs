@@ -20,7 +20,7 @@ use objc2::MainThreadMarker;
 use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep};
 use objc2_core_foundation::{CGPoint, CGRect, CGSize};
 use objc2_foundation::{NSError, NSString};
-use objc2_web_kit::{WKPDFConfiguration, WKWebView};
+use objc2_web_kit::{WKPDFConfiguration, WKSnapshotConfiguration, WKWebView};
 use std::sync::mpsc;
 use std::time::Duration;
 use tauri::WebviewWindow;
@@ -149,10 +149,32 @@ pub(crate) fn capture_full_pdf(
 
 /// 视口截图（对应 Electron capturePage 无参形态）：返回 PNG 字节。
 /// 长图 = 分段滚动捕获 + export-bridge.ts 既有拼接管线（与 Electron 同构）。
-/// NSImage→PNG 转换在主线程闭包内完成（Retained<NSImage> 非 Send 不能跨线程）。
 pub(crate) fn capture_viewport_png(window: &WebviewWindow) -> Result<Vec<u8>, String> {
+    capture_png(window, None)
+}
+
+/// 截图（takeSnapshot）：rect=None 截整个视口（长图分段）；rect=Some 截视口内
+/// 区域（view 坐标/DIP，Word 公式栅格化用）。对应 Electron capturePage(rect?)。
+/// NSImage→PNG 转换在主线程闭包内完成（Retained<NSImage> 非 Send 不能跨线程）。
+pub(crate) fn capture_png(
+    window: &WebviewWindow,
+    rect: Option<(f64, f64, f64, f64)>,
+) -> Result<Vec<u8>, String> {
     let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
     with_wk(window, move |wk| unsafe {
+        let mtm = MainThreadMarker::new().expect("with_webview 必在主线程");
+        let config = WKSnapshotConfiguration::new(mtm);
+        // afterScreenUpdates=false：不等新一帧、取当前已提交状态。探边窗口
+        // 屏内仅 60pt，滚动/重排常只改屏外部分——默认 true 会因等不到屏内
+        // 新帧而永不回调（30s 超时）；调用方截帧前已显式沉降，语义正合适
+        config.setAfterScreenUpdates(false);
+        if let Some((x, y, w, h)) = rect {
+            // rect 为 view 坐标（注意与 WKPDFConfiguration 的 web page 坐标不同）
+            config.setRect(CGRect::new(
+                CGPoint::new(x, y),
+                CGSize::new(w.max(1.0), h.max(1.0)),
+            ));
+        }
         let done = RcBlock::new(
             move |image: *mut objc2_app_kit::NSImage, err: *mut NSError| {
                 let _ = tx.send((|| -> Result<Vec<u8>, String> {
@@ -197,7 +219,7 @@ pub(crate) fn capture_viewport_png(window: &WebviewWindow) -> Result<Vec<u8>, St
                 })());
             },
         );
-        wk.takeSnapshotWithConfiguration_completionHandler(None, &done);
+        wk.takeSnapshotWithConfiguration_completionHandler(Some(&config), &done);
     })?;
     rx.recv_timeout(Duration::from_secs(30))
         .map_err(|_| "takeSnapshot 超时（30s）".to_string())?
