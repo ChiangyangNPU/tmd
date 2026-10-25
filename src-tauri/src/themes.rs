@@ -13,7 +13,6 @@
 //!
 //! @author chiangyang
 
-use crate::history::tmd_home;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -41,6 +40,7 @@ pub(crate) fn is_theme_file_name(name: &str) -> bool {
 }
 
 /// 主题显示名：去掉 .css 扩展名（大小写不敏感）
+#[allow(dead_code)] // 显示名工具保留对齐 JS API（当前渲染层自行截扩展名）
 pub(crate) fn theme_display_name(file_name: &str) -> String {
     if file_name.to_lowercase().ends_with(".css") {
         file_name[..file_name.len() - 4].to_string()

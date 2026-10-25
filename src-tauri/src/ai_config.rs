@@ -371,6 +371,8 @@ impl AiConfigState {
 /// 一次请求所需的连接参数（ai_client 用）
 #[derive(Clone, Debug)]
 pub(crate) struct ClientConfig {
+    /// 服务商标识（请求体不含此字段；保留以对齐 JS ChatConfig 契约并供日志排查）
+    #[allow(dead_code)]
     pub provider: String,
     pub base_url: String,
     pub model: String,

@@ -87,6 +87,18 @@ npm run tauri dev     # 自动起 vite(5173) + cargo 构建 + 打开 WKWebView �
 - 窗口由 Rust 侧 `WebviewWindowBuilder` 创建（而非 tauri.conf.json）——因为 initialization_script
   只能走 builder，这也是正式迁移的必经形态。
 
+## 体积实测（2026-10-25，release 全量优化）
+
+| 产物 | Tauri | Electron（对照） |
+|------|-------|------------------|
+| 安装包 dmg | **6.1 MB** | 80 MB（↓92%） |
+| .app 安装后 | **8.6 MB** | 约 238 MB（↓96%） |
+| 裸二进制 | 8.3 MB（含 brotli 压缩内联的前端产物） | —（Chromium 约 220MB 不可压缩） |
+
+release 配置：`opt-level = "s"` + LTO + `codegen-units = 1` + strip；
+前端产物（dist 11MB，含 KaTeX 字体与 Mermaid 全量 chunk）由 tauri-codegen
+brotli 压缩后嵌入二进制。release 启动冒烟通过。
+
 ## 后续验证项（未开工）
 
 1. **PDF 导出**：WebView2 `PrintToPdfAsync`（Windows）原型；macOS WKWebView 无 API，验证「系统打印对话框存储为 PDF」降级路径的体验
