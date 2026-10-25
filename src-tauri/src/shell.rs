@@ -190,7 +190,11 @@ impl ShellState {
 
     /// 当前排序区域（setLocaleInfo 设置；空串表示未同步，调用方按码点排序）
     pub fn sort_locale(&self) -> String {
-        self.inner.lock().expect("shell state 中毒").sort_locale.clone()
+        self.inner
+            .lock()
+            .expect("shell state 中毒")
+            .sort_locale
+            .clone()
     }
 
     /// 关闭确认时查询脏标记

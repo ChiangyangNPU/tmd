@@ -1,7 +1,7 @@
 # TMD Tauri 迁移进度与验证清单
 
-> 版本：2.0　作者：chiangyang　更新：2026-10-25
-> 状态：spike 四项验证已全部通过并合入 master，转入双壳共存正式迁移（非导出功能全量对等）
+> 版本：2.1　作者：chiangyang　更新：2026-10-25
+> 状态：spike 四项验证通过；阶段 B 导出原语（PDF / 截图）macOS 原型验证 **GO**，转入导出链正式迁移
 > 本文档的作用：记录 spike 验证结论、迁移进度（通道清单 / 模块映射 / 已知缺口）与后续验证项
 > 相关文档：[Tauri迁移评估](Tauri迁移评估.md)　[架构设计](架构设计.md)　[打包发布](打包发布.md)
 
@@ -151,16 +151,62 @@ brotli 压缩后嵌入二进制。release 启动冒烟通过。
 - **待人工复核**：文件夹挂载后的文件树 CJK 排序对比（对话框自动化受阻，
   挂载链路本身已由单测与「打开文件」链路间接覆盖）、搜索面板、图谱
 
+## 导出原语验证（阶段 B，2026-10-25，判定：**GO**）
+
+评估 §3.3 判定「wry 无 printToPDF / capturePage 等价物、macOS WKWebView 无 PDF API」。
+原型（`src-tauri/src/export_native.rs`）验证了绕过路径：`with_webview` 取 WKWebView
+原生指针 + objc2 直调，**两个原语都工作**，且 macOS WKWebView **有** PDF API
+（`createPDFWithConfiguration`，macOS 11+，评估的「无 API」判定被推翻）：
+
+| 原语 | 原生 API | 对齐 Electron | 实测结果 |
+|------|----------|---------------|----------|
+| 全文档 PDF | `createPDFWithConfiguration`（rect 为 **web page 坐标**，设全文档尺寸一次调用出整页多段） | `printToPDF` | ✅ 50772 字节 PDF，真实内容（综合演示文档首页段） |
+| 视口截图 | `takeSnapshotWithConfiguration`（rect 为 view 坐标，仅视口） | `capturePage` | ✅ 2560×1640@2x PNG，编辑器完整内容 |
+
+验证方法：`/Applications/TMD-spike.app` 经文件关联打开综合文档 → 菜单键盘导航触发
+「Spike: 全文档 PDF 导出 / Spike: 视口截图」（导出菜单两项原型入口）→ 产物四重交叉
+验证：像素统计（15.4% 非白、1907 色）+ 27 条文本行带 + 与屏幕地面真值（
+`screencapture` 窗口定向截图）二值化最优对齐相关 **0.658**（约 24pt 纵向偏移，
+Mermaid 异步渲染完成前后所致）+ 视觉模型内容描述与地面真值逐元素一致（工具栏
+450 字 / YAML 卡片 / H1 / Mermaid 流程图分支标签全对）。
+
+> 佐证教训：PNG 曾被视觉模型误判「纯白」——实为回取 CDN 的 URL 签名已过期，
+> 模型看到的是错误页。产物验证一律以**本地像素分析**为准，远程回看不可信。
+
+### 约束与教训（正式迁移必读）
+
+- **可见性约束（评估预言的隐藏窗口节流，实测确认）**：后台启动（`nohup`/`&`，
+  窗口从未上屏）两个原语都只出空白（PDF 3705 字节 / PNG 全白）；`open -a`
+  激活、窗口真实上屏后都出真实内容。正式迁移的导出由用户主动触发、窗口可见，
+  天然满足；保险策略：捕获前确认窗口 `visible` + 等待渲染沉降（Mermaid 等
+  异步内容完成后）。**不要尝试隐藏窗口截取**，评估文档的该风险预言成立
+- **autoreleased 回调对象必须 `Retained::retain_autoreleased`**：
+  `evaluateJavaScript` 结果 / `takeSnapshot` 的 NSImage / `representationUsingType`
+  的 NSData 三处——误用 `from_raw` 会过度释放 → SIGTRAP 无输出崩溃（空 stderr，
+  靠逐步日志二分定位，本次最难查的问题）
+- **`msg_send` 选择器不可合并**：`NSBitmapImageRep` 的 alloc → `initWithCGImage`
+  → `representationUsingType:properties:` 是三个独立调用，合并选择子直接 SIGTRAP
+- **argv 文件打开必须 ready 门控**（`PendingOpenPaths.ready`）：渲染层 ready 前
+  flush 打开事件无人接收 → 文档没打开 → 捕获自然空白（对应 Electron
+  `app.isReady()` 语义）
+- **内容尺寸选择器**：TMD 编辑器是定高容器，`documentElement.scrollHeight`
+  返回的是视口高（本次 788px，故 PDF 实为首页视口段而非全文档）——正式迁移
+  量全文档高度须用 `.ProseMirror` 节点的 scrollHeight
+- 原型入口保留至正式导出通道落地：「Spike:」菜单项与 `TMD_SPIKE_EXPORT=1`
+  启动 8 秒自动跑（均仅 spike 壳内，不影响 Electron 壳）；届时替换为
+  `export-bridge.ts` 既有契约（分段滚动 + 拼接，长图管线与 Electron 同构）
+
 ## 后续验证项（未开工）
 
-1. **PDF 导出**：WebView2 `PrintToPdfAsync`（Windows）原型；macOS WKWebView 无 API，验证「系统打印对话框存储为 PDF」降级路径的体验
-2. **长图/Word/ePub 截图原语**：WKWebView `takeSnapshotWithConfiguration` / WebView2 `CapturePreview`
-   隐藏窗口原型，跑通 `src/export-bridge.ts` 的 CaptureRequest 协议；重点验证隐藏窗口渲染节流
-3. **PicGo 方案**：Rust 重写范围圈定（7 家图床取舍）或 sidecar 或产品降级
-4. **E2E 驱动**：CDP 不可用后的回归方案（tauri-driver / 单测下沉 / 人工清单）
+1. **导出链正式迁移（阶段 B 后续）**：macOS 原语已验证，接 `exportRun` /
+   print 通道 + export-bridge.ts 契约 + `.ProseMirror` 全文档高度 + 分段滚动拼接；
+   Windows 侧 `PrintToPdfAsync` / `CapturePreview` 等价原型待 Windows 环境验证
+2. **PicGo 方案**：Rust 重写范围圈定（7 家图床取舍）或 sidecar 或产品降级
+3. **E2E 驱动**：CDP 不可用后的回归方案（tauri-driver / 单测下沉 / 人工清单）
 
 ## 判定与去向
 
 - 验证 1–4 通过 → 按评估 §6 顺序在 master 双壳共存迁移（不拉长分支，理由见评估与迁移讨论）
+- 阶段 B 导出原语验证通过（macOS）→ 导出链正式迁移放行；Windows 等价原语验证前，跨平台结论以 macOS 为准
 - 验证 2（IME）失败且无 workaround → 停止迁移，Tauri 评估结论作废，Electron 路线继续
 - 验证 1/3/4 有缺口但验证 2 通过 → 评估工作量重估后再决策

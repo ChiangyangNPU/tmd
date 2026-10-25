@@ -62,7 +62,9 @@ pub(crate) fn list_theme_files(dir: &Path, locale: &str) -> Vec<ThemeFileEntry> 
         .filter(|n| is_theme_file_name(n))
         .map(|name| ThemeFileEntry { name })
         .collect();
-    themes.sort_by(|a, b| crate::shell::sort_key(&a.name, locale).cmp(&crate::shell::sort_key(&b.name, locale)));
+    themes.sort_by(|a, b| {
+        crate::shell::sort_key(&a.name, locale).cmp(&crate::shell::sort_key(&b.name, locale))
+    });
     themes
 }
 

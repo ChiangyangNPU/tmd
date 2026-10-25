@@ -17,6 +17,7 @@ mod ai;
 mod ai_client;
 mod ai_config;
 mod export_assets;
+mod export_native;
 mod fsops;
 mod history;
 mod logger;
@@ -214,7 +215,8 @@ fn tmd_read_dir(
     }
     // 文件树排序跟随界面语言（zh-CN 拼音序近似，见 shell::sort_key）
     let locale = shell_state.sort_locale();
-    children.sort_by(|a, b| shell::sort_key(&a.name, &locale).cmp(&shell::sort_key(&b.name, &locale)));
+    children
+        .sort_by(|a, b| shell::sort_key(&a.name, &locale).cmp(&shell::sort_key(&b.name, &locale)));
     let name = file_name_of(&dir_path);
     Ok(DirListing {
         path: dir_path,
@@ -304,7 +306,8 @@ fn tmd_set_autosave_enabled(shell: tauri::State<'_, ShellState>, enabled: bool) 
 /// 对应 native.ts ready：渲染层就绪信号，冲刷排队中的待打开文件
 /// （并恢复/聚焦窗口——对应 main.cjs 的 flushPendingOpenPaths）。
 #[tauri::command]
-fn tmd_ready(app: tauri::AppHandle) {
+fn tmd_ready(app: tauri::AppHandle, pending: tauri::State<'_, PendingOpenPaths>) {
+    pending.ready.store(true, Ordering::SeqCst);
     flush_pending_open_paths(&app);
 }
 
@@ -689,7 +692,10 @@ fn main() {
             app.manage(WatchState::new(app.handle().clone()));
             app.manage(ShellState::new());
             app.manage(MaximizedFlag(AtomicBool::new(false)));
-            app.manage(PendingOpenPaths(Default::default()));
+            app.manage(PendingOpenPaths {
+                queue: std::sync::Mutex::new(Vec::new()),
+                ready: AtomicBool::new(false),
+            });
             // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）
             let data_dir = app.path().app_data_dir().expect("userData 目录不可用");
             app.manage(ai::AiState::new(data_dir.join("ai-config.json")));
@@ -729,6 +735,53 @@ fn main() {
             if restored.is_some_and(|w| w.maximized) {
                 let _ = window.maximize();
             }
+            // spike 阶段 B 原型自动验证：仅当 TMD_SPIKE_EXPORT=1 时启用
+            // （启动 8 秒后文档已加载，执行全文档 PDF + 视口截图原语）
+            if std::env::var("TMD_SPIKE_EXPORT").as_deref() == Ok("1") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    let step = |msg: &str| {
+                        eprintln!("[tmd-spike] {}", msg);
+                        if let Some(logger) = logger::global() {
+                            logger.log(
+                                "warn",
+                                "main",
+                                &format!("阶段B原型: {}", msg),
+                                None,
+                                &logger::LogMeta::default(),
+                            );
+                        }
+                    };
+                    std::thread::sleep(std::time::Duration::from_secs(8));
+                    step("step1: 开始（8s 延迟结束）");
+                    let Some(window) = app.get_webview_window("main") else {
+                        step("窗口不存在");
+                        return;
+                    };
+                    step("step2: read_content_metrics 前");
+                    let metrics = export_native::read_content_metrics(&window);
+                    step(&format!(
+                        "step3: metrics={:?}（若 Err 则崩溃点在 evaluate）",
+                        metrics.is_ok()
+                    ));
+                    let pdf = metrics.and_then(|(w, h)| {
+                        step(&format!("step4: capture_full_pdf 前（{}x{}）", w, h));
+                        export_native::capture_full_pdf(&window, w, h).and_then(|bytes| {
+                            std::fs::write("/tmp/tmd-spike-export.pdf", &bytes)
+                                .map_err(|e| e.to_string())?;
+                            step(&format!("step5: PDF 落盘 {} 字节", bytes.len()));
+                            Ok(format!("PDF {} 字节（内容 {}x{}）", bytes.len(), w, h))
+                        })
+                    });
+                    let png = export_native::capture_viewport_png(&window).and_then(|bytes| {
+                        std::fs::write("/tmp/tmd-spike-export.png", &bytes)
+                            .map_err(|e| e.to_string())?;
+                        step(&format!("step6: PNG 落盘 {} 字节", bytes.len()));
+                        Ok(format!("PNG {} 字节", bytes.len()))
+                    });
+                    step(&format!("step7: 完成 PDF={:?} PNG={:?}", pdf, png));
+                });
+            }
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -746,6 +799,61 @@ fn main() {
                 "clear-recent" => {
                     // 清空动作交渲染层执行（localStorage 是唯一权威），口径同 JS 版
                     let _ = app.emit("tmd-menu", "clear-recent".to_string());
+                }
+                // spike 阶段 B 原型：Rust 侧直接驱动 WKWebView 原语（不经渲染层）
+                "spike-pdf" | "spike-snapshot" => {
+                    let app = app.clone();
+                    let is_pdf = id == "spike-pdf";
+                    std::thread::spawn(move || {
+                        let Some(window) = app.get_webview_window("main") else {
+                            return;
+                        };
+                        let result = if is_pdf {
+                            export_native::read_content_metrics(&window).and_then(|(w, h)| {
+                                let bytes = export_native::capture_full_pdf(&window, w, h)?;
+                                let out = std::path::Path::new("/tmp/tmd-spike-export.pdf");
+                                std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
+                                Ok(format!(
+                                    "/tmp/tmd-spike-export.pdf（{} 字节, 内容 {}×{}）",
+                                    bytes.len(),
+                                    w,
+                                    h
+                                ))
+                            })
+                        } else {
+                            export_native::capture_viewport_png(&window).and_then(|bytes| {
+                                let out = std::path::Path::new("/tmp/tmd-spike-export.png");
+                                std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
+                                Ok(format!("/tmp/tmd-spike-export.png（{} 字节）", bytes.len()))
+                            })
+                        };
+                        match result {
+                            Ok(msg) => {
+                                eprintln!("[tmd-spike] 原型成功: {}", msg);
+                                if let Some(logger) = logger::global() {
+                                    logger.log(
+                                        "warn",
+                                        "main",
+                                        &format!("spike 原型成功: {}", msg),
+                                        None,
+                                        &logger::LogMeta::default(),
+                                    );
+                                }
+                            }
+                            Err(err) => {
+                                eprintln!("[tmd-spike] 原型失败: {}", err);
+                                if let Some(logger) = logger::global() {
+                                    logger.log(
+                                        "error",
+                                        "main",
+                                        &format!("spike 原型失败: {}", err),
+                                        None,
+                                        &logger::LogMeta::default(),
+                                    );
+                                }
+                            }
+                        }
+                    });
                 }
                 _ => {
                     if let Some(path) = id.strip_prefix("recent::") {
@@ -904,9 +1012,14 @@ fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
 }
 
 /// 待打开文件队列：渲染层 ready 前入队（文件关联早于渲染层就绪），
-/// ready 命令或二次启动转交时冲刷（对应 main.cjs 的 pendingOpenPaths）
+/// ready 命令或二次启动转交时冲刷（对应 main.cjs 的 pendingOpenPaths）。
+/// ready 标志防止「渲染层监听注册前 emit 进真空」——Electron 版
+/// queueOpenPath 的 `if (!app.isReady()) return` 同款语义。
 #[derive(Default)]
-struct PendingOpenPaths(std::sync::Mutex<Vec<String>>);
+struct PendingOpenPaths {
+    queue: std::sync::Mutex<Vec<String>>,
+    ready: AtomicBool,
+}
 
 /// 可打开扩展名（与渲染层白名单同口径）
 fn is_openable_path(path: &str) -> bool {
@@ -914,16 +1027,22 @@ fn is_openable_path(path: &str) -> bool {
     lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".txt")
 }
 
-/// 入队并立即尝试冲刷（窗口存活时直接下发 + 带到前台）
+/// 入队；仅当渲染层已 ready 才冲刷，否则等 ready 命令补发
 fn queue_open_path(app: &tauri::AppHandle, path: String) {
     if !is_openable_path(&path) {
         return;
     }
-    app.state::<PendingOpenPaths>()
-        .0
-        .lock()
-        .expect("pending open 锁中毒")
-        .push(path);
+    {
+        let pending = app.state::<PendingOpenPaths>();
+        pending
+            .queue
+            .lock()
+            .expect("pending open 锁中毒")
+            .push(path);
+        if !pending.ready.load(Ordering::SeqCst) {
+            return; // 渲染层未就绪：留在队列，等 ready 冲刷
+        }
+    }
     flush_pending_open_paths(app);
 }
 
@@ -931,7 +1050,7 @@ fn queue_open_path(app: &tauri::AppHandle, path: String) {
 fn flush_pending_open_paths(app: &tauri::AppHandle) {
     let paths = {
         let pending = app.state::<PendingOpenPaths>();
-        let mut g = pending.0.lock().expect("pending open 锁中毒");
+        let mut g = pending.queue.lock().expect("pending open 锁中毒");
         std::mem::take(&mut *g)
     };
     for path in paths {

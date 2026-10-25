@@ -264,6 +264,20 @@ pub(crate) fn build_menu(
         )?),
         Box::new(make_item(app, "export-epub", l("exportEpub"), None)?),
         Box::new(make_item(app, "export-latex", l("exportLatex"), None)?),
+        // spike 阶段 B 原型触发项（Rust 侧直接处理，不经渲染层）
+        Box::new(PredefinedMenuItem::separator(app)?),
+        Box::new(make_item(
+            app,
+            "spike-pdf",
+            "Spike: 全文档 PDF 导出".to_string(),
+            None,
+        )?),
+        Box::new(make_item(
+            app,
+            "spike-snapshot",
+            "Spike: 视口截图".to_string(),
+            None,
+        )?),
     ];
     let export_menu = Submenu::with_items(app, l("export"), true, &item_refs(&export_items))?;
 
