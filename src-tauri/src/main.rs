@@ -879,18 +879,28 @@ fn main() {
         ])
         .build(tauri::generate_context!())
         .expect("TMD (tauri spike) 启动失败");
-    app.run(|app, event| {
-        // 文件关联：Finder 双击 / 系统打开方式（macOS open-file、Windows 关联启动）
-        if let tauri::RunEvent::Opened { urls } = event {
-            for url in urls {
-                let path = url
-                    .to_file_path()
-                    .map(|p| p.to_string_lossy().into_owned())
-                    .unwrap_or_else(|_| url.to_string());
-                queue_open_path(app, path);
-            }
-        }
+    app.run(|_app, _event| {
+        // 文件关联：Finder 双击 / 系统打开方式。
+        // RunEvent::Opened 仅存在于 Apple 平台；Windows 的关联启动与二次双击
+        // 都经单实例插件的 second-instance argv 转交（上方注册处已处理）。
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        handle_opened_event(_app, &_event);
     });
+}
+
+/// macOS open-file / iOS 打开事件：路径入待打开队列
+/// （Windows 不派发此事件，编译期排除，见 run 回调注释）
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
+    if let tauri::RunEvent::Opened { urls } = event {
+        for url in urls {
+            let path = url
+                .to_file_path()
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|_| url.to_string());
+            queue_open_path(app, path);
+        }
+    }
 }
 
 /// 待打开文件队列：渲染层 ready 前入队（文件关联早于渲染层就绪），

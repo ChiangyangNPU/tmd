@@ -148,10 +148,12 @@ mod tests {
 
     #[test]
     fn child_path_second_line_defense() {
-        assert_eq!(
-            child_path("/tmp/notes", "新文件.md", false).as_deref(),
-            Some("/tmp/notes/新文件.md")
-        );
+        // join 走平台原生分隔符（对应 JS path.join 在各平台的行为）
+        let joined = std::path::Path::new("/tmp/notes")
+            .join("新文件.md")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(child_path("/tmp/notes", "新文件.md", false), Some(joined));
         assert_eq!(child_path("/tmp/notes", "../escape.md", false), None);
         assert_eq!(child_path("", "a.md", false), None);
     }

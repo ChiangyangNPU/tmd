@@ -242,7 +242,9 @@ mod tests {
         assert!(!truncated);
         assert_eq!(files.len(), 2);
         assert!(files.iter().any(|f| f.ends_with("root.md")));
-        assert!(files.iter().any(|f| f.ends_with("sub/note.md")));
+        // collect 走 read_dir，路径是平台原生分隔符（Windows 为 \）
+        let sub_note = format!("sub{}note.md", std::path::MAIN_SEPARATOR);
+        assert!(files.iter().any(|f| f.ends_with(&sub_note)));
         let _ = fs::remove_dir_all(root);
     }
 

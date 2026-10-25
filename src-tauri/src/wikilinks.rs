@@ -16,7 +16,6 @@
 
 use crate::search::{collect_search_files, SEARCH_MAX_FILES};
 use crate::text_file::{decode, file_name_of};
-use path_clean::PathClean;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
@@ -57,8 +56,10 @@ fn basename_no_md(path: &str) -> String {
         .to_string()
 }
 
-/// POSIX 风格 join + 规范化（对应 JS path.join 的 ../ 收敛；JS 版在
-/// Windows 下用反斜杠，spike 按 POSIX，正式迁移统一走此函数后补平台差异）。
+/// POSIX 风格 join + 规范化（对应 JS path.join 的 ../ 收敛）。
+/// Windows 适配约定：调用方（build_index / resolve_target）先把原生 `\` 路径
+/// 归一化为 `/` 再进此函数，保证索引键与查找键同口径比对；
+/// 对外返回的路径保持传入原样，不改动渲染层可见形状。
 fn join_normalized(dir: &str, rest: &str) -> String {
     let joined = if dir.is_empty() {
         rest.to_string()
@@ -67,7 +68,11 @@ fn join_normalized(dir: &str, rest: &str) -> String {
     } else {
         format!("{}/{}", dir, rest)
     };
-    Path::new(&joined).clean().to_string_lossy().into_owned()
+    // path_clean 走 Path::components()，在 Windows 上按平台重组为反斜杠；
+    // 收敛 .. 语义照用，输出再归一化回 /，保持与 by_path 键同口径
+    path_clean::clean(&joined)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 /// 解析 [[...]] 内部文本 → (target, alias, heading)。
@@ -155,12 +160,14 @@ pub(crate) struct WikiIndex {
     by_name: HashMap<String, Vec<String>>,
 }
 
-/// 构建 notes 的解析索引（两键均小写化，与 JS buildIndex 一致）
+/// 构建 notes 的解析索引（两键均小写化，与 JS buildIndex 一致；
+/// by_path 键额外把 `\` 归一化为 `/`——Windows 原生路径与 POSIX 风格的
+/// join_normalized 查找键需同口径，值保持原样）
 pub(crate) fn build_index(notes: &[String]) -> WikiIndex {
     let mut by_path = HashMap::with_capacity(notes.len());
     let mut by_name: HashMap<String, Vec<String>> = HashMap::new();
     for note in notes {
-        by_path.insert(note.to_lowercase(), note.clone());
+        by_path.insert(note.replace('\\', "/").to_lowercase(), note.clone());
         let key = basename_no_md(note).to_lowercase();
         by_name.entry(key).or_default().push(note.clone());
     }
@@ -190,8 +197,9 @@ pub(crate) fn resolve_target(target: &str, source_path: &str, index: &WikiIndex)
     } else {
         format!("{}.md", t)
     };
-    let dir = match std::path::Path::new(source_path).parent() {
-        Some(p) => p.to_string_lossy().into_owned(),
+    let dir = match Path::new(source_path).parent() {
+        // 与 build_index 的 by_path 键同口径：`\` 归一化为 `/` 后再进 join_normalized
+        Some(p) => p.to_string_lossy().replace('\\', "/"),
         None => String::new(),
     };
     if t.contains('/') || t.contains('\\') {
@@ -400,8 +408,9 @@ mod tests {
     #[test]
     fn scan_wiki_links_end_to_end_shapes() {
         let root = temp_dir("e2e");
-        let a = format!("{}/a.md", root);
-        let b = format!("{}/b.md", root);
+        // 断言与 scan 产出（read_dir 原生分隔符）逐字比对，构造时同样走原生 join
+        let a = Path::new(&root).join("a.md").to_string_lossy().into_owned();
+        let b = Path::new(&root).join("b.md").to_string_lossy().into_owned();
         fs::write(&a, "链接到 [[b]] 与 [[b|别名]]\n").unwrap();
         fs::write(&b, "回到 [[a#某节]]\n").unwrap();
         let result = scan_wiki_links(&[root.clone()]);
