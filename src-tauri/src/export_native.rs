@@ -42,6 +42,48 @@ where
         .map_err(|_| "with_webview 派发超时".to_string())
 }
 
+/// 在 webview 内执行 JS 并取字符串结果（completion 经 mpsc 回传，阻塞等待）。
+///
+/// 约定：脚本应返回**字符串**（内部把回调对象按 NSString 强转取值）；
+/// 返回 Promise 不保证等 resolve（WKWebView 行为未定义），需要沉降的
+/// 一律由调用方 sleep。正式导出链（滚动定位、内容注入、就绪探测）与
+/// spike 探针共用本入口。
+pub(crate) fn eval_js(window: &WebviewWindow, script: &str) -> Result<String, String> {
+    let script = script.to_string();
+    let (tx, rx) = mpsc::channel::<Result<String, String>>();
+    with_wk(window, move |wk| unsafe {
+        let script = NSString::from_str(&script);
+        let done = RcBlock::new(
+            move |result: *mut objc2::runtime::AnyObject, err: *mut NSError| {
+                let system_msg = if err.is_null() {
+                    String::new()
+                } else {
+                    (*err).localizedDescription().to_string()
+                };
+                let outcome = (|| -> Result<String, String> {
+                    // undefined / null 的回调指针为空：按空串处理而非报错
+                    if result.is_null() {
+                        return Ok(String::new());
+                    }
+                    // 回调对象是 autoreleased（+0）：retain_autoreleased 接管所有权；
+                    // 契约要求脚本返回字符串，downcast 失败即脚本违约
+                    let any = Retained::retain_autoreleased(result).ok_or("结果指针为空")?;
+                    let s: Retained<NSString> = any
+                        .downcast()
+                        .map_err(|_| "结果不是字符串（脚本须返回字符串）".to_string())?;
+                    Ok(s.to_string())
+                })();
+                let _ = tx.send(
+                    outcome.map_err(|e| format!("evaluateJavaScript 失败: {}{}", e, system_msg)),
+                );
+            },
+        );
+        wk.evaluateJavaScript_completionHandler(&*script, Some(&done));
+    })?;
+    rx.recv_timeout(Duration::from_secs(10))
+        .map_err(|_| "evaluate 超时".to_string())?
+}
+
 /// 读取渲染层内容尺寸（scrollWidth/scrollHeight，web page 坐标）
 pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64), String> {
     // 二分定位 step：先验证 with_wk + objc2 引用与只读访问是否可用
@@ -60,36 +102,14 @@ pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64),
     if let Err(err) = title_probe {
         return Err(format!("title 探针失败（objc2 通路问题）: {}", err));
     }
-    let (tx, rx) = mpsc::channel::<Result<(f64, f64), String>>();
-    with_wk(window, move |wk| unsafe {
-        let script =
-            NSString::from_str("JSON.stringify({w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight})");
-        let done = RcBlock::new(
-            move |result: *mut objc2::runtime::AnyObject, err: *mut NSError| {
-                let system_msg = if err.is_null() {
-                    String::new()
-                } else {
-                    (*err).localizedDescription().to_string()
-                };
-                let outcome = (|| -> Result<(f64, f64), String> {
-                    let s: Retained<NSString> = Retained::cast(
-                        Retained::retain_autoreleased(result as *mut NSString)
-                            .ok_or("结果指针为空")?,
-                    );
-                    serde_json::from_str::<serde_json::Value>(&s.to_string())
-                        .ok()
-                        .and_then(|v| Some((v["w"].as_f64()?, v["h"].as_f64()?)))
-                        .ok_or_else(|| "内容尺寸解析失败".to_string())
-                })();
-                let _ = tx.send(
-                    outcome.map_err(|e| format!("evaluateJavaScript 失败: {}{}", e, system_msg)),
-                );
-            },
-        );
-        wk.evaluateJavaScript_completionHandler(&*script, Some(&done));
-    })?;
-    rx.recv_timeout(Duration::from_secs(10))
-        .map_err(|_| "evaluate 超时".to_string())?
+    let s = eval_js(
+        window,
+        "JSON.stringify({w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight})",
+    )?;
+    serde_json::from_str::<serde_json::Value>(&s)
+        .ok()
+        .and_then(|v| Some((v["w"].as_f64()?, v["h"].as_f64()?)))
+        .ok_or_else(|| "内容尺寸解析失败".to_string())
 }
 
 /// 全文档 PDF：rect 设 web page 坐标全尺寸，一次调用生成整页多段 PDF
@@ -150,30 +170,28 @@ pub(crate) fn capture_viewport_png(window: &WebviewWindow) -> Result<Vec<u8>, St
                         .CGImageForProposedRect_context_hints(std::ptr::null_mut(), None, None)
                         .ok_or("NSImage CGImage 获取失败")?;
                     // NSBitmapImageRep 三步 msg_send（initWithCGImage 与
-                    // representationUsingType 是两个独立方法，不能合并选择器）
+                    // representationUsingType 是两个独立方法，不能合并选择器）；
+                    // 闭包体外层已是 unsafe 块，msg_send! 无需再各自包裹
                     let rep: *mut NSBitmapImageRep =
-                        unsafe { objc2::msg_send![objc2::class!(NSBitmapImageRep), alloc] };
+                        objc2::msg_send![objc2::class!(NSBitmapImageRep), alloc];
                     if rep.is_null() {
                         return Err("NSBitmapImageRep alloc 失败".to_string());
                     }
-                    let rep: *mut NSBitmapImageRep =
-                        unsafe { objc2::msg_send![rep, initWithCGImage: &*cg] };
+                    let rep: *mut NSBitmapImageRep = objc2::msg_send![rep, initWithCGImage: &*cg];
                     if rep.is_null() {
                         return Err("NSBitmapImageRep initWithCGImage 失败".to_string());
                     }
-                    let png_data: *mut objc2_foundation::NSData = unsafe {
-                        let empty: Retained<objc2_foundation::NSDictionary> =
-                            objc2_foundation::NSDictionary::new();
-                        objc2::msg_send![
-                            rep,
-                            representationUsingType: NSBitmapImageFileType::PNG,
-                            properties: &*empty
-                        ]
-                    };
+                    let empty: Retained<objc2_foundation::NSDictionary> =
+                        objc2_foundation::NSDictionary::new();
+                    let png_data: *mut objc2_foundation::NSData = objc2::msg_send![
+                        rep,
+                        representationUsingType: NSBitmapImageFileType::PNG,
+                        properties: &*empty
+                    ];
                     if png_data.is_null() {
                         return Err("NSBitmapImageRep PNG 转换失败".to_string());
                     }
-                    Ok(unsafe { Retained::retain_autoreleased(png_data) }
+                    Ok(Retained::retain_autoreleased(png_data)
                         .ok_or("PNG 数据指针无效")?
                         .to_vec())
                 })());

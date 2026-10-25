@@ -196,6 +196,27 @@ Mermaid 异步渲染完成前后所致）+ 视觉模型内容描述与地面真�
   启动 8 秒自动跑（均仅 spike 壳内，不影响 Electron 壳）；届时替换为
   `export-bridge.ts` 既有契约（分段滚动 + 拼接，长图管线与 Electron 同构）
 
+### 导出窗口形态矩阵（2026-10-25，正式形态已定：屏边探出）
+
+Electron 离屏导出 = 隐藏窗口 + `backgroundThrottling:false`。WKWebView 无此开关，
+矩阵实验（`src-tauri/src/export_probe.rs`，`open --env TMD_SPIKE_MATRIX=1` 触发，
+加载真实 export-renderer.html + 注入渐变/大字探针）：
+
+| 指标 | V1 隐藏窗（visible=false） | V2 屏边探出（60px 探边，余在屏外） |
+|------|--------------------------|-----------------------------------|
+| takeSnapshot / createPDF 内容 | ✅ 强制合成有效（98.3% 非白） | ✅（98.3% 非白） |
+| requestAnimationFrame | ❌ 冻结（1.2s 未触发） | ✅ 正常逐帧 |
+| document.visibilityState | `hidden` | `visible` |
+
+- **修正阶段 B 结论**：可见性约束实际在「应用激活」层（激活应用内隐藏窗
+  也能截到内容）；但隐藏窗的页面**渲染循环被冻结**——export-renderer.ts 的
+  `nextFrames()` 会永久挂起，任务必超时 → 隐藏窗不可用
+- **正式形态 = V2 屏边探出**：窗口左 60px 探在屏内维持 occlusion visible，
+  其余置屏外（位置 = 屏宽−60），用户几乎无感；rAF / visibilityState / 捕获
+  全部与 Electron 行为同构。多显示器时定位到**最右侧屏幕**的右边缘
+- 附带验证：export-renderer.html 在 Tauri 壳内正常启动；无 exporterAPI
+  桥接时静默空转（`if (window.exporterAPI)` 守卫生效）
+
 ## 后续验证项（未开工）
 
 1. **导出链正式迁移（阶段 B 后续）**：macOS 原语已验证，接 `exportRun` /

@@ -278,6 +278,12 @@ pub(crate) fn build_menu(
             "Spike: 视口截图".to_string(),
             None,
         )?),
+        Box::new(make_item(
+            app,
+            "spike-export-window-matrix",
+            "Spike: 导窗形态矩阵".to_string(),
+            None,
+        )?),
     ];
     let export_menu = Submenu::with_items(app, l("export"), true, &item_refs(&export_items))?;
 

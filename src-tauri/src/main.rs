@@ -18,6 +18,7 @@ mod ai_client;
 mod ai_config;
 mod export_assets;
 mod export_native;
+mod export_probe;
 mod fsops;
 mod history;
 mod logger;
@@ -735,6 +736,16 @@ fn main() {
             if restored.is_some_and(|w| w.maximized) {
                 let _ = window.maximize();
             }
+            // spike 阶段 B 后续：导出窗口形态矩阵自动验证（TMD_SPIKE_MATRIX=1）。
+            // 不依赖主窗口内容，5s 后直接跑；须以 `open -a --env TMD_SPIKE_MATRIX=1`
+            // 触发——直接后台启动的应用未激活，其窗口不合成（阶段 B 可见性约束）
+            if std::env::var("TMD_SPIKE_MATRIX").as_deref() == Ok("1") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    export_probe::run_matrix(&app);
+                });
+            }
             // spike 阶段 B 原型自动验证：仅当 TMD_SPIKE_EXPORT=1 时启用
             // （启动 8 秒后文档已加载，执行全文档 PDF + 视口截图原语）
             if std::env::var("TMD_SPIKE_EXPORT").as_deref() == Ok("1") {
@@ -801,6 +812,11 @@ fn main() {
                     let _ = app.emit("tmd-menu", "clear-recent".to_string());
                 }
                 // spike 阶段 B 原型：Rust 侧直接驱动 WKWebView 原语（不经渲染层）
+                "spike-export-window-matrix" => {
+                    // 阶段 B 后续：导出窗口形态判定矩阵（V1 隐藏对照 / V2 屏边探出候选）
+                    let app = app.clone();
+                    std::thread::spawn(move || export_probe::run_matrix(&app));
+                }
                 "spike-pdf" | "spike-snapshot" => {
                     let app = app.clone();
                     let is_pdf = id == "spike-pdf";
