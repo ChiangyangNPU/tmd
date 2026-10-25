@@ -19,8 +19,16 @@
 ## 怎么跑
 
 ```bash
-npm run tauri dev     # 自动起 vite(5173) + cargo 构建 + 打开 WKWebView 窗口
+npm run tauri dev             # 开发：自动起 vite(5173) + cargo 构建 + 打开 WKWebView 窗口
+npm run dist:tauri            # 打包：.app + dmg（产物在 src-tauri/target/release/bundle/）
+npm run dist:tauri:dir        # 只出 .app 不出 dmg（--bundles app）
+npm run dist:tauri:install    # 打包并覆盖安装到 /Applications/TMD-spike.app
 ```
+
+> **安装名差异**：双壳共存期 Tauri 版装为 `TMD-spike.app`（identifier
+> `com.chiangyang.tmd.spike`，userData 独立），**不覆盖**日常使用的
+> Electron 版 `/Applications/TMD.app`；正式切换（v0.2.0，identifier 转正）
+> 后该命令改回 `TMD.app`。体积实测见下文「体积实测」一节。
 
 - 首次运行 cargo 拉全量依赖（rsproxy 不可用时官方 crates.io 实测直连畅通），之后增量构建秒级。
 - 窗口加载的是 vite 开发服务器（`build.devUrl`）；`npm run tauri build` 则加载 `dist/` 生产产物。
