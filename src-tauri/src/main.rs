@@ -10,6 +10,9 @@
 //! 未实现通道 no-op + console.warn，不阻塞启动（渲染层的 `!native` 降级判断不受影响）。
 //! identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron 版完全隔离。
 
+mod ai;
+mod ai_client;
+mod ai_config;
 mod history;
 mod menu;
 mod search;
@@ -78,6 +81,13 @@ const TMD_API_SHIM: &str = r#"
     onRecentOpen: function (cb) { tmdOn('tmd-recent-open', cb) },
     onAutosave: function (cb) { tmdOn('tmd-autosave', cb) },
     onWindowMaximize: function (cb) { tmdOn('tmd-win-max-changed', cb) },
+    getAiConfig: function () { return invoke('tmd_ai_get_config') },
+    saveAiConfig: function (patch) { return invoke('tmd_ai_save_config', { patch: patch || {} }) },
+    testAiConnection: function (overrides) { return invoke('tmd_ai_test', { overrides: overrides || {} }) },
+    chatAi: function (requestId, messages) { return invoke('tmd_ai_chat', { requestId: requestId, messages: messages }) },
+    abortAi: function (requestId) { return invoke('tmd_ai_abort', { requestId: requestId }) },
+    embedAiTexts: function (texts) { return invoke('tmd_ai_embed', { texts: texts }) },
+    onAiStream: function (cb) { tmdOn('tmd-ai-stream', cb) },
   }
   var listened = {}
   function tmdOn(event, cb) {
@@ -435,6 +445,9 @@ fn main() {
             app.manage(WatchState::new(app.handle().clone()));
             app.manage(ShellState::new());
             app.manage(MaximizedFlag(AtomicBool::new(false)));
+            // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）
+            let data_dir = app.path().app_data_dir().expect("userData 目录不可用");
+            app.manage(ai::AiState::new(data_dir.join("ai-config.json")));
             // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建
             app.state::<ShellState>().rebuild_menu(app.handle());
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
@@ -532,6 +545,12 @@ fn main() {
             tmd_recent_add,
             tmd_recent_clear,
             tmd_recent_remove,
+            ai::tmd_ai_get_config,
+            ai::tmd_ai_save_config,
+            ai::tmd_ai_test,
+            ai::tmd_ai_chat,
+            ai::tmd_ai_abort,
+            ai::tmd_ai_embed,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
