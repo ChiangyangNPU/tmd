@@ -5,18 +5,20 @@
 //! （text_file.rs / search.rs / wikilinks.rs），与 JS 版逐语义对齐并可单测。
 //!
 //! 已实现通道：readFile / saveFile / readDir / openFile / openFolder /
-//! saveFileAs / exportAs / searchFiles。未实现通道 no-op + console.warn，
+//! saveFileAs / exportAs / searchFiles / wikiScan。未实现通道 no-op + console.warn，
 //! 不阻塞启动（渲染层的 `!native` 降级判断不受影响）。
 //! identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron 版完全隔离。
 
 mod search;
 mod text_file;
+mod wikilinks;
 
 use serde::{Deserialize, Serialize};
 use std::fs;
 use tauri_plugin_dialog::DialogExt;
 use search::SearchResult;
 use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
+use wikilinks::WikiScanResult;
 
 /// 注入到每个页面加载前的渲染层 shim：定义与 electron/preload.cjs 同名的
 /// `window.tmdAPI`。已实现通道走 Tauri invoke；其余通道 no-op + 一次性告警。
@@ -40,6 +42,7 @@ const TMD_API_SHIM: &str = r#"
     },
     exportAs: function (options) { return invoke('tmd_export_as', { options: options }) },
     searchFiles: function (roots, query) { return invoke('tmd_search_files', { roots: roots, query: query }) },
+    wikiScan: function (roots) { return invoke('tmd_wiki_scan', { roots: roots }) },
   }
   window.tmdAPI = new Proxy(impl, {
     get: function (target, prop) {
@@ -139,6 +142,13 @@ fn tmd_search_files(roots: Vec<String>, query: String) -> SearchResult {
         truncated,
         elapsed_ms: start.elapsed().as_millis() as u64,
     }
+}
+
+/// 对应 native.ts wikiScan → WikiScanResult。
+/// 收集/解析语义与 wikilinks.rs（JS 版 wikilinks.cjs）逐项对齐。
+#[tauri::command]
+fn tmd_wiki_scan(roots: Vec<String>) -> WikiScanResult {
+    wikilinks::scan_wiki_links(&roots)
 }
 
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
@@ -256,6 +266,7 @@ fn main() {
             tmd_save_file,
             tmd_read_dir,
             tmd_search_files,
+            tmd_wiki_scan,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,

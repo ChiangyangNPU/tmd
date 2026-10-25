@@ -16,6 +16,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 encoding_rs = "0.8"
 regex = "1"
+path-clean = "1"
 
 [profile.dev]
 incremental = true
