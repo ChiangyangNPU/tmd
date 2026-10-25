@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "spike 主窗口能力（应用自定义命令默认放行，核心能力取 core:default 最小集）",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
