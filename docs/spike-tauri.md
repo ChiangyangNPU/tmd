@@ -31,12 +31,15 @@ npm run tauri dev     # 自动起 vite(5173) + cargo 构建 + 打开 WKWebView �
 > 下节保留作为验证记录与后续验证清单。
 
 - `src-tauri/src/main.rs`：窗口创建 + `initialization_script` 注入 `window.tmdAPI` Proxy 门面
-- 已实现通道（13 条 invoke + 2 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
+- 已实现通道（25 条 invoke + 6 条事件订阅，与 `native.ts` 契约逐字段对齐，含 `isNative: true`）：
   `readFile` / `saveFile` / `readDir` / `openFile` / `openFolder` / `saveFileAs` /
   `exportAs`（对话框四件套走 tauri-plugin-dialog 的 Rust 侧 API，无需 capabilities 放行）、
-  `searchFiles` / `wikiScan`、`watchFiles` / `watchDirs`、`listHistory` / `readHistory` +
-  订阅 `onFileChanged` / `onDirsChanged`
-  （Tauri 事件 `tmd-file-changed` / `tmd-dirs-changed`，shim 侧 `event.listen` 转发）
+  `searchFiles` / `wikiScan`、`watchFiles` / `watchDirs`、`listHistory` / `readHistory`、
+  `setLocaleInfo`（重建菜单）/ `syncShortcuts` / `setAutosaveEnabled` / `setDirty` /
+  `setThemeSource` / `winMinimize` / `winMaximizeToggle` / `winClose` /
+  `recentSync` / `recentAdd` / `recentClear` / `recentRemove`、`ready` +
+  订阅 `onFileChanged` / `onDirsChanged`（Tauri 事件 `tmd-file-changed` / `tmd-dirs-changed`）、
+  `onMenu` / `onRecentOpen` / `onAutosave` / `onWindowMaximize`
 - 纯逻辑模块化（与 electron/ 模块边界一一对应，JS 版保留服务 Electron 壳，改动需两处同步）：
   - `text_file.rs` ← `electron/text-file.cjs`（encoding_rs：BOM/UTF-16/GBK + CRLF）
   - `search.rs` ← `electron/search.cjs`（BFS 收集 / 跳过目录 / 扩展名白名单 /
@@ -49,12 +52,15 @@ npm run tauri dev     # 自动起 vite(5173) + cargo 构建 + 打开 WKWebView �
   - `history.rs` ← `electron/history.cjs`（写前快照 / sha1 内容去重 / 单文件 50 条 +
     全局 200MB 双层剪枝 / 损坏 index 留档 7 天 / index 原子替换；**保存事务
     snapshot → write → note_write 三步在同一 Rust 命令内完成**，评估 §3.2 的要求落地）
+  - `menu.rs` ← `electron/menu.cjs`（渲染层语言包驱动重建 / accelerator 用户自定义
+    优先 / 最近文件子菜单含空占位 / 自动保存 checkbox；accelerator 解析失败降级无快捷键）
+  - `shell.rs` ← `electron/app-state.cjs + recent.cjs + menu 装配`（菜单/快捷键/最近
+    列表/脏标记/排序区域的权威状态；**脏文档关闭确认走原生对话框**，与 Electron
+    同口径：拦截 CloseRequested → 放弃/取消，破坏性按钮不做默认）
 - 未实现通道：no-op + console.warn（不阻塞启动；渲染层的 `!native` 降级判断不受影响）
-- Rust 单测 23 例（收集过滤 / 上限截断 / column+occurrence / 二进制跳过 / 预览截断 /
-  inner 解析 / 围栏边界 / 三档解析含 ambiguous / e2e 形状 / EOL 归一 / 回声过滤 /
-  外部变更一次性投递 / unlink 去重 / sync 差量与 64 上限 / 目录防抖合并 /
-  历史读写去重 / 同秒序号 / 单文件 50 条剪枝 / 全局容量剪枝 / 损坏隔离 /
-  id 防穿越 / 大小写不敏感 key / 写前快照存档）
+- spike 已知缺口：macOS appMenu 与编辑/视图 role 子菜单、系统最近文档注册
+  （Jump List / Dock）、CJK 文件名按 UI 语言排序（ICU collation）、shell-state 持久化
+- Rust 单测 27 例（文件核心 23 例 + 菜单构建/accelerator/排序区域/外链白名单 4 例）
 - 窗口由 Rust 侧 `WebviewWindowBuilder` 创建（而非 tauri.conf.json）——因为 initialization_script
   只能走 builder，这也是正式迁移的必经形态。
 

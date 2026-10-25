@@ -11,17 +11,23 @@
 //! identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron 版完全隔离。
 
 mod history;
+mod menu;
 mod search;
+mod shell;
 mod text_file;
 mod watcher;
 mod wikilinks;
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
-use tauri::Manager;
-use tauri_plugin_dialog::DialogExt;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use history::{FileHistory, HistoryEntry};
+use menu::RecentEntry;
 use search::SearchResult;
+use shell::ShellState;
 use text_file::{default_encoding_str, file_name_of, read_file_at, SaveMeta, TextFileData};
 use watcher::WatchState;
 use wikilinks::WikiScanResult;
@@ -55,6 +61,23 @@ const TMD_API_SHIM: &str = r#"
     onDirsChanged: function (cb) { tmdOn('tmd-dirs-changed', cb) },
     listHistory: function (filePath) { return invoke('tmd_list_history', { filePath: filePath }) },
     readHistory: function (filePath, id) { return invoke('tmd_read_history', { filePath: filePath, id: id }) },
+    setLocaleInfo: function (info) { invoke('tmd_set_locale_info', { labels: (info && info.labels) || {}, locale: (info && info.locale) || '' }) },
+    syncShortcuts: function (shortcuts) { invoke('tmd_sync_shortcuts', { shortcuts: shortcuts || {} }) },
+    setAutosaveEnabled: function (enabled) { invoke('tmd_set_autosave_enabled', { enabled: !!enabled }) },
+    setDirty: function (dirty) { invoke('tmd_set_dirty', { dirty: !!dirty }) },
+    setThemeSource: function (isDark) { return invoke('tmd_set_theme_source', { isDark: !!isDark }) },
+    winMinimize: function () { invoke('tmd_win_minimize') },
+    winMaximizeToggle: function () { invoke('tmd_win_max_toggle') },
+    winClose: function () { invoke('tmd_win_close') },
+    recentSync: function (entries) { invoke('tmd_recent_sync', { entries: entries || [] }) },
+    recentAdd: function (entry) { invoke('tmd_recent_add', { entry: entry }) },
+    recentClear: function () { invoke('tmd_recent_clear') },
+    recentRemove: function (path) { invoke('tmd_recent_remove', { path: path }) },
+    ready: function () {},
+    onMenu: function (cb) { tmdOn('tmd-menu', cb) },
+    onRecentOpen: function (cb) { tmdOn('tmd-recent-open', cb) },
+    onAutosave: function (cb) { tmdOn('tmd-autosave', cb) },
+    onWindowMaximize: function (cb) { tmdOn('tmd-win-max-changed', cb) },
   }
   var listened = {}
   function tmdOn(event, cb) {
@@ -207,6 +230,103 @@ fn tmd_read_history(file_path: String, id: String) -> Option<HistoryEntry> {
     history::read_snapshot(&history::history_root(), &file_path, &id)
 }
 
+// ---------- 应用级状态同步与窗口控制（electron/ipc-app.cjs 的 Rust 对应） ----------
+
+/// 对应 native.ts setLocaleInfo：下发语言包 → 重建菜单；返回映射后的排序区域。
+#[tauri::command]
+fn tmd_set_locale_info(
+    app: tauri::AppHandle,
+    shell: tauri::State<'_, ShellState>,
+    labels: HashMap<String, String>,
+    locale: String,
+) -> String {
+    shell.set_locale_info(&app, labels, &locale)
+}
+
+/// 对应 native.ts syncShortcuts：快捷键配置 → 菜单 accelerator 重建。
+#[tauri::command]
+fn tmd_sync_shortcuts(
+    app: tauri::AppHandle,
+    shell: tauri::State<'_, ShellState>,
+    shortcuts: HashMap<String, String>,
+) {
+    shell.sync_shortcuts(&app, shortcuts);
+}
+
+/// 对应 native.ts setAutosaveEnabled：设置面板同步开关（保持菜单勾选一致）。
+#[tauri::command]
+fn tmd_set_autosave_enabled(shell: tauri::State<'_, ShellState>, enabled: bool) {
+    shell.set_autosave_enabled(enabled);
+}
+
+/// 对应 native.ts setDirty：渲染层同步未保存状态（关闭确认用）。
+#[tauri::command]
+fn tmd_set_dirty(shell: tauri::State<'_, ShellState>, dirty: bool) {
+    shell.set_dirty(dirty);
+}
+
+/// 对应 native.ts setThemeSource：窗口深浅主题随渲染层切换（handle + invoke，
+/// 壳层切换完成后才返回，渲染层随后再翻页面——与 Electron 口径一致）。
+/// spike 简化：不做 shell-state 持久化，重启回落系统默认。
+#[tauri::command]
+fn tmd_set_theme_source(window: tauri::WebviewWindow, is_dark: bool) -> Result<(), String> {
+    use tauri::Theme;
+    window
+        .set_theme(Some(if is_dark { Theme::Dark } else { Theme::Light }))
+        .map_err(|e| e.to_string())
+}
+
+/// 对应 native.ts winMinimize：自绘标题栏最小化。
+#[tauri::command]
+fn tmd_win_minimize(window: tauri::WebviewWindow) {
+    let _ = window.minimize();
+}
+
+/// 对应 native.ts winMaximizeToggle：最大化 / 还原切换。
+#[tauri::command]
+fn tmd_win_max_toggle(window: tauri::WebviewWindow) {
+    if window.is_maximized().unwrap_or(false) {
+        let _ = window.unmaximize();
+    } else {
+        let _ = window.maximize();
+    }
+}
+
+/// 对应 native.ts winClose：走统一关闭流程（脏标记 → 原生确认对话框拦截）。
+#[tauri::command]
+fn tmd_win_close(window: tauri::WebviewWindow) {
+    let _ = window.close();
+}
+
+/// 对应 native.ts recentSync：启动全量同步最近列表（仅重建菜单）。
+#[tauri::command]
+fn tmd_recent_sync(
+    app: tauri::AppHandle,
+    shell: tauri::State<'_, ShellState>,
+    entries: Vec<RecentEntry>,
+) {
+    shell.recent_sync(&app, entries);
+}
+
+/// 对应 native.ts recentAdd：新增/打开 → 镜像列表去重置顶 + 重建菜单
+/// （系统最近文档注册无 Tauri 对应，spike 缺口）。
+#[tauri::command]
+fn tmd_recent_add(app: tauri::AppHandle, shell: tauri::State<'_, ShellState>, entry: RecentEntry) {
+    shell.recent_add(&app, entry);
+}
+
+/// 对应 native.ts recentClear。
+#[tauri::command]
+fn tmd_recent_clear(app: tauri::AppHandle, shell: tauri::State<'_, ShellState>) {
+    shell.recent_clear(&app);
+}
+
+/// 对应 native.ts recentRemove：单条移除。
+#[tauri::command]
+fn tmd_recent_remove(app: tauri::AppHandle, shell: tauri::State<'_, ShellState>, path: String) {
+    shell.recent_remove(&app, &path);
+}
+
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
 struct SaveAsResult {
@@ -313,6 +433,10 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.manage(WatchState::new(app.handle().clone()));
+            app.manage(ShellState::new());
+            app.manage(MaximizedFlag(AtomicBool::new(false)));
+            // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建
+            app.state::<ShellState>().rebuild_menu(app.handle());
             tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
                 .title("TMD (tauri spike)")
                 .inner_size(1280.0, 820.0)
@@ -320,6 +444,71 @@ fn main() {
                 .initialization_script(TMD_API_SHIM)
                 .build()?;
             Ok(())
+        })
+        .on_menu_event(|app, event| {
+            let shell = app.state::<ShellState>();
+            let id = event.id.0.clone();
+            match id.as_str() {
+                // 自动保存 checkbox：muda 已自动翻转，回读翻转后的状态同步渲染层
+                "autosave" => {
+                    if let Some(checked) = shell.autosave_checked_after_click() {
+                        shell.set_autosave_enabled(checked);
+                        let _ = app.emit("tmd-autosave", checked);
+                    }
+                }
+                "recent-empty" => {}
+                "clear-recent" => {
+                    // 清空动作交渲染层执行（localStorage 是唯一权威），口径同 JS 版
+                    let _ = app.emit("tmd-menu", "clear-recent".to_string());
+                }
+                _ => {
+                    if let Some(path) = id.strip_prefix("recent::") {
+                        let _ = app.emit("tmd-recent-open", path.to_string());
+                    } else {
+                        // 统一菜单动作分发（与 Electron sendToRenderer(IPC.menu) 对应）
+                        let _ = app.emit("tmd-menu", id);
+                    }
+                }
+            }
+        })
+        .on_window_event(|window, event| {
+            match event {
+                tauri::WindowEvent::Resized(_) => {
+                    // 最大化状态推送（仅状态变化时发，对应 Electron maximize/unmaximize）
+                    let maximized = window.is_maximized().unwrap_or(false);
+                    let last = window.app_handle().state::<MaximizedFlag>();
+                    if last.0.swap(maximized, Ordering::SeqCst) != maximized {
+                        let _ = window.app_handle().emit("tmd-win-max-changed", maximized);
+                    }
+                }
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    // 未保存关闭确认：原生对话框拦截（渲染层 window.confirm 不可靠，
+                    // Electron 同款原因）。破坏性按钮不做默认，默认落在「取消」。
+                    let shell = window.app_handle().state::<ShellState>();
+                    if !shell.is_dirty() {
+                        return;
+                    }
+                    api.prevent_close();
+                    let app = window.app_handle().clone();
+                    std::thread::spawn(move || {
+                        let abandon = app
+                            .dialog()
+                            .message("关闭前会丢失未保存的内容。")
+                            .title("有未保存的修改")
+                            .buttons(MessageDialogButtons::OkCancelCustom(
+                                "放弃修改并关闭".to_string(),
+                                "取消".to_string(),
+                            ))
+                            .blocking_show();
+                        if abandon {
+                            if let Some(w) = app.get_webview_window("main") {
+                                let _ = w.destroy();
+                            }
+                        }
+                    });
+                }
+                _ => {}
+            }
         })
         .invoke_handler(tauri::generate_handler![
             tmd_read_file,
@@ -331,6 +520,18 @@ fn main() {
             tmd_watch_dirs,
             tmd_list_history,
             tmd_read_history,
+            tmd_set_locale_info,
+            tmd_sync_shortcuts,
+            tmd_set_autosave_enabled,
+            tmd_set_dirty,
+            tmd_set_theme_source,
+            tmd_win_minimize,
+            tmd_win_max_toggle,
+            tmd_win_close,
+            tmd_recent_sync,
+            tmd_recent_add,
+            tmd_recent_clear,
+            tmd_recent_remove,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
@@ -339,3 +540,6 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("TMD (tauri spike) 启动失败");
 }
+
+/// 最大化状态去重标记（Resized 事件高频，只在状态翻转时推送）
+struct MaximizedFlag(AtomicBool);
