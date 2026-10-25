@@ -13,12 +13,14 @@
 mod ai;
 mod ai_client;
 mod ai_config;
+mod export_assets;
 mod fsops;
 mod history;
 mod menu;
 mod search;
 mod shell;
 mod text_file;
+mod themes;
 mod watcher;
 mod wikilinks;
 
@@ -100,6 +102,10 @@ const TMD_API_SHIM: &str = r#"
     createFile: function (dirPath, name) { return invoke('tmd_create_file', { dirPath: dirPath, name: name }) },
     createDir: function (dirPath, name) { return invoke('tmd_create_dir', { dirPath: dirPath, name: name }) },
     renamePath: function (oldPath, name) { return invoke('tmd_rename_path', { oldPath: oldPath, name: name }) },
+    listThemes: function () { return invoke('tmd_list_themes') },
+    readTheme: function (name) { return invoke('tmd_read_theme', { name: name }) },
+    openThemesDir: function () { return invoke('tmd_open_themes_dir') },
+    getExportAssets: function () { return invoke('tmd_get_export_assets') },
   }
   var listened = {}
   function tmdOn(event, cb) {
@@ -451,6 +457,43 @@ fn tmd_rename_path(old_path: String, name: String) -> Result<Value, String> {
     Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
 }
 
+// ---------- 主题文件系统与导出资源（electron/themes.cjs + export-assets.cjs 对应） ----------
+
+/// 对应 native.ts listThemes：先跑旧目录迁移，返回 { dir, themes }。
+#[tauri::command]
+fn tmd_list_themes() -> themes::ThemeFileList {
+    let home = history::tmd_home();
+    themes::migrate_legacy_themes(&home);
+    let dir = themes::themes_dir(&home);
+    themes::ThemeFileList {
+        dir: dir.to_string_lossy().into_owned(),
+        themes: themes::list_theme_files(&dir),
+    }
+}
+
+/// 对应 native.ts readTheme：按裸文件名读取主题 CSS（防路径穿越，失败 null）。
+#[tauri::command]
+fn tmd_read_theme(name: String) -> Option<String> {
+    themes::read_theme_file(&themes::themes_dir(&history::tmd_home()), &name)
+}
+
+/// 对应 native.ts openThemesDir：目录不存在则创建 + 空目录写示例主题，再打开。
+#[tauri::command]
+fn tmd_open_themes_dir() -> bool {
+    let dir = themes::themes_dir(&history::tmd_home());
+    if themes::ensure_themes_dir_with_sample(&dir).is_err() {
+        return false;
+    }
+    opener::open(&dir).is_ok()
+}
+
+/// 对应 native.ts getExportAssets：离线导出资源（KaTeX 字体已内联 data URI），
+/// 缺失时 null（渲染层回退 CDN）。
+#[tauri::command]
+fn tmd_get_export_assets() -> Option<export_assets::ExportAssets> {
+    export_assets::load_export_assets()
+}
+
 /// native.ts saveFileAs / exportAs 的返回形状 { path, name }
 #[derive(Serialize)]
 struct SaveAsResult {
@@ -673,6 +716,10 @@ fn main() {
             tmd_create_file,
             tmd_create_dir,
             tmd_rename_path,
+            tmd_list_themes,
+            tmd_read_theme,
+            tmd_open_themes_dir,
+            tmd_get_export_assets,
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
