@@ -10,7 +10,7 @@ rust-version = "1.77.2"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
@@ -19,12 +19,6 @@ encoding_rs = "0.8"
 regex = "1"
 path-clean = "1"
 pinyin = "0.10"
-objc2 = "0.6"
-objc2-app-kit = { version = "0.3.2", features = ["NSBitmapImageRep", "NSImage"] }
-objc2-core-foundation = "0.3"
-objc2-foundation = { version = "0.3.2", features = ["NSData", "NSError", "NSString"] }
-objc2-web-kit = { version = "0.3.2", features = ["WKPDFConfiguration", "WKSnapshotConfiguration", "block2", "WKWebView"] }
-block2 = "0.6"
 notify = "7"
 sha1 = "0.10"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
@@ -38,6 +32,16 @@ keyring = { version = "3", features = ["apple-native", "windows-native"] }
 base64 = "0.22"
 opener = { version = "0.7", features = ["reveal"] }
 trash = "5"
+
+# 导出链平台原语（export_native.rs）：objc2 直调 WKWebView，
+# 仅 macOS 参与编译——Windows 走 exporter_stub.rs（见 main.rs 模块声明）
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", features = ["NSBitmapImageRep", "NSImage"] }
+objc2-core-foundation = "0.3"
+objc2-foundation = { version = "0.3.2", features = ["NSData", "NSError", "NSString"] }
+objc2-web-kit = { version = "0.3.2", features = ["WKPDFConfiguration", "WKSnapshotConfiguration", "block2", "WKWebView"] }
+block2 = "0.6"
 
 [profile.dev]
 incremental = true

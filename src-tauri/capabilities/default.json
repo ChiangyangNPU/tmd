@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "主窗口 + 离屏导出窗口能力（应用自定义命令默认放行，核心能力取 core:default 最小集；导出窗需 event.listen/invoke 桥接）",
+  "description": "主窗口 + 离屏导出窗口能力（应用自定义命令默认放行，核心能力取 core:default 最小集 + 自绘标题栏拖拽；导出窗需 event.listen/invoke 桥接）",
   "windows": ["main", "tmd-exporter"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
 }

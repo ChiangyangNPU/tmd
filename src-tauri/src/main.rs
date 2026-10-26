@@ -17,8 +17,16 @@ mod ai;
 mod ai_client;
 mod ai_config;
 mod export_assets;
+// macOS 专属导出原语（objc2 直调 WKWebView）与离屏导出服务；其余平台
+// exporter 切到同名命令的占位实现（exporter_stub.rs），命令面保持一致
+#[cfg(target_os = "macos")]
 mod export_native;
+#[cfg(target_os = "macos")]
 mod export_probe;
+#[cfg(target_os = "macos")]
+mod exporter;
+#[cfg(not(target_os = "macos"))]
+#[path = "exporter_stub.rs"]
 mod exporter;
 mod fsops;
 mod history;
@@ -139,6 +147,26 @@ const TMD_API_SHIM: &str = r#"
         console.warn('[tmd-tauri-spike] 通道未实现（no-op）:', String(prop))
       }
     },
+  })
+  // 自绘标题栏拖拽区：Electron 用 CSS -webkit-app-region（02-toolbar.css），
+  // WebView2 / WKWebView 不解析该属性，这里按同款选择器语义复刻——
+  // .toolbar / .toolbar-left 为拖拽区，.toolbar button / .toolbar .word-count 豁免；
+  // 与 02-toolbar.css 双侧同步维护（同 wikilinks 的两侧同构约定）。
+  function dragHit(el) {
+    for (var n = el; n && n.nodeType === 1; n = n.parentElement) {
+      if (n.matches('.toolbar button, .toolbar .word-count')) return false
+      if (n.matches('.toolbar, .toolbar-left')) return true
+    }
+    return false
+  }
+  document.addEventListener('mousedown', function (e) {
+    // 左键且非双击按下时拖动窗口；双击交给 dblclick
+    if (e.button === 0 && e.detail === 1 && dragHit(e.target)) invoke('plugin:window|start_dragging')
+  })
+  // Win/Linux：双击工具栏空白 = 最大化/还原（Electron 由 hidden 标题栏系统行为提供，
+  // mac 双击行为跟随系统设置，这里不接管）
+  document.addEventListener('dblclick', function (e) {
+    if (document.documentElement.classList.contains('win') && dragHit(e.target)) invoke('tmd_win_max_toggle')
   })
 })()
 "#;
@@ -726,6 +754,22 @@ fn main() {
             if let Some(theme) = restored_theme {
                 builder = builder.theme(Some(theme));
             }
+            // 标题栏对齐 Electron 壳观感（electron/main.cjs:374-376）：
+            // Win/Linux titleBarStyle 'hidden' → decorations(false) 全自绘（拖拽区与
+            // 最大化/关闭由 shim 的拖拽处理 + html.win 自绘按钮承担）；
+            // macOS 'hiddenInset' → Overlay 隐藏标题条 + 红绿灯 (16,16) 对齐
+            // trafficLightPosition，需 tauri.conf.json 开 macOSPrivateApi（内容延伸到标题栏下）
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder
+                    .title_bar_style(tauri::TitleBarStyle::Overlay)
+                    .hidden_title(true)
+                    .traffic_light_position(tauri::LogicalPosition::new(16.0, 16.0));
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                builder = builder.decorations(false);
+            }
             match restored {
                 Some(win) => {
                     builder = builder.inner_size(win.width, win.height);
@@ -745,11 +789,14 @@ fn main() {
             // 不依赖主窗口内容，5s 后直接跑；须以 `open -a --env TMD_SPIKE_MATRIX=1`
             // 触发——直接后台启动的应用未激活，其窗口不合成（阶段 B 可见性约束）
             if std::env::var("TMD_SPIKE_MATRIX").as_deref() == Ok("1") {
-                let app = app.handle().clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(5));
-                    export_probe::run_matrix(&app);
-                });
+                #[cfg(target_os = "macos")]
+                {
+                    let app = app.handle().clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_secs(5));
+                        export_probe::run_matrix(&app);
+                    });
+                }
             }
             // spike 正式导出链端到端验证（TMD_SPIKE_EXPORT_RUN=1）：
             // 最小 longimage 任务走真实链路（探边窗/桥接/分段截图/拼接），
@@ -764,49 +811,52 @@ fn main() {
             // spike 阶段 B 原型自动验证：仅当 TMD_SPIKE_EXPORT=1 时启用
             // （启动 8 秒后文档已加载，执行全文档 PDF + 视口截图原语）
             if std::env::var("TMD_SPIKE_EXPORT").as_deref() == Ok("1") {
-                let app = app.handle().clone();
-                std::thread::spawn(move || {
-                    let step = |msg: &str| {
-                        eprintln!("[tmd-spike] {}", msg);
-                        if let Some(logger) = logger::global() {
-                            logger.log(
-                                "warn",
-                                "main",
-                                &format!("阶段B原型: {}", msg),
-                                None,
-                                &logger::LogMeta::default(),
-                            );
-                        }
-                    };
-                    std::thread::sleep(std::time::Duration::from_secs(8));
-                    step("step1: 开始（8s 延迟结束）");
-                    let Some(window) = app.get_webview_window("main") else {
-                        step("窗口不存在");
-                        return;
-                    };
-                    step("step2: read_content_metrics 前");
-                    let metrics = export_native::read_content_metrics(&window);
-                    step(&format!(
-                        "step3: metrics={:?}（若 Err 则崩溃点在 evaluate）",
-                        metrics.is_ok()
-                    ));
-                    let pdf = metrics.and_then(|(w, h)| {
-                        step(&format!("step4: capture_full_pdf 前（{}x{}）", w, h));
-                        export_native::capture_full_pdf(&window, w, h).and_then(|bytes| {
-                            std::fs::write("/tmp/tmd-spike-export.pdf", &bytes)
+                #[cfg(target_os = "macos")]
+                {
+                    let app = app.handle().clone();
+                    std::thread::spawn(move || {
+                        let step = |msg: &str| {
+                            eprintln!("[tmd-spike] {}", msg);
+                            if let Some(logger) = logger::global() {
+                                logger.log(
+                                    "warn",
+                                    "main",
+                                    &format!("阶段B原型: {}", msg),
+                                    None,
+                                    &logger::LogMeta::default(),
+                                );
+                            }
+                        };
+                        std::thread::sleep(std::time::Duration::from_secs(8));
+                        step("step1: 开始（8s 延迟结束）");
+                        let Some(window) = app.get_webview_window("main") else {
+                            step("窗口不存在");
+                            return;
+                        };
+                        step("step2: read_content_metrics 前");
+                        let metrics = export_native::read_content_metrics(&window);
+                        step(&format!(
+                            "step3: metrics={:?}（若 Err 则崩溃点在 evaluate）",
+                            metrics.is_ok()
+                        ));
+                        let pdf = metrics.and_then(|(w, h)| {
+                            step(&format!("step4: capture_full_pdf 前（{}x{}）", w, h));
+                            export_native::capture_full_pdf(&window, w, h).and_then(|bytes| {
+                                std::fs::write("/tmp/tmd-spike-export.pdf", &bytes)
+                                    .map_err(|e| e.to_string())?;
+                                step(&format!("step5: PDF 落盘 {} 字节", bytes.len()));
+                                Ok(format!("PDF {} 字节（内容 {}x{}）", bytes.len(), w, h))
+                            })
+                        });
+                        let png = export_native::capture_viewport_png(&window).and_then(|bytes| {
+                            std::fs::write("/tmp/tmd-spike-export.png", &bytes)
                                 .map_err(|e| e.to_string())?;
-                            step(&format!("step5: PDF 落盘 {} 字节", bytes.len()));
-                            Ok(format!("PDF {} 字节（内容 {}x{}）", bytes.len(), w, h))
-                        })
+                            step(&format!("step6: PNG 落盘 {} 字节", bytes.len()));
+                            Ok(format!("PNG {} 字节", bytes.len()))
+                        });
+                        step(&format!("step7: 完成 PDF={:?} PNG={:?}", pdf, png));
                     });
-                    let png = export_native::capture_viewport_png(&window).and_then(|bytes| {
-                        std::fs::write("/tmp/tmd-spike-export.png", &bytes)
-                            .map_err(|e| e.to_string())?;
-                        step(&format!("step6: PNG 落盘 {} 字节", bytes.len()));
-                        Ok(format!("PNG {} 字节", bytes.len()))
-                    });
-                    step(&format!("step7: 完成 PDF={:?} PNG={:?}", pdf, png));
-                });
+                }
             }
             Ok(())
         })
@@ -829,62 +879,68 @@ fn main() {
                 // spike 阶段 B 原型：Rust 侧直接驱动 WKWebView 原语（不经渲染层）
                 "spike-export-window-matrix" => {
                     // 阶段 B 后续：导出窗口形态判定矩阵（V1 隐藏对照 / V2 屏边探出候选）
-                    let app = app.clone();
-                    std::thread::spawn(move || export_probe::run_matrix(&app));
+                    #[cfg(target_os = "macos")]
+                    {
+                        let app = app.clone();
+                        std::thread::spawn(move || export_probe::run_matrix(&app));
+                    }
                 }
                 "spike-pdf" | "spike-snapshot" => {
-                    let app = app.clone();
-                    let is_pdf = id == "spike-pdf";
-                    std::thread::spawn(move || {
-                        let Some(window) = app.get_webview_window("main") else {
-                            return;
-                        };
-                        let result = if is_pdf {
-                            export_native::read_content_metrics(&window).and_then(|(w, h)| {
-                                let bytes = export_native::capture_full_pdf(&window, w, h)?;
-                                let out = std::path::Path::new("/tmp/tmd-spike-export.pdf");
-                                std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
-                                Ok(format!(
-                                    "/tmp/tmd-spike-export.pdf（{} 字节, 内容 {}×{}）",
-                                    bytes.len(),
-                                    w,
-                                    h
-                                ))
-                            })
-                        } else {
-                            export_native::capture_viewport_png(&window).and_then(|bytes| {
-                                let out = std::path::Path::new("/tmp/tmd-spike-export.png");
-                                std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
-                                Ok(format!("/tmp/tmd-spike-export.png（{} 字节）", bytes.len()))
-                            })
-                        };
-                        match result {
-                            Ok(msg) => {
-                                eprintln!("[tmd-spike] 原型成功: {}", msg);
-                                if let Some(logger) = logger::global() {
-                                    logger.log(
-                                        "warn",
-                                        "main",
-                                        &format!("spike 原型成功: {}", msg),
-                                        None,
-                                        &logger::LogMeta::default(),
-                                    );
+                    #[cfg(target_os = "macos")]
+                    {
+                        let app = app.clone();
+                        let is_pdf = id == "spike-pdf";
+                        std::thread::spawn(move || {
+                            let Some(window) = app.get_webview_window("main") else {
+                                return;
+                            };
+                            let result = if is_pdf {
+                                export_native::read_content_metrics(&window).and_then(|(w, h)| {
+                                    let bytes = export_native::capture_full_pdf(&window, w, h)?;
+                                    let out = std::path::Path::new("/tmp/tmd-spike-export.pdf");
+                                    std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
+                                    Ok(format!(
+                                        "/tmp/tmd-spike-export.pdf（{} 字节, 内容 {}×{}）",
+                                        bytes.len(),
+                                        w,
+                                        h
+                                    ))
+                                })
+                            } else {
+                                export_native::capture_viewport_png(&window).and_then(|bytes| {
+                                    let out = std::path::Path::new("/tmp/tmd-spike-export.png");
+                                    std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
+                                    Ok(format!("/tmp/tmd-spike-export.png（{} 字节）", bytes.len()))
+                                })
+                            };
+                            match result {
+                                Ok(msg) => {
+                                    eprintln!("[tmd-spike] 原型成功: {}", msg);
+                                    if let Some(logger) = logger::global() {
+                                        logger.log(
+                                            "warn",
+                                            "main",
+                                            &format!("spike 原型成功: {}", msg),
+                                            None,
+                                            &logger::LogMeta::default(),
+                                        );
+                                    }
+                                }
+                                Err(err) => {
+                                    eprintln!("[tmd-spike] 原型失败: {}", err);
+                                    if let Some(logger) = logger::global() {
+                                        logger.log(
+                                            "error",
+                                            "main",
+                                            &format!("spike 原型失败: {}", err),
+                                            None,
+                                            &logger::LogMeta::default(),
+                                        );
+                                    }
                                 }
                             }
-                            Err(err) => {
-                                eprintln!("[tmd-spike] 原型失败: {}", err);
-                                if let Some(logger) = logger::global() {
-                                    logger.log(
-                                        "error",
-                                        "main",
-                                        &format!("spike 原型失败: {}", err),
-                                        None,
-                                        &logger::LogMeta::default(),
-                                    );
-                                }
-                            }
-                        }
-                    });
+                        });
+                    }
                 }
                 _ => {
                     if let Some(path) = id.strip_prefix("recent::") {
