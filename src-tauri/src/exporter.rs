@@ -349,7 +349,8 @@ fn peek_position(app: &AppHandle) -> (f64, f64) {
 /// 创建导出窗口并等待 export-renderer.html 就绪。
 /// 窗口属性要点（形态矩阵结论）：
 /// - visible + 探边定位：维持 occlusion visible（rAF 正常、可捕获）
-/// - focused(false)：不抢主窗口焦点（可见性与焦点无关，矩阵已验证）
+/// - focused：mac 需要 true（探边窗活跃度影响合成）；Windows 用 false
+///   不抢用户焦点（WebView2 渲染不依赖焦点）
 /// - decorations(false)：60pt 探边内是纯内容，无标题条噪音
 fn ensure_window(app: &AppHandle) -> Result<WebviewWindow, String> {
     // 异常路径残留的同名窗口先销毁（上次任务竞态未及清理）
@@ -371,7 +372,7 @@ fn ensure_window(app: &AppHandle) -> Result<WebviewWindow, String> {
     .maximizable(false)
     .minimizable(false)
     .skip_taskbar(true)
-    .focused(true)
+    .focused(cfg!(target_os = "macos"))
     .visible(true)
     .initialization_script(EXPORTER_API_SHIM)
     .build()
@@ -607,21 +608,26 @@ pub(crate) async fn tmd_print(
     name: Option<String>,
     options: Option<serde_json::Value>,
 ) -> Result<bool, String> {
-    // PdfOptions 当前在 macOS 降级路径下无消费方；保留入参不报错
-    let _ = options;
     if window.label() != "main" {
         return Ok(false);
     }
     let app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || run_print(&app, name.as_deref()))
+    tauri::async_runtime::spawn_blocking(move || run_print(&app, name.as_deref(), options))
         .await
         .map_err(|e| format!("PDF 导出异常: {}", e))?
 }
 
-/// print 实主体（阻塞线程执行）：测量 → 保存框 → createPDF → 落盘。
+/// print 实主体（阻塞线程执行）：测量 → 保存框 → 平台 PDF 原语 → 落盘。
 /// 任何失败记日志后返回 false（对齐 Electron 版 catch → false 口径，
 /// 渲染层 exportPdf 不 catch，Err 会变成未处理 rejection）。
-fn run_print(app: &AppHandle, name: Option<&str>) -> Result<bool, String> {
+///
+/// 平台差异：mac 为 createPDF 整页矩形直出（options 无消费方）；Windows 为
+/// PrintToPdf 分页打印管线，options（页尺寸/朝向/边距/页眉页脚）生效。
+fn run_print(
+    app: &AppHandle,
+    name: Option<&str>,
+    options: Option<serde_json::Value>,
+) -> Result<bool, String> {
     let Some(win) = app.get_webview_window("main") else {
         return Ok(false);
     };
@@ -676,7 +682,12 @@ fn run_print(app: &AppHandle, name: Option<&str>) -> Result<bool, String> {
         let Some(path) = picked else {
             return Ok(()); // 用户取消：不算失败
         };
-        let bytes = export_native::capture_full_pdf(&win, w, h)?;
+        // 把文档名并入 options 供页眉标题使用（Windows 打印管线消费）
+        let mut opts = options.unwrap_or_else(|| serde_json::json!({}));
+        if let (Some(obj), Some(n)) = (opts.as_object_mut(), name.filter(|n| !n.is_empty())) {
+            obj.entry("title").or_insert(serde_json::json!(n));
+        }
+        let bytes = export_native::capture_full_pdf(&win, w, h, Some(&opts))?;
         std::fs::write(&path, &bytes).map_err(|e| format!("{}: {}", path, e))?;
         Ok(())
     })();
@@ -701,8 +712,9 @@ fn run_print(app: &AppHandle, name: Option<&str>) -> Result<bool, String> {
 
 /// 端到端管线验证（TMD_SPIKE_EXPORT_RUN=1 启动 8s 自动触发）：
 /// 用最小 longimage 任务走**真实链路**——探边窗 + exporterAPI 桥接 +
-/// capture 分段滚动 + TS 侧拼接 + base64 回传——产物落
-/// /tmp/tmd-export-verify.png 供本地像素分析（不走保存框，便于无人值守验证）。
+/// capture 分段滚动 + TS 侧拼接 + base64 回传——产物落系统临时目录
+/// （tmd-export-verify.png，路径见日志）供本地像素分析（不走保存框，便于
+/// 无人值守验证）。
 pub(crate) fn verify_pipeline(app: &AppHandle) {
     let task = serde_json::json!({
         "lang": "zh-CN",
@@ -726,9 +738,13 @@ pub(crate) fn verify_pipeline(app: &AppHandle) {
     let verdict = match queued {
         Err(_) => Err("导出服务已停止".to_string()),
         Ok(()) => match reply_rx.recv_timeout(TASK_TIMEOUT + Duration::from_secs(30)) {
-            Ok(Ok(bytes)) => std::fs::write("/tmp/tmd-export-verify.png", &bytes)
-                .map(|_| format!("/tmp/tmd-export-verify.png（{} 字节）", bytes.len()))
-                .map_err(|e| e.to_string()),
+            Ok(Ok(bytes)) => {
+                // 跨平台产物路径（Windows 无 /tmp；日志里给出实际路径便于验收）
+                let out = std::env::temp_dir().join("tmd-export-verify.png");
+                std::fs::write(&out, &bytes)
+                    .map(|_| format!("{}（{} 字节）", out.display(), bytes.len()))
+                    .map_err(|e| e.to_string())
+            }
             Ok(Err(e)) => Err(e),
             Err(_) => Err("管线验证超时".to_string()),
         },

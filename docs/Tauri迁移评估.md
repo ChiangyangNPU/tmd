@@ -83,18 +83,25 @@
 
 ### 3.3 硬缺口（高风险，需产品决策）
 
+> **落地状态（2026-10-27）**：缺口 1 / 缺口 2 的双平台原语均已实现并验收——
+> mac 走 objc2 直调 WKWebView（`export_native.rs`），Windows 走 WebView2 COM
+> （`export_native_win.rs`）；编排层 `exporter.rs` 零分叉。Windows 实测：
+> 长图端到端产物 1848×597（完整纵向拼接、标题色正确），区域裁剪尺寸与
+> `rect×dpr` 一致，PDF 为 1 页有效文档（WebView2 打印管线）。
+> 下文保留决策期分析原文，供追溯。
+
 #### 缺口 1：PDF 导出（`printToPDF` 无等价物）
 
 已对照 wry 最新版（0.56.0）变更日志核实：**无 print_to_pdf API**，只有系统打印对话框（上游 issue [#707](https://github.com/tauri-apps/wry/issues/707) 未实现）。且 Chromium 专有的 `headerTemplate/footerTemplate`（pageNumber/totalPages）与 `generateDocumentOutline` 均无对应。
 
-- Windows：WebView2 `PrintToPdfAsync`（ICoreWebView2_16）可自写对标，页眉页脚模板机制不同需降级设计。
-- **macOS：WKWebView 无 printToPDF**，无低成本等价物。现实选择：① 降级为系统打印对话框「存储为 PDF」（体验降级，用户多一步）；② 纯 JS PDF 生成库（渲染质量/分页与 Chromium 打印有差距）；③ 放弃 macOS PDF（不建议）。
+- Windows：WebView2 `PrintToPdfAsync`（ICoreWebView2_16）可自写对标，页眉页脚模板机制不同需降级设计。**已实现**：`PrintToPdf` 直写临时文件，走 Chromium 打印管线（@media print / @page 生效），PdfOptions 的页尺寸/朝向/边距/页眉页脚均已映射；仅大纲书签（outline）无对应项。
+- **macOS：WKWebView 无 printToPDF**，无低成本等价物。现实选择：① 降级为系统打印对话框「存储为 PDF」（体验降级，用户多一步）；② 纯 JS PDF 生成库（渲染质量/分页与 Chromium 打印有差距）；③ 放弃 macOS PDF（不建议）。**已实现**：`createPDFWithConfiguration` 整页矩形直出（选项不生效，文档已标注）。
 
 #### 缺口 2：长图 / Word / ePub（离屏窗口 + `capturePage` 无等价物）
 
 wry 无截图 API（上游 issue [#1358](https://github.com/tauri-apps/wry/issues/1358)，截稿时有 PR 未落地）。三件套全部建立在「离屏隐藏窗口按帧渲染 + 分段 `capturePage` 截帧 + canvas 拼接」上。
 
-- 方案 A（首选验证）：平台 shim——WebView2 `CapturePreview` / WKWebView `takeSnapshotWithConfiguration`。风险：隐藏窗口下渲染节流与截图可靠性未经验证（WebView2 隐藏窗口 CapturePreview 行为不可靠；`backgroundThrottling` 不可控，现有 `settle()` 双 rAF 等帧逻辑可能挂起）。
+- 方案 A（首选验证）：平台 shim——WebView2 `CapturePreview` / WKWebView `takeSnapshotWithConfiguration`。风险：隐藏窗口下渲染节流与截图可靠性未经验证（WebView2 隐藏窗口 CapturePreview 行为不可靠；`backgroundThrottling` 不可控，现有 `settle()` 双 rAF 等帧逻辑可能挂起）。**已实现并验证**：双平台均采用「屏边探出」窗口维持渲染（Windows 实测 `focused(false)` 不节流），CapturePreview 无 rect 参数→全视口截帧后按 dpr 裁剪补齐区域模式。
 - 方案 B（降级）：html2canvas / dom-to-image 类库。**已知回归**：Mermaid foreignObject 污染 canvas——这正是当初弃用该路线的原因（`docs/archive/export-word-longimage_plan.md`），需重做 mermaid 栅格化并重新验证 4 个踩坑点。
 - 有利条件：`export-bridge.ts` 契约 + 依赖注入使编排层不用动；`tmd:exporter-*` 五通道协议可映射为 Tauri event/command。
 

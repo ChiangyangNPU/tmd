@@ -43,6 +43,14 @@ objc2-foundation = { version = "0.3.2", features = ["NSData", "NSError", "NSStri
 objc2-web-kit = { version = "0.3.2", features = ["WKPDFConfiguration", "WKSnapshotConfiguration", "block2", "WKWebView"] }
 block2 = "0.6"
 
+# 导出链平台原语（export_native.rs / export_native_win.rs）：WebView2 直调，
+# webview2-com 与 wry 内部同版本（共享 ICoreWebView2 类型，避免 windows 多版本）；
+# png 用于区域截帧裁剪（CapturePreview 无 rect 参数）
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.39"
+windows = { version = "0.62", features = ["Win32_System_Com", "Win32_System_Com_StructuredStorage"] }
+png = "0.18"
+
 [profile.dev]
 incremental = true
 

@@ -17,16 +17,17 @@ mod ai;
 mod ai_client;
 mod ai_config;
 mod export_assets;
-// macOS 专属导出原语（objc2 直调 WKWebView）与离屏导出服务；其余平台
-// exporter 切到同名命令的占位实现（exporter_stub.rs），命令面保持一致
+// 导出链平台原语：同名模块按平台选实现，exporter.rs 的编排层零分叉
+// - macOS：objc2 直调 WKWebView（export_native.rs）
+// - Windows：WebView2 COM 直调（export_native_win.rs）
 #[cfg(target_os = "macos")]
 mod export_native;
+#[cfg(windows)]
+#[path = "export_native_win.rs"]
+mod export_native;
+// 窗口形态矩阵探针为 mac 阶段 B 验证工具，不参与 Windows 编译
 #[cfg(target_os = "macos")]
 mod export_probe;
-#[cfg(target_os = "macos")]
-mod exporter;
-#[cfg(not(target_os = "macos"))]
-#[path = "exporter_stub.rs"]
 mod exporter;
 mod fsops;
 mod history;
@@ -837,6 +838,16 @@ fn main() {
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(8));
                     exporter::verify_pipeline(&app);
+                });
+            }
+            // Windows 原语三件套自测（视口截帧 / 区域裁剪 / PDF）：
+            // 产物与像素统计落临时目录 + 日志，用于首落地验收（发布前移除）
+            #[cfg(windows)]
+            if std::env::var("TMD_SPIKE_EXPORT_OPS").as_deref() == Ok("1") {
+                let app = app.handle().clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(8));
+                    export_native::verify_native(&app);
                 });
             }
             // spike 阶段 B 原型自动验证：仅当 TMD_SPIKE_EXPORT=1 时启用

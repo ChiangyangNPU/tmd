@@ -113,11 +113,16 @@ pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64),
 }
 
 /// 全文档 PDF：rect 设 web page 坐标全尺寸，一次调用生成整页多段 PDF
-/// （对应 Electron printToPDF 的打印到文件能力，无需打印对话框）
+/// （对应 Electron printToPDF 的打印到文件能力，无需打印对话框）。
+///
+/// `_options`：Windows 侧消费 PdfOptions（PrintToPdf 分页管线）；mac 的
+/// createPDF 是矩形直出，页尺寸/边距/页眉页脚/大纲均无对应项，保持忽略
+/// （已入档 docs/Tauri迁移评估.md §3.3 的平台差异）。
 pub(crate) fn capture_full_pdf(
     window: &WebviewWindow,
     content_width: f64,
     content_height: f64,
+    _options: Option<&serde_json::Value>,
 ) -> Result<Vec<u8>, String> {
     let (tx, rx) = mpsc::channel::<Result<Vec<u8>, String>>();
     with_wk(window, move |wk| unsafe {

@@ -4227,6 +4227,7 @@ dependencies = [
  "opener",
  "path-clean",
  "pinyin",
+ "png",
  "regex",
  "reqwest 0.12.28",
  "serde",
@@ -4240,6 +4241,8 @@ dependencies = [
  "tokio-util",
  "trash",
  "url",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]
