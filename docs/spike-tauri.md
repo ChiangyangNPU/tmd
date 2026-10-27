@@ -33,7 +33,8 @@ npm run dist:tauri:install    # 打包并覆盖安装到 /Applications/TMD-spike
 - 首次运行 cargo 拉全量依赖（rsproxy 不可用时官方 crates.io 实测直连畅通），之后增量构建秒级。
 - 窗口加载的是 vite 开发服务器（`build.devUrl`）；`npm run tauri build` 则加载 `dist/` 生产产物。
 - identifier 用 `com.chiangyang.tmd.spike`：userData 与已安装的 Electron 版**完全隔离**，随便折腾。
-- 系统标题栏保留（spike 不做自绘标题栏适配，那是迁移期的确定性工程）。
+- 标题栏已对齐 Electron 观感（909392d Windows 侧 + mac 侧验证补全，见
+  「标题栏对齐」一节）：mac 无原生标题条、红绿灯悬浮工具栏；Win 全自绘。
 
 ## 已实现（spike 范围）
 
@@ -265,6 +266,34 @@ Electron 离屏导出 = 隐藏窗口 + `backgroundThrottling:false`。WKWebView 
 - **GUI 验收待做**：导出菜单 → 保存框 → 落盘的全 UX 路径（自动化面板键盘
   输入受限，建议人工点一轮 Word/长图/PDF 三项）
 - 超时尸检与桥接心跳（`__tmdSteps`）为验证期观测手段，保留至 GUI 验收后
+
+## 标题栏对齐（909392d Windows 侧实现，2026-10-27 mac 侧验证补全）
+
+对齐 electron/main.cjs:373-376 的双平台观感（main.rs 主窗口 builder 平台 cfg 门控）：
+
+- **Win/Linux**（= Electron `titleBarStyle:'hidden'`）：`decorations(false)` 全自绘，
+  `html.win .win-controls` 按钮走既有 tmd_win_* 命令；Windows 侧实测通过（909392d）
+- **macOS**（= Electron `hiddenInset` + `trafficLightPosition(16,16)`）：
+  `TitleBarStyle::Overlay` + `hidden_title` + `traffic_light_position(16,25)` +
+  tauri.conf `macOSPrivateApi`。**实测（2026-10-27）**：原生标题条消失、工具栏
+  顶到窗口顶、红绿灯圆心 (22.8,22.8) 与 Electron 目标 (23,23) 对齐（亚像素级），
+  与工具栏文本带中心（21.5）垂直居中；文档关联打开回归通过（213 AX 元素）
+
+### mac 侧验证发现（Windows 侧盲写代码的三处修正）
+
+1. **traffic_light_position 语义 ≠ Electron**：x 为按钮原点（圆心=x+7），y 直接
+   映射圆心高度（实测圆心≈y−2.2，判别实验 y=16→13.8 / y=40→37.8 线性校准）。
+   Electron (16,16) 圆心在 (23,23) → Tauri 应配 **(16,25)**（909392d 原值 16,16
+   在 mac 上会偏高 7px）
+2. **扩大的虚拟标题栏容器不拦截内容点击**（wry 把容器扩到 14+y 高实现 y 下移；
+   y=40 实测工具栏按钮仍可点）——红绿灯放任意深度都安全
+3. **原生标题栏行为全部穿透**（单击/拖拽/双击都到不了原生层）：拖拽由 shim 的
+   mousedown→start_dragging 承担（三平台）；双击最大化原仅 html.win 门控——
+   mac 原生缩放不会触发（穿透），已放开为三平台统一接管（mac 系统偏好
+   「连按两下」非默认值不跟随，按 Electron 默认语义缩放）
+
+待人工复核：真实鼠标拖拽工具栏移窗、双击最大化（合成事件因 invoke 异步
+延迟 / dblclick 时间阈值无法自动化验证，机制与 Windows 实测版同源）。
 
 ## 后续验证项（未开工）
 

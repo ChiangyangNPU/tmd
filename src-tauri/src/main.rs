@@ -175,10 +175,13 @@ const TMD_API_SHIM: &str = r#"
     // 左键且非双击按下时拖动窗口；双击交给 dblclick
     if (e.button === 0 && e.detail === 1 && dragHit(e.target)) invoke('plugin:window|start_dragging')
   })
-  // Win/Linux：双击工具栏空白 = 最大化/还原（Electron 由 hidden 标题栏系统行为提供，
-  // mac 双击行为跟随系统设置，这里不接管）
+  // 双击工具栏空白 = 最大化/还原。Win/Linux 由 hidden 标题栏的系统行为提供；
+  // mac 上扩大的标题栏容器实测完全穿透点击（单/双击都到不了原生层），原生
+  // 缩放不会触发——三平台统一由此接管（mac 系统偏好「连按两下」的非默认
+  // 值不跟随，按 Electron 默认语义缩放；如需跟随后续读
+  // AppleActionOnDoubleClick 偏好再分流）
   document.addEventListener('dblclick', function (e) {
-    if (document.documentElement.classList.contains('win') && dragHit(e.target)) invoke('tmd_win_max_toggle')
+    if (dragHit(e.target)) invoke('tmd_win_max_toggle')
   })
 })()
 "#;
@@ -781,14 +784,18 @@ fn main() {
             // 标题栏对齐 Electron 壳观感（electron/main.cjs:374-376）：
             // Win/Linux titleBarStyle 'hidden' → decorations(false) 全自绘（拖拽区与
             // 最大化/关闭由 shim 的拖拽处理 + html.win 自绘按钮承担）；
-            // macOS 'hiddenInset' → Overlay 隐藏标题条 + 红绿灯 (16,16) 对齐
-            // trafficLightPosition，需 tauri.conf.json 开 macOSPrivateApi（内容延伸到标题栏下）
+            // macOS 'hiddenInset' → Overlay 隐藏标题条 + 红绿灯悬浮工具栏，
+            // 需 tauri.conf.json 开 macOSPrivateApi（内容延伸到标题栏下）。
+            // traffic_light_position 语义与 Electron trafficLightPosition 不同（实测
+            // 校准 2026-10-27）：x 为按钮原点（圆心=x+7），y 直接映射圆心高度
+            // （圆心≈y−2.2）。Electron (16,16) 的圆心在 (23,23)，故此处 (16,25)；
+            // 扩大的虚拟标题栏容器不拦截内容点击（y=40 实测按钮仍可点）
             #[cfg(target_os = "macos")]
             {
                 builder = builder
                     .title_bar_style(tauri::TitleBarStyle::Overlay)
                     .hidden_title(true)
-                    .traffic_light_position(tauri::LogicalPosition::new(16.0, 16.0));
+                    .traffic_light_position(tauri::LogicalPosition::new(16.0, 25.0));
             }
             #[cfg(not(target_os = "macos"))]
             {
