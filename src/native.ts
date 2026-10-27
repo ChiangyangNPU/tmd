@@ -172,6 +172,10 @@ export interface NativeFileAPI {
   openLocalFile(filePath: string): Promise<string>
   /** 拖入文件换绝对路径（Electron 32+ 移除了 File.path，经 preload webUtils 解析） */
   getPathForFile(file: File): string
+  /** Tauri 独有：订阅文件拖放的原生路径（dragDropEnabled 拦截下 HTML5 drop 不携带文件；Electron/浏览器无此通道） */
+  onDropPaths?(callback: (paths: string[]) => void): void
+  /** Tauri 独有：按路径读取拖入图片（扩展名白名单 + 32MB 上限），供构造 File 复用插入链；非法返回 null */
+  readDroppedFile?(filePath: string): Promise<{ name: string; mime: string; base64: string } | null>
   /** 手动触发检查更新（设置面板"检查更新"按钮） */
   checkForUpdates(): Promise<void>
   /** 用户同意后触发下载 */

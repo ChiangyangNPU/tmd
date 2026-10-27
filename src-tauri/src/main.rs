@@ -112,6 +112,13 @@ const TMD_API_SHIM: &str = r#"
     onRecentOpen: function (cb) { tmdOn('tmd-recent-open', cb) },
     onAutosave: function (cb) { tmdOn('tmd-autosave', cb) },
     onWindowMaximize: function (cb) { tmdOn('tmd-win-max-changed', cb) },
+    // Tauri 独有：文件拖放经原生拦截（dragDropEnabled 默认开启，HTML5 drop
+    // 不携带文件），路径由 tauri://drag-drop 事件下发
+    onDropPaths: function (cb) {
+      tmdOn('tauri://drag-drop', function (e) {
+        cb((e.payload && e.payload.paths) || [])
+      })
+    },
     getAiConfig: function () { return invoke('tmd_ai_get_config') },
     saveAiConfig: function (patch) { return invoke('tmd_ai_save_config', { patch: patch || {} }) },
     testAiConnection: function (overrides) { return invoke('tmd_ai_test', { overrides: overrides || {} }) },
@@ -122,6 +129,7 @@ const TMD_API_SHIM: &str = r#"
     reportError: function (entry) { invoke('tmd_report_error', { entry: entry }) },
     openLogsDir: function () { return invoke('tmd_open_logs_dir') },
     saveImage: function (options) { return invoke('tmd_save_image', { dir: options.dir, name: options.name, base64: options.base64 }) },
+    readDroppedFile: function (filePath) { return invoke('tmd_read_dropped_file', { filePath: filePath }) },
     openExternal: function (url) { return invoke('tmd_open_external', { url: url }) },
     openLocalFile: function (filePath) { return invoke('tmd_open_local_file', { filePath: filePath }) },
     revealInFolder: function (targetPath) { return invoke('tmd_reveal_in_folder', { targetPath: targetPath }) },
@@ -462,6 +470,34 @@ fn tmd_open_external(url: String) -> bool {
         return false;
     }
     opener::open(&url).is_ok()
+}
+
+/// 对应 native.ts readDroppedFile（Tauri 独有）：拖入图片按路径读字节转 base64，
+/// 供渲染层构造 File 对象复用粘贴图片插入链。白名单扩展名 + 32MB 上限
+/// （与导出图片本地化 read_image_as_data_uri 同口径），非法/超限返回 null。
+#[tauri::command]
+fn tmd_read_dropped_file(file_path: String) -> Result<Option<Value>, String> {
+    let Some(mime) = exporter::image_mime_of(&file_path) else {
+        return Ok(None);
+    };
+    let Ok(meta) = fs::metadata(&file_path) else {
+        return Ok(None);
+    };
+    if !meta.is_file() || meta.len() > exporter::MAX_IMAGE_BYTES {
+        return Ok(None);
+    }
+    let Ok(bytes) = fs::read(&file_path) else {
+        return Ok(None);
+    };
+    let name = Path::new(&file_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    Ok(Some(serde_json::json!({
+        "name": name,
+        "mime": mime,
+        "base64": STANDARD.encode(bytes),
+    })))
 }
 
 /// 对应 native.ts openLocalFile：系统默认应用打开本地文件，空串为成功。
@@ -1095,6 +1131,7 @@ fn main() {
             ai::tmd_ai_abort,
             ai::tmd_ai_embed,
             tmd_save_image,
+            tmd_read_dropped_file,
             tmd_open_external,
             tmd_open_local_file,
             tmd_reveal_in_folder,
