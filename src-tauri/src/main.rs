@@ -99,7 +99,13 @@ const TMD_API_SHIM: &str = r#"
     recentAdd: function (entry) { invoke('tmd_recent_add', { entry: entry }) },
     recentClear: function () { invoke('tmd_recent_clear') },
     recentRemove: function (path) { invoke('tmd_recent_remove', { path: path }) },
-    ready: function () { invoke('tmd_ready') },
+    ready: function () {
+      var pending = listenPending
+      listenPending = []
+      return Promise.all(pending)
+        .catch(function () {})
+        .then(function () { return invoke('tmd_ready') })
+    },
     onOpenPath: function (cb) { tmdOn('tmd-open-path', cb) },
     onMenu: function (cb) { tmdOn('tmd-menu', cb) },
     onRecentOpen: function (cb) { tmdOn('tmd-recent-open', cb) },
@@ -130,13 +136,19 @@ const TMD_API_SHIM: &str = r#"
     print: function (name, options) { return invoke('tmd_print', { name: name || null, options: options || null }) },
   }
   var listened = {}
+  // listen 注册是异步 IPC（Electron 的 ipcRenderer.on 是同步本地注册——移植
+  // 竞态：ready 先到主进程、early-flush 的 emit 落在注册完成前=入真空，文件
+  // 关联打不开文档）。ready 前必须等全部注册在主进程侧落地
+  var listenPending = []
   function tmdOn(event, cb) {
     if (!listened[event]) {
       listened[event] = []
-      window.__TAURI__.event.listen(event, function (e) {
-        var cbs = listened[event]
-        for (var i = 0; i < cbs.length; i++) cbs[i](e.payload)
-      })
+      listenPending.push(
+        window.__TAURI__.event.listen(event, function (e) {
+          var cbs = listened[event]
+          for (var i = 0; i < cbs.length; i++) cbs[i](e.payload)
+        })
+      )
     }
     listened[event].push(cb)
   }
@@ -709,9 +721,21 @@ fn main() {
     let app = tauri::Builder::default()
         // 单实例锁：二次启动的 argv 转交主实例（官方要求该插件最先注册）
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
-            for path in argv {
-                queue_open_path(app, path);
-            }
+            // 二次实例转交同样在主线程回调里到达：与 RunEvent::Opened 同因，
+            // 整体挪出主线程再入队/冲刷（窗口操作经 Tauri 正常派发）
+            let app = app.clone();
+            std::thread::spawn(move || {
+                // 转交理论只在应用完全启动后发生，但与 Opened 同因防护
+                for _ in 0..300 {
+                    if app.try_state::<PendingOpenPaths>().is_some() {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                for path in argv {
+                    queue_open_path(&app, path);
+                }
+            });
         }))
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -1089,17 +1113,40 @@ fn main() {
 }
 
 /// macOS open-file / iOS 打开事件：路径入待打开队列
-/// （Windows 不派发此事件，编译期排除，见 run 回调注释）
+/// （Windows 不派发此事件，编译期排除，见 run 回调注释）。
+///
+/// **必须整体挪出 Apple Event 派发线程**：本回调在主线程的 odoc 事件派发
+/// 栈内同步执行；若渲染层已 ready，queue_open_path 会当场冲刷并调用
+/// unminimize/show/set_focus——从主线程向主线程派发窗口操作并阻塞等待，
+/// panic/unwind 穿越 ObjC 帧直接 terminate（SIGABRT，odoc 晚于 ready
+/// 到达时必现；早到则入队、由 ready 命令线程冲刷而幸免——竞态由此而来）。
+/// 挪到专职线程后：入队与冲刷都在非主线程，窗口操作经 Tauri 正常派发。
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
     if let tauri::RunEvent::Opened { urls } = event {
-        for url in urls {
-            let path = url
-                .to_file_path()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| url.to_string());
-            queue_open_path(app, path);
-        }
+        let paths: Vec<String> = urls
+            .iter()
+            .map(|url| {
+                url.to_file_path()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_else(|_| url.to_string())
+            })
+            .collect();
+        let app = app.clone();
+        std::thread::spawn(move || {
+            // Opened 可能早于 setup 完成（PendingOpenPaths 尚未 manage）：
+            // 轮询等待而非 state() panic（原崩溃根因：早到事件在 AE 派发栈
+            // 内同步 panic → abort；线程内 panic 则静默丢文档）
+            for _ in 0..300 {
+                if app.try_state::<PendingOpenPaths>().is_some() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            for path in paths {
+                queue_open_path(&app, path);
+            }
+        });
     }
 }
 
@@ -1146,7 +1193,7 @@ fn flush_pending_open_paths(app: &tauri::AppHandle) {
         std::mem::take(&mut *g)
     };
     for path in paths {
-        let _ = app.emit("tmd-open-path", path);
+        let _ = app.emit("tmd-open-path", &path);
     }
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
