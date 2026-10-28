@@ -934,7 +934,7 @@ fn main() {
                         ));
                         let pdf = metrics.and_then(|(w, h)| {
                             step(&format!("step4: capture_full_pdf 前（{}x{}）", w, h));
-                            export_native::capture_full_pdf(&window, w, h).and_then(|bytes| {
+                            export_native::capture_full_pdf(&window, w, h, None).and_then(|bytes| {
                                 std::fs::write("/tmp/tmd-spike-export.pdf", &bytes)
                                     .map_err(|e| e.to_string())?;
                                 step(&format!("step5: PDF 落盘 {} 字节", bytes.len()));
@@ -989,7 +989,8 @@ fn main() {
                             };
                             let result = if is_pdf {
                                 export_native::read_content_metrics(&window).and_then(|(w, h)| {
-                                    let bytes = export_native::capture_full_pdf(&window, w, h)?;
+                                    let bytes =
+                                        export_native::capture_full_pdf(&window, w, h, None)?;
                                     let out = std::path::Path::new("/tmp/tmd-spike-export.pdf");
                                     std::fs::write(out, &bytes).map_err(|e| e.to_string())?;
                                     Ok(format!(

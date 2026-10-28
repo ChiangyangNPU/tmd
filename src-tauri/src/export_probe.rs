@@ -152,7 +152,7 @@ fn run_variant(app: &AppHandle, variant: &str) -> Result<(), String> {
 
     // 截图（view 全图层）+ 全文档 PDF（rect 用探针内容高）
     let png = export_native::capture_viewport_png(&window);
-    let pdf = export_native::capture_full_pdf(&window, PROBE_W, PROBE_CONTENT_H);
+    let pdf = export_native::capture_full_pdf(&window, PROBE_W, PROBE_CONTENT_H, None);
 
     let png_path = format!("/tmp/tmd-export-probe-{}.png", variant);
     let pdf_path = format!("/tmp/tmd-export-probe-{}.pdf", variant);
