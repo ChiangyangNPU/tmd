@@ -645,6 +645,20 @@ async function boot() {
         e.preventDefault()
         const id = getActiveTabId()
         if (id) void closeTab(id)
+      } else {
+        // 通用兜底：无原生菜单的壳（Windows Tauri / 浏览器）按 accelerator
+        // 反查快捷键配置，走与菜单事件同一条分发路（打开/保存/导出/格式化）。
+        // 有原生菜单的壳（macOS / Electron）菜单 accelerator 先消费按键，
+        // keydown 不会到达这里，不存在重复触发
+        const hit = Object.entries(shortcuts).find(
+          ([action, accelerator]) =>
+            isSameAccelerator(acc, accelerator) &&
+            (action.startsWith('fmt-') || action in menuHandlers),
+        )
+        if (hit) {
+          e.preventDefault()
+          dispatchMenuAction(hit[0])
+        }
       }
     })
 
@@ -711,7 +725,9 @@ async function boot() {
         ),
       'clear-recent': () => clearRecentDocuments(),
     }
-    native?.onMenu((action) => {
+    // 菜单动作分发：原生菜单事件（macOS / Electron）与渲染层 keydown 兜底
+    // （Windows Tauri / 浏览器，无原生菜单）共用同一条路
+    const dispatchMenuAction = (action: string): void => {
       // 格式化命令：统一走 format 命令层；仅在所见即所得为可编辑侧时生效——
       // 纯源码模式下它是隐藏的，分屏中源码为编辑侧时它是只读跟随
       // （改了也不会显示，还会被下一次源码→所见即所得同步覆盖）
@@ -721,7 +737,8 @@ async function boot() {
         return
       }
       menuHandlers[action]?.()
-    })
+    }
+    native?.onMenu(dispatchMenuAction)
 
     // 命令面板命令源：标题/关键词表集中在此（i18n 键全部复用既有 menu.*/settings.* 组）
     const COMMAND_DEFS: Record<string, [string, string]> = {

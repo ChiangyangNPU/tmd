@@ -9,7 +9,15 @@
 //!   （webview 原生响应 Cmd+C/V 等编辑快捷键，功能不受损，菜单 UI 缺失）
 //! - 退出项固定用默认中文文案「退出 TMD」（labels 无 quit 键）
 //!
+//! 平台差异：菜单仅 macOS 实挂（系统菜单栏，见 shell.rs rebuild_menu 注释）；
+//! Windows 挂原生菜单会闪菜单栏且偏离 Electron 观感（Electron 版隐藏菜单栏、
+//! 快捷键走渲染层 keydown），故本文件的菜单构建在 Windows 下不参与接线
+//! （is_safe_external_url / RecentEntry 等纯逻辑两侧共用）。
+//!
 //! @author chiangyang
+
+// 菜单构建函数在 Windows 下不接线（见上方平台差异），保留实现待后续统一
+#![cfg_attr(not(target_os = "macos"), allow(dead_code))]
 
 use std::collections::HashMap;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};

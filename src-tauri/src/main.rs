@@ -812,7 +812,11 @@ fn main() {
             };
             let display_rects = shell::monitor_rects(&app.available_monitors().unwrap_or_default());
             let restored = shell::restore_win_state(&persisted, &display_rects);
-            // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建
+            // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建。
+            // 仅 macOS：Windows 挂原生菜单会闪菜单栏且偏离 Electron 观感
+            // （Electron 版 Win/Linux 是 setMenuBarVisibility(false) 隐藏菜单栏，
+            // 快捷键由渲染层 keydown 兜底分发，见 src/main.ts 通用分支）
+            #[cfg(target_os = "macos")]
             app.state::<ShellState>().rebuild_menu(app.handle());
             let mut builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
@@ -841,6 +845,13 @@ fn main() {
             #[cfg(not(target_os = "macos"))]
             {
                 builder = builder.decorations(false);
+                // Windows 消除首帧白闪：隐藏创建，页面加载完成（工具栏已可绘制）
+                // 再显示——对齐 Electron 版 show:false + ready-to-show 的时序
+                builder = builder.visible(false).on_page_load(|window, payload| {
+                    if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                        let _ = window.show();
+                    }
+                });
             }
             match restored {
                 Some(win) => {

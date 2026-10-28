@@ -16,7 +16,10 @@
 //!
 //! @author chiangyang
 
-use crate::menu::{build_menu, collation_locale, default_labels, RecentEntry};
+// build_menu 仅 macOS 实挂菜单时使用（Windows 不挂原生菜单，见 rebuild_menu）
+#[cfg(target_os = "macos")]
+use crate::menu::build_menu;
+use crate::menu::{collation_locale, default_labels, RecentEntry};
 use pinyin::ToPinyin;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -55,24 +58,32 @@ impl ShellState {
 
     /// 重建应用菜单（触发链与 main.cjs buildMenu() 一致：语言切换 / 快捷键
     /// 同步 / 最近列表变化后调用）。启动时以中文默认文案建一次。
+    /// 仅 macOS 实挂：Windows 挂原生菜单会在首帧闪菜单栏且偏离 Electron
+    /// 观感（Electron 版 Win/Linux 隐藏菜单栏、快捷键走渲染层 keydown 兜底
+    /// 分发），故 Windows 侧本函数为 no-op，快捷键由渲染层 keydown 承担。
+    #[cfg_attr(not(target_os = "macos"), allow(unused_variables))]
     pub fn rebuild_menu(&self, app: &AppHandle) {
-        let (labels, shortcuts, recents, autosave) = {
-            let g = self.inner.lock().expect("shell state 中毒");
-            (
-                g.labels.clone(),
-                g.shortcuts.clone(),
-                g.recents.clone(),
-                g.autosave_enabled,
-            )
-        };
-        match build_menu(app, &labels, &shortcuts, &recents, autosave) {
-            Ok(built) => {
-                if let Err(err) = app.set_menu(built.menu.clone()) {
-                    eprintln!("[tmd-tauri] 菜单设置失败: {}", err);
+        #[cfg(target_os = "macos")]
+        {
+            let (labels, shortcuts, recents, autosave) = {
+                let g = self.inner.lock().expect("shell state 中毒");
+                (
+                    g.labels.clone(),
+                    g.shortcuts.clone(),
+                    g.recents.clone(),
+                    g.autosave_enabled,
+                )
+            };
+            match build_menu(app, &labels, &shortcuts, &recents, autosave) {
+                Ok(built) => {
+                    if let Err(err) = app.set_menu(built.menu.clone()) {
+                        eprintln!("[tmd-tauri] 菜单设置失败: {}", err);
+                    }
+                    *self.autosave_item.lock().expect("autosave item 锁中毒") =
+                        Some(built.autosave);
                 }
-                *self.autosave_item.lock().expect("autosave item 锁中毒") = Some(built.autosave);
+                Err(err) => eprintln!("[tmd-tauri] 菜单构建失败: {}", err),
             }
-            Err(err) => eprintln!("[tmd-tauri] 菜单构建失败: {}", err),
         }
     }
 
