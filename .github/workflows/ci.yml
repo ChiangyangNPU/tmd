@@ -2,13 +2,20 @@
 # 与 release.yml（tag 触发的发布链路）互补：发布工作流保证"打 tag 时产物可构建"，
 # 这里保证"主干随时可用"——质量门禁不依赖开发者本地自觉。
 #
-# 注意：
-# - 单 ubuntu job 即可：lint / tsc / vitest 均平台无关，双平台差异只在打包阶段，
-#   由 release.yml 的 mac + win matrix 覆盖；
+# 两个 job：
+# - check（ubuntu）：lint / tsc / vitest / vite build，前端侧平台无关，单平台即可；
+# - rust（mac + win matrix）：src-tauri 双平台编译门禁。壳层代码大量平台 cfg
+#   分支（macos objc2 直调 WKWebView / windows WebView2），单侧开发时另一侧
+#   编译不到，盲写遗漏只有对侧构建才能暴露（a2f82ff 即 2b2dd29 在 Windows
+#   侧漏改 macOS cfg 调用点所致）。双平台各自 cargo fmt + test 堵住该缺口。
+#
+# 其他注意：
 # - 桌面 E2E（test:desktop）与性能基准（bench）依赖真实 Electron 窗口，仍走本地
 #   执行（见 README），不进 CI；
 # - 构建步骤用 npx vite build：tsc 已在「类型检查」步骤通过，避免重复跑一遍
-#   （npm run build = tsc && vite build）。
+#   （npm run build = tsc && vite build）；
+# - rust job 不跑 vite：tauri::generate_context! 编译期只要求 frontendDist 存在，
+#   放占位 index.html 撑过 codegen 即可（前端由 check job 全量构建）。
 
 name: CI
 
@@ -46,3 +53,32 @@ jobs:
         run: npm test
       - name: Build
         run: npx vite build
+
+  # Rust 双平台编译门禁（背景见文件头注释）。fail-fast 关闭：一侧失败也要跑完
+  # 另一侧，一次 push 拿到两平台的完整报错。
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # tauri::generate_context! 编译期嵌入 frontendDist：占位文件撑过 codegen，
+      # 免去 npm ci + vite build（前端已由 check job 构建，且平台无关）
+      - name: Stub frontend dist
+        shell: bash
+        run: |
+          mkdir -p ../dist
+          echo '<!doctype html><title>ci-stub</title>' > ../dist/index.html
+      - name: Format check
+        run: cargo fmt --check
+      - name: Compile and unit tests
+        run: cargo test
