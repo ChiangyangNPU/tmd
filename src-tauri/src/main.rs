@@ -1,3 +1,6 @@
+// Windows release 不弹控制台窗口（GUI 子系统）；dev 保留控制台看 cargo 日志
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 //! TMD Tauri 壳层（spike 通过后的正式迁移起点，双壳共存——Electron 壳不受影响）。
 //!
 //! 架构：`window.tmdAPI` 契约（src/native.ts）由本壳经 initialization_script
@@ -115,8 +118,9 @@ const TMD_API_SHIM: &str = r#"
     // Tauri 独有：文件拖放经原生拦截（dragDropEnabled 默认开启，HTML5 drop
     // 不携带文件），路径由 tauri://drag-drop 事件下发
     onDropPaths: function (cb) {
-      tmdOn('tauri://drag-drop', function (e) {
-        cb((e.payload && e.payload.paths) || [])
+      // tmdOn 回调收到的已是 payload 本身（{paths, position}），勿再解包一层
+      tmdOn('tauri://drag-drop', function (payload) {
+        cb((payload && payload.paths) || [])
       })
     },
     getAiConfig: function () { return invoke('tmd_ai_get_config') },
