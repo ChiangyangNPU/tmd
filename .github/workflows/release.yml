@@ -14,11 +14,20 @@
 # - publish job：下载双平台 artifact，gh CLI 创建 GitHub Release（正文取当前
 #   版本小节）并上传全部产物——**直接发布，不用草稿**（草稿对 electron-updater
 #   不可见，会卡住 GitHub 源的自动更新）
+# - Tauri 双轨（2026-10-28 起）：build-tauri job 用带签名脚本出 NSIS/dmg +
+#   .sig，并生成 Tauri 更新器元数据 latest.json，与 Electron 产物**同 Release**
+#   并存上传——老用户（Electron 更新源 latest*.yml）与 Tauri 更新源
+#   （latest.json）互不干扰。双轨由 inputs.publish_tauri 控制：tag 推送默认
+#   开，workflow_dispatch 可关（只发 Electron）
 #
 # 注意：
 # - 发版前把 CHANGELOG 的 [未发布] 转正（CI 以 --strict 强制校验，缺失即失败）
 # - Gitee 元数据经 CI 推到 Gitee master：远端会多出一个元数据提交，
 #   本地下次 pushall 前先 git pull gitee master --no-rebase 合并（§9）
+# - Tauri 签名私钥 Secret：TAURI_SIGNING_PRIVATE_KEY（tauri signer generate
+#   产物内容，见 docs/打包发布.md §11.2）。**未配置时 build-tauri 失败**：
+#   tag 推送下 publish 仍继续（Electron 发布不被拖死），但 Tauri 双轨无效；
+#   配好 Secret 后自动恢复
 
 name: Release
 
@@ -27,6 +36,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      publish_tauri:
+        description: '同时发布 Tauri 版（tag 推送时恒开；仅手动触发时可关）'
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -80,9 +94,70 @@ jobs:
             release/*.blockmap
           retention-days: 7
 
+  # Job 1.5：Tauri 双轨打包（带更新签名；产物与 Electron 同 Release 并存）。
+  # tag 推送恒开；手动触发时可经 inputs.publish_tauri 关闭（只发 Electron）。
+  # 私钥来自 Secret TAURI_SIGNING_PRIVATE_KEY（minisign，生成方式见 §11.2）；
+  # mac 侧 Tauri 更新产物为 TMD.app.tar.gz（.sig 对应它而非 dmg——dmg 只作
+  # 首次手动安装），updater 工件在 bundle/macos/。
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: mac
+          - os: windows-latest
+            platform: win
+    runs-on: ${{ matrix.os }}
+    if: github.event_name == 'push' || github.event.inputs.publish_tauri == 'true'
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - name: Build Tauri (signed)
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            npm run dist:tauri:win:signed
+          else
+            npm run dist:tauri:mac:signed
+          fi
+        shell: bash
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p release
+          # Windows：NSIS 安装包 + .sig（bundle/nsis/）
+          # macOS：dmg（首装）+ updater 的 app.tar.gz 与 .sig（bundle/macos/）
+          find src-tauri/target/release/bundle -type f \
+            \( -name '*.exe' -o -name '*.exe.sig' -o -name '*.dmg' \
+               -o -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' \) \
+            -exec cp {} release/ \;
+          ls -la release/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-release-${{ matrix.platform }}
+          path: |
+            release/*.exe
+            release/*.exe.sig
+            release/*.dmg
+            release/*.app.tar.gz
+            release/*.app.tar.gz.sig
+          retention-days: 7
+
   # Job 2：统一发布（GitHub Release + Gitee）
   publish:
-    needs: build
+    needs: [build, build-tauri]
+    if: always() && needs.build.result == 'success' && (github.event_name == 'push' || (needs.build-tauri.result == 'success' || needs.build-tauri.result == 'skipped'))
     runs-on: ubuntu-latest
     # GitHub-hosted runner 单 job 硬上限 6 小时（平台限制，设超过也会被掐断）：
     # 取满 6 小时以容纳 Gitee 跨国传输（实测 3.7 小时）；
@@ -95,16 +170,43 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # 下载两个平台的产物
+      # 下载两个平台的产物（Electron：release-*；Tauri：tauri-release-*）
       - uses: actions/download-artifact@v4
         with:
           path: release
           pattern: release-*
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        if: needs.build-tauri.result == 'success'
+        with:
+          path: release
+          pattern: tauri-release-*
+          merge-multiple: true
       - name: List artifacts
         run: find release -type f | sort
       - name: Extract release notes
         run: node scripts/extract-release-notes.mjs --strict
+
+      # ---------- Tauri 更新器元数据 latest.json（windows/mac 两平台条目；
+      # .sig 内容即 signature 字段。只在 Tauri job 实际跑过时生成） ----------
+      - name: Make Tauri latest.json
+        if: needs.build-tauri.result == 'success'
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          WIN_SETUP=$(find release -name '*_x64-setup.exe' | head -1 || true)
+          MAC_TARGZ=$(find release -name '*.app.tar.gz' | head -1 || true)
+          ARGS=""
+          if [ -n "$WIN_SETUP" ]; then
+            ARGS="$ARGS --win-setup $WIN_SETUP --win-sig ${WIN_SETUP}.sig"
+          fi
+          if [ -n "$MAC_TARGZ" ]; then
+            ARGS="$ARGS --mac-sig ${MAC_TARGZ}.sig --mac-url-name $(basename "$MAC_TARGZ")"
+          fi
+          node scripts/make-tauri-latest.mjs $ARGS --out release/latest.json ${TAG:+--tag "$TAG"}
+          # 元数据同写入仓库 releases/ 供 Gitee raw 端点（与 Electron yml 同目录）
+          mkdir -p releases
+          cp release/latest.json releases/latest.json
 
       # ---------- GitHub Release（直接发布；草稿对 electron-updater 不可见） ----------
       - name: Publish to GitHub Release
@@ -116,7 +218,10 @@ jobs:
           # 兜底转正：gh release view 只判断「存在」，不区分 draft；若已有同名
           # draft（更新器完全不可见，会卡死 GitHub 源自动更新）则强制发布
           gh release edit "$TAG" --draft=false
-          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
+          # Electron（dmg/exe/blockmap/latest*.yml）+ Tauri（exe.sig/dmg/app.tar.gz
+          # 及 .sig/latest.json）同 Release 并存；通配符按实际存在的文件工作
+          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml \
+                   release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json; do
             [ -f "$f" ] || continue
             gh release upload "$TAG" "$f" --clobber
           done
@@ -128,7 +233,8 @@ jobs:
             echo "::error::GitHub Release 仍为 draft 状态，electron-updater 不可见"
             MISSING=1
           fi
-          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml; do
+          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml \
+                   release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
             if node -e "
@@ -180,6 +286,10 @@ jobs:
           git clone --depth 1 "https://oauth2:${GITEE_TOKEN}@gitee.com/$GITEE_OWNER/$GITEE_REPO.git" /tmp/gitee-meta
           mkdir -p /tmp/gitee-meta/releases
           cp releases/*.yml /tmp/gitee-meta/releases/
+          # Tauri 元数据同目录（raw 端点 https://...raw/master/releases/latest.json）
+          if [ -f releases/latest.json ]; then
+            cp releases/latest.json /tmp/gitee-meta/releases/
+          fi
           git -C /tmp/gitee-meta config user.name "github-actions[bot]"
           git -C /tmp/gitee-meta config user.email "github-actions[bot]@users.noreply.github.com"
           git -C /tmp/gitee-meta add releases/
@@ -267,8 +377,10 @@ jobs:
             echo "$code" > "/tmp/attach-${name}.code"
           }
 
-          # 大文件并行上传：dmg 约 85MB、exe 约 96MB，均在 Gitee 附件单文件
-          # 100MB 上限内（不再产出 mac zip，macOS 改走「下载 dmg 手动安装」）
+          # 大文件并行上传：dmg 约 85MB、exe 约 96MB（Electron 与 Tauri 的 NSIS
+          # 各一个 exe），均在 Gitee 附件单文件 100MB 上限内（不再产出 mac zip，
+          # macOS 改走「下载 dmg 手动安装」；Tauri mac 更新件 app.tar.gz 较小，
+          # 与 sig/blockmap/latest.json 一并走串行通道）
           BIG_FILES=""
           for f in release/*.dmg release/*.exe; do
             [ -f "$f" ] && BIG_FILES="$BIG_FILES $f"
@@ -277,7 +389,8 @@ jobs:
             upload_asset "$f" &
           done
           wait
-          for f in release/*.blockmap; do
+          for f in release/*.blockmap release/*.sig release/*.app.tar.gz \
+                   release/latest.json; do
             [ -f "$f" ] || continue
             # 排除 mac zip 的差量索引：zip 本身超 100MB 上限不在 Gitee，
             # 孤儿 blockmap 无意义（差量更新会自然回退全量下载）
@@ -286,7 +399,8 @@ jobs:
           done
 
           ATTACH_FAILED=0
-          for f in release/*.dmg release/*.exe release/*.blockmap; do
+          for f in release/*.dmg release/*.exe release/*.blockmap release/*.sig \
+                   release/*.app.tar.gz release/latest.json; do
             [ -f "$f" ] || continue
             case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
@@ -317,7 +431,8 @@ jobs:
             "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID" \
             | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const r=JSON.parse(d);console.log((r.assets||[]).map(a=>a.name).join('\\n'))}catch{console.log('')}})")
           MISSING=0
-          for f in release/*.dmg release/*.exe release/*.blockmap; do
+          for f in release/*.dmg release/*.exe release/*.blockmap release/*.sig \
+                   release/*.app.tar.gz release/latest.json; do
             [ -f "$f" ] || continue
             case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
