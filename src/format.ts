@@ -244,7 +244,14 @@ export const formatKeymap = $prose(
           const shortcuts = loadShortcuts()
           for (const [action, accelerator] of Object.entries(shortcuts)) {
             if (!action.startsWith('fmt-')) continue
-            if (isSameAccelerator(acc, accelerator)) return applyFormatAction(view, action)
+            if (isSameAccelerator(acc, accelerator)) {
+              const handled = applyFormatAction(view, action)
+              // 命令生效后拦截冒泡：无原生菜单的壳（Windows Tauri / 浏览器）里，
+              // 事件继续冒泡会命中 main.ts 的通用兜底再执行同一命令——切换类
+              // 命令一加一撤等于没生效（真机与浏览器双重实测）
+              if (handled) event.stopPropagation()
+              return handled
+            }
           }
           return false
         },

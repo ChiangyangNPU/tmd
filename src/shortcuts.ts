@@ -225,19 +225,56 @@ export function eventToAccelerator(e: KeyboardEvent): string {
   if (e.shiftKey) parts.push('Shift')
   if (e.altKey) parts.push('Alt')
   // 只取主键（忽略纯修饰键）
-  const key = normalizeKey(e.key)
+  const key = normalizeKey(e)
   if (key) parts.push(key)
   return parts.join('+')
+}
+
+/**
+ * Shift + 数字/符号的物理键位还原表。
+ *
+ * 键盘事件里此类组合的 e.key 是位移后的打印字符（Shift+8 → '*'、
+ * Shift+= → '+'、Shift+, → '<'），与快捷键配置中的主键（'8'、'='、','）
+ * 永不相等，匹配必然失败；改用 e.code（物理键位）还原配置语义上的主键。
+ * 合成事件没有 code 字段，自然回落到 e.key，行为不变。
+ */
+const KEY_FROM_CODE: Record<string, string> = {
+  Digit0: '0',
+  Digit1: '1',
+  Digit2: '2',
+  Digit3: '3',
+  Digit4: '4',
+  Digit5: '5',
+  Digit6: '6',
+  Digit7: '7',
+  Digit8: '8',
+  Digit9: '9',
+  Equal: '=',
+  Minus: '-',
+  Comma: ',',
+  Period: '.',
+  Slash: '/',
+  Semicolon: ';',
+  Quote: "'",
+  Backquote: '`',
+  BracketLeft: '[',
+  BracketRight: ']',
+  Backslash: '\\',
 }
 
 /**
  * 将 KeyboardEvent.key 规范化为 Electron accelerator 可识别的形式。
  * 修饰键本身返回空串（主键未按下，不参与组合）。
  */
-function normalizeKey(key: string): string {
+function normalizeKey(e: KeyboardEvent): string {
+  const key = e.key
   if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') return ''
   if (key === ' ') return 'Space'
-  if (key.length === 1) return key.toUpperCase()
+  if (key.length === 1) {
+    const fromCode = e.code ? KEY_FROM_CODE[e.code] : undefined
+    if (fromCode) return fromCode
+    return key.toUpperCase()
+  }
   // 方向键等功能键保留原名（Electron 支持 ArrowUp 等）
   return key
 }

@@ -32,10 +32,11 @@ function installMemoryStorage() {
 /** 构造键盘事件（测试环境无 KeyboardEvent 构造器，按需字段强转） */
 function keyEvent(
   key: string,
-  mods: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean } = {},
+  mods: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean; code?: string } = {},
 ): KeyboardEvent {
   return {
     key,
+    code: mods.code,
     ctrlKey: !!mods.ctrl,
     shiftKey: !!mods.shift,
     altKey: !!mods.alt,
@@ -153,6 +154,31 @@ describe('eventToAccelerator 按键转换', () => {
 
   it('空格键规范化为 Space', () => {
     expect(eventToAccelerator(keyEvent(' ', { ctrl: true }))).toBe('CmdOrCtrl+Space')
+  })
+
+  it('Shift+数字/符号按物理键位还原主键（e.key 是位移后字符，与配置失配）', () => {
+    // 真实键盘事件：Shift+8 的 e.key 是 '*'，但配置主键是 '8'
+    expect(eventToAccelerator(keyEvent('*', { ctrl: true, shift: true, code: 'Digit8' }))).toBe(
+      'CmdOrCtrl+Shift+8',
+    )
+    expect(eventToAccelerator(keyEvent('(', { ctrl: true, shift: true, code: 'Digit9' }))).toBe(
+      'CmdOrCtrl+Shift+9',
+    )
+    // 上标 Ctrl+Shift+= ：e.key 是 '+'
+    expect(eventToAccelerator(keyEvent('+', { ctrl: true, shift: true, code: 'Equal' }))).toBe(
+      'CmdOrCtrl+Shift+=',
+    )
+    // 下标 Ctrl+Shift+- ：e.key 是 '_'
+    expect(eventToAccelerator(keyEvent('_', { ctrl: true, shift: true, code: 'Minus' }))).toBe(
+      'CmdOrCtrl+Shift+-',
+    )
+    // 设置面板 Ctrl+,：无 Shift 时同样按 code 还原
+    expect(eventToAccelerator(keyEvent('<', { ctrl: true, code: 'Comma' }))).toBe('CmdOrCtrl+,')
+  })
+
+  it('无 code 字段的合成事件回落到 e.key（行为不变）', () => {
+    expect(eventToAccelerator(keyEvent('*', { ctrl: true, shift: true }))).toBe('CmdOrCtrl+Shift+*')
+    expect(eventToAccelerator(keyEvent('8', { ctrl: true }))).toBe('CmdOrCtrl+8')
   })
 })
 
