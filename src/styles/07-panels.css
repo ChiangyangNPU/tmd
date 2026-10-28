@@ -719,11 +719,33 @@
   gap: 4px;
 }
 
-/* 标题行的「清空」文字按钮：与 ✕ 同一弱化视觉，但保留可读文字宽度 */
+/* 标题行的「清空」「×」按钮：统一为文件侧边栏根行「＋文 / ＋夹」「×」的弱化视觉
+   ——无边框、透明底、弱化字色，悬停转强调色（不铺底色） */
+.ai-chat-panel .panel-close {
+  min-width: 0;
+  padding: 0 3px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--muted);
+  line-height: 1;
+}
+
+/* 「清空」为文字按钮：字号与「＋夹」一致，需保留可读文字宽度 */
 .ai-chat-title-btn {
   width: auto;
-  padding: 0 6px;
+  padding: 0 4px;
   font-size: 11px;
+}
+
+/* 关闭「×」字号与文件行里的「×」一致 */
+.ai-chat-panel .panel-close:not(.ai-chat-title-btn) {
+  font-size: 14px;
+}
+
+.ai-chat-panel .panel-close:hover {
+  color: var(--accent);
+  background: transparent;
 }
 
 .ai-chat-hint {
