@@ -366,6 +366,7 @@
     "imageAssets": "儲存至文件同目錄的 assets/ 資料夾（需先儲存文件）",
     "imageAssetsHint": "選擇 assets 模式時，尚未儲存過的文件會自動降級為內嵌模式",
     "imageHosting": "上傳至圖床（PicGo，適合分享到網路）",
+    "imageHostingUnsupported": "上傳至圖床（目前版本不支援，圖片將儲存到本機）",
     "imageHostingHint": "選擇圖床模式時，上傳失敗會自動降級為內嵌模式",
     "picgoConfig": "圖床設定",
     "picgoUploader": "圖床類型",

@@ -4,7 +4,7 @@
  *
  * 图片策略的状态由本模块持有（粘贴上下文经 getCurrentImageStrategy 读取）。
  */
-import { native } from './native'
+import { native, hasNativeFeature } from './native'
 import type { AiConfigPatch, AiConfigView, UpdateStatus } from './native'
 import { aiErrorMessage, fetchAiConfig, isAiAvailable, saveAiConfig, testAiConnection } from './ai'
 import { applyDomTexts, menuLabels, getLocale, setLocale, t } from './i18n'
@@ -158,13 +158,41 @@ function renderPicGoFields(uploader: string, values: Record<string, string> = {}
 function togglePicGoSection() {
   const section = document.getElementById('picgo-config-section')
   if (!section) return
-  section.style.display = imageStrategy === 'hosting' ? '' : 'none'
+  // 壳层无图床能力时整块隐藏：配置保存不落地，显示出来只会误导
+  const supported = hasNativeFeature('picgo')
+  section.style.display = supported && imageStrategy === 'hosting' ? '' : 'none'
+}
+
+/**
+ * 无图床能力时降级「上传到图床」选项：
+ * 单选项置灰 + 文案追加「当前版本不支持」，并把已保存的 hosting 策略回落为
+ * 内联（否则每次粘贴都会走一次注定失败的 no-op 上传）。
+ */
+function degradePicGoOption() {
+  if (hasNativeFeature('picgo')) return
+  const radio = document.querySelector(
+    'input[name="set-img"][value="hosting"]',
+  ) as HTMLInputElement | null
+  const label = radio?.closest('.settings-option') as HTMLElement | null
+  const text = label?.querySelector('span')
+  if (radio) {
+    radio.disabled = true
+    radio.checked = false
+  }
+  if (text) text.textContent = t('settings.imageHostingUnsupported')
+  if (imageStrategy === 'hosting') {
+    imageStrategy = 'inline'
+    setImageStrategy(imageStrategy)
+  }
+  togglePicGoSection()
 }
 
 /** 加载 PicGo 配置并填充到表单 */
 async function loadPicGoConfig() {
-  if (!native) return
+  if (!native || !hasNativeFeature('picgo')) return
   const config = await native.getPicGoConfig()
+  // 兜底：能力声明缺省时若壳层仍返回 undefined（旧壳/异常），不能在这里抛错
+  if (!config || typeof config !== 'object') return
   const uploader = (config.current as string) || 'smms'
   const select = document.getElementById('picgo-uploader') as HTMLSelectElement | null
   if (select) select.value = uploader
@@ -174,7 +202,7 @@ async function loadPicGoConfig() {
 
 /** 保存 PicGo 配置 */
 async function savePicGoConfig() {
-  if (!native) return
+  if (!native || !hasNativeFeature('picgo')) return
   const select = document.getElementById('picgo-uploader') as HTMLSelectElement | null
   const uploader = select?.value || 'smms'
   const fields = PICGO_FIELDS[uploader] || []
@@ -782,6 +810,9 @@ export function openSettings() {
     autosaveBox.checked = isAutosaveOn() && !!native
     autosaveBox.disabled = !native
   }
+  // 图床能力降级须先于单选项同步：已存 hosting 策略在此回落到 inline，
+  // 下面的 imgRadio 才能选中真正生效的那一项
+  degradePicGoOption()
   const imgRadio = overlay.querySelector(
     `input[name="set-img"][value="${imageStrategy}"]`,
   ) as HTMLInputElement | null

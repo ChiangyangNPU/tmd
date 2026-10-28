@@ -27,5 +27,14 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://gitee.com/chiangyangNPU/tmd/raw/master/releases/latest.json",
+        "https://github.com/ChiangyangNPU/tmd/releases/latest/download/latest.json"
+      ],
+      "pubkey": ""
+    }
   }
 }

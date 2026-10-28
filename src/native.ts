@@ -126,8 +126,36 @@ export interface ExportAssets {
   katexCss: string
 }
 
+/**
+ * 壳层能力声明：某些通道只在特定壳里实现（当前 Tauri 版没有图床与自动更新）。
+ *
+ * 字段缺省 = 支持（Electron preload 不声明本对象，历史行为不变）；
+ * 显式 false 表示该能力整块不可用，渲染层据此降级 UI 而不是等调用后拿到
+ * undefined。Tauri 的 shim 里未实现通道是 no-op（返回 undefined），
+ * 若不做前置探测，`getPicGoConfig()` 之类会在解构结果时直接抛错。
+ */
+export interface NativeCapabilities {
+  /** 图床（PicGo）：uploadImage / getPicGoConfig / savePicGoConfig */
+  picgo?: boolean
+  /** 自动更新：checkForUpdates / downloadUpdate / installUpdate 等 */
+  updater?: boolean
+}
+
+/**
+ * 壳层是否具备某项能力。
+ *
+ * 浏览器模式（无 native）与壳层未声明的字段都按「支持」处理——
+ * 前者各模块本就有 `!native` 降级分支，后者保证 Electron 版零行为变化。
+ */
+export function hasNativeFeature(feature: keyof NativeCapabilities): boolean {
+  if (!native) return false
+  return native.capabilities?.[feature] !== false
+}
+
 export interface NativeFileAPI {
   isNative: true
+  /** 壳层能力声明（可选；缺省表示全部支持，见 NativeCapabilities） */
+  capabilities?: NativeCapabilities
   openFile(): Promise<TextFileData | null>
   readFile(filePath: string): Promise<TextFileData>
   readDir(

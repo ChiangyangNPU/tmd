@@ -1,8 +1,9 @@
 # TMD Tauri 迁移进度与验证清单
 
-> 版本：2.2　作者：chiangyang　更新：2026-10-28
-> 状态：spike 四项验证通过；导出链双平台闭环（macOS objc2 + Windows WebView2 原语，
-> 三格式真实链路验证通过）；Windows 侧进入收尾——**剩余硬缺口：PicGo 图床、自动更新、E2E 回归方案**
+> 版本：2.3　作者：chiangyang　更新：2026-10-28
+> 状态：spike 四项验证通过；导出链双平台闭环；**A 组三条硬缺口已处置**
+> （PicGo 产品降级 / 更新器接入待密钥 / Windows CDP 冒烟落地）——
+> 代码侧转正阻塞项清零，剩余为 C 组收尾与发布基础设施
 > 本文档的作用：记录 spike 验证结论、迁移进度（通道清单 / 模块映射 / 已知缺口）与后续验证项
 > 相关文档：[Tauri迁移评估](Tauri迁移评估.md)　[架构设计](架构设计.md)　[打包发布](打包发布.md)
 
@@ -353,21 +354,30 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 - 验证：暗色主题下爆发截帧（60 帧 × ~90ms）无任何白亮帧，窗口出现即主题色；
   浅色预设主题恢复后渲染正常；72 测试全绿
 
-## 缺口清单（2026-10-28 盘点）
+## 缺口清单（2026-10-28 盘点，A 组当日处置）
 
-> 通道面精确对账：shim 实现 **59 条**，`native.ts` 契约 **69 条**，差集 11 条——
-> 其中 `getPathForFile` 属**有意替换**（Tauri 走 `onDropPaths` + `readDroppedFile`，
-> Electron 的 `webUtils.getPathForFile` 在 WebView2 无对应），其余 10 条落在
-> 下面 A 组两条硬缺口里。未实现通道在 shim 里是 **no-op + 一次性 console.warn**
-> （`[tmd-tauri-spike] 通道未实现（no-op）`）——不崩、不阻塞启动，但**功能静默无效**。
+> 通道面精确对账：shim 实现 **67 键**，`native.ts` 契约 **69 条**，差集 **4 条**
+> （刷新于 A 组处置后；此前 11 条）：
+> - `getPathForFile` —— **有意替换**（Tauri 走 `onDropPaths` + `readDroppedFile`，
+>   Electron 的 `webUtils.getPathForFile` 在 WebView2 无对应）
+> - `uploadImage` / `getPicGoConfig` / `savePicGoConfig` —— **有意降级**（PicGo
+>   未迁移，壳层声明 `capabilities.picgo=false`，见下表 A1）
+>
+> 未实现通道在 shim 里仍是 no-op + 一次性 console.warn
+> （`[tmd-tauri-spike] 通道未实现（no-op）`），但**渲染层不再依赖这个兜底**：
+> 能力声明为 false 的功能在 UI 层即被降级，不会走到调用。
 
-### A. 硬缺口（功能不可用，必须解决才可转正）
+### A. 硬缺口（2026-10-28 三条均已处置）
 
-| # | 缺口 | 现状 | 影响 | 候选方案 |
-|---|------|------|------|----------|
-| 1 | **PicGo 图床上传**<br>3 条通道：`uploadImage` / `getPicGoConfig` / `savePicGoConfig` | 全部 no-op；`electron/picgo.cjs`（121 行，纯 Node 库）是唯一实现，Rust 侧零代码 | Tauri 版**粘贴图片上传图床整块不可用**，设置面板配置保存也不落地 | ①Rust 重写（7 家图床取舍，评估 §3.3 缺口 3）②sidecar 打包 Node 运行时（体积 +60MB，抵消迁移收益）③产品降级：Tauri 版仅本地 assets/，上传入口按能力隐藏 |
-| 2 | **自动更新**<br>7 条通道：`checkForUpdates` / `downloadUpdate` / `installUpdate` / `onUpdateStatus` / `setAutoCheckUpdate` + 保存重启握手 `onSaveRequest` / `reportSaveResult` | 全部 no-op；`electron/updater.cjs`（Gitee + GitHub 双源、差量 blockmap、附件配额清理）无 Tauri 对应物；**`tauri-plugin-updater` 未引入**（Cargo.toml 仅 dialog / single-instance） | Tauri 版**无自动更新**，用户只能手动下安装包；「保存并重启」流程同样不可用 | ①`tauri-plugin-updater` + 自建 update.json（全量下载，失去差量）②双源 + minisign 校验 + 差量自研（工作量大）③转正初期只支持全量更新 |
-| 3 | **E2E 回归方案** | `scripts/desktop-app-check.mjs` 依赖 Electron CDP（`--remote-debugging-port`），Tauri WebView2/WKWebView 不可用 | **无自动化 GUI 回归**；本次快捷键 bug 就是靠人工脚本 + 截图排查的 | ①`tauri-driver` + WebDriver（Windows 较好，mac 依赖 WebDriverAgent）②单测下沉：渲染层逻辑抽纯函数补测——f4f658f 已按此思路补 6 例③人工验收清单（当前实际做法） |
+| # | 缺口 | 处置结果 | 剩余动作 |
+|---|------|----------|----------|
+| 1 | **PicGo 图床上传**<br>3 条通道：`uploadImage` / `getPicGoConfig` / `savePicGoConfig` | **已产品降级**：新增壳层能力声明 `tmdAPI.capabilities`（Tauri 置 `picgo:false`）+ 渲染层 `hasNativeFeature()`。设置面板「上传到图床」置灰并改文案「当前版本不支持，图片将保存到本地」，图床配置区整块隐藏，已存的 hosting 策略回落 inline；粘贴走 hosting 时按 assets 落盘（无文档目录再内联）。**顺带修掉一个崩溃**：`getPicGoConfig()` no-op 返回 undefined 曾在打开设置面板时抛 TypeError（实测路径） | Rust 重写（7 家图床取舍）或 sidecar 留到 v0.2.x；届时把 `capabilities.picgo` 翻回 true 即可 |
+| 2 | **自动更新**<br>7 条通道：`checkForUpdates` / `downloadUpdate` / `installUpdate` / `onUpdateStatus` / `setAutoCheckUpdate` + 保存重启握手 `onSaveRequest` / `reportSaveResult` | **已接入 `tauri-plugin-updater`**：`src-tauri/src/updater.rs`（检查 → 原生对话框询问 → 全量下载安装 → 保存握手 → 重启）+ shim 五条通道 + 握手两条；自动检查开关持久化到 shell-state.json（启动 5s 后触发，公钥未配时跳过）。公钥为空不崩，设置面板提示配置指引 | **配签名密钥与 latest.json 发布链路**（步骤见打包发布.md §11.2/§11.3）：`tauri signer generate` → 填 `plugins.updater.pubkey` → CI 加 `TAURI_SIGNING_PRIVATE_KEY`(+密码) → `bundle.createUpdaterArtifacts: true` |
+| 3 | **E2E 回归方案** | **已落地 WebView2 CDP 冒烟**：`scripts/tauri-gui-check.mjs`（`npm run smoke:tauri`）。用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port` 打开调试端口 + 独立 `WEBVIEW2_USER_DATA_FOLDER`，连 CDP 查 DOM、发真实按键。**Windows release 实测 5/5 通过**：编辑器挂载 / 文本输入 / Ctrl+B 加粗 / 再按取消（双触发回归）/ Ctrl+Shift+8 列表（e.code 键位回归） | macOS 仍无自动化（WKWebView 无 CDP，需 safaridriver/WebDriverAgent）；人工清单保留；后续可把 smoke 接进 CI |
+
+> 能力声明契约：`native.ts` 新增 `NativeCapabilities { picgo?, updater? }` 与
+> `hasNativeFeature()`——**字段缺省 = 支持**（Electron preload 不声明，行为不变），
+> Tauri shim 显式声明 `{ picgo: false, updater: true }`。
 
 ### B. 平台差异与降级（功能可用但不完全等价）
 
@@ -398,15 +408,19 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 - 验证 2（IME）失败且无 workaround → 停止迁移，Tauri 评估结论作废，Electron 路线继续——**未触发**（IME 验证通过）
 - 验证 1/3/4 有缺口但验证 2 通过 → 评估工作量重估后再决策——**未触发**
 
-### 当前判定（2026-10-28）
+### 当前判定（2026-10-28，A 组处置后）
 
-双平台壳与导出链都已闭环，迁移主体完成。**转正（v0.2.0）的阻塞项收敛为
-缺口清单 A 组三条**：PicGo 图床、自动更新、E2E 回归方案。其中：
+双平台壳、导出链、A 组三条缺口的主体都已完成：
 
-- PicGo 影响「粘贴图片 → 自动传图床」这条常用链路，属功能回归，**须先定方案**
-  （推荐先产品降级：Tauri 版明确标注仅本地图片，把 Rust/sidecar 方案留到 v0.2.x）
-- 自动更新可先用 `tauri-plugin-updater` 全量方案顶上，差量优化后置
-- E2E 方案不阻塞发版，但**转正后没有它 GUI 回归只能人工**——建议随转正一并落地
-  tauri-driver 最小骨架
+- **PicGo**：按推荐方案产品降级（UI 置灰 + 文案说明 + 能力声明），顺手修掉
+  `getPicGoConfig` no-op 导致的设置面板崩溃；Rust/sidecar 重写留 v0.2.x
+- **自动更新**：`tauri-plugin-updater` 全量方案已接通（含保存握手与自动检查）；
+  **唯一剩余动作是配置签名密钥与 latest.json 发布**（打包发布.md §11.2/§11.3），
+  这属于发布基础设施，不是代码缺口
+- **E2E**：Windows 侧已有可执行的 CDP 冒烟（`npm run smoke:tauri`，release
+  实测 5/5），并顺手把快捷键修复固化为回归用例；macOS 仍靠人工清单
 
-B 组为平台差异，可带病转正（清单内逐条记录即可）；C 组为转正动作本身。
+**结论：转正（v0.2.0）的代码阻塞项已清零。** 剩余工作是 C 组收尾
+（identifier 转正、electron/ 归档、版本对齐、发布流水线按 Tauri 重写）与
+B 组平台差异的逐条记录/取舍。建议顺序：C3 版本对齐 → C5 发布流水线（顺带
+落 §11 密钥与 latest.json）→ C1 identifier 转正。

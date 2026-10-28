@@ -366,6 +366,7 @@
     "imageAssets": "Save to assets/ folder next to the document (save the document first)",
     "imageAssetsHint": "Documents that were never saved fall back to inline mode",
     "imageHosting": "Upload to image hosting (PicGo, good for sharing online)",
+    "imageHostingUnsupported": "Upload to image hosting (not supported in this build; images stay local)",
     "imageHostingHint": "If upload fails, the image falls back to inline mode",
     "picgoConfig": "Image Hosting Config",
     "picgoUploader": "Uploader",

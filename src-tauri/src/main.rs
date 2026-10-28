@@ -40,6 +40,7 @@ mod search;
 mod shell;
 mod text_file;
 mod themes;
+mod updater;
 mod watcher;
 mod wikilinks;
 
@@ -72,6 +73,9 @@ const TMD_API_SHIM: &str = r#"
   var invoke = core.invoke
   var impl = {
     isNative: true,
+    // 壳层能力声明：渲染层据此降级 UI。图床整块未实现（PicGo 是纯 Node 库，
+    // 见 docs/spike-tauri.md 缺口清单 A1）；更新已接 tauri-plugin-updater
+    capabilities: { picgo: false, updater: true },
     readFile: function (filePath) { return invoke('tmd_read_file', { filePath: filePath }) },
     saveFile: function (filePath, content, meta) {
       return invoke('tmd_save_file', { filePath: filePath, content: content, meta: meta || null })
@@ -145,6 +149,15 @@ const TMD_API_SHIM: &str = r#"
     readTheme: function (name) { return invoke('tmd_read_theme', { name: name }) },
     openThemesDir: function () { return invoke('tmd_open_themes_dir') },
     getExportAssets: function () { return invoke('tmd_get_export_assets') },
+    // 自动更新（tauri-plugin-updater）：检查 → 原生对话框询问 → 下载安装 → 重启；
+    // 重启用前置「保存并重启」握手（onSaveRequest / reportSaveResult）
+    checkForUpdates: function () { return invoke('tmd_update_check') },
+    downloadUpdate: function () { invoke('tmd_update_download') },
+    installUpdate: function () { invoke('tmd_update_install') },
+    setAutoCheckUpdate: function (enabled) { invoke('tmd_update_set_auto', { enabled: !!enabled }) },
+    onUpdateStatus: function (cb) { tmdOn('tmd-update-status', cb) },
+    onSaveRequest: function (cb) { tmdOn('tmd-doc-save-request', cb) },
+    reportSaveResult: function (ok) { invoke('tmd_doc_save_result', { ok: !!ok }) },
     exportRun: function (options) { return invoke('tmd_export_run', { options: options }) },
     print: function (name, options) { return invoke('tmd_print', { name: name || null, options: options || null }) },
   }
@@ -782,6 +795,9 @@ fn main() {
             });
         }))
         .plugin(tauri_plugin_dialog::init())
+        // 自动更新：原语由插件承载（签名校验/下载/安装），
+        // 端点与公钥在 tauri.conf.json 的 plugins.updater 配置
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // 本地日志（~/.tmd/logs）：panic hook 与渲染层异常上报都写这里；
             // 启动扫描崩溃目录补记上次运行留下的 minidump 线索（与 Electron 版共享资产根）
@@ -804,6 +820,12 @@ fn main() {
             // 壳层持久化：主题与窗口几何在首帧前恢复（与 Electron createWindow 前恢复同口径）
             let shell_file = data_dir.join("shell-state.json");
             let persisted = shell::read_shell_state(&shell_file);
+            // 自动更新开关：与主题/窗口几何同存 shell-state.json，启动即恢复
+            let auto_check = persisted
+                .get("autoCheckUpdate")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            app.manage(updater::UpdaterState::new(auto_check));
             app.manage(WinStateTracker::new(shell_file.clone()));
             let restored_theme = match persisted.get("themeSource").and_then(Value::as_str) {
                 Some("dark") => Some(tauri::Theme::Dark),
@@ -982,6 +1004,8 @@ fn main() {
                     });
                 }
             }
+            // 自动更新：启动 5s 后按持久化开关自动检查（对应 Electron scheduleAutoCheck）
+            updater::schedule_auto_check(app.handle().clone());
             Ok(())
         })
         .on_menu_event(|app, event| {
@@ -1201,7 +1225,12 @@ fn main() {
             tmd_open_file,
             tmd_open_folder,
             tmd_save_file_as,
-            tmd_export_as
+            tmd_export_as,
+            updater::tmd_update_check,
+            updater::tmd_update_download,
+            updater::tmd_update_install,
+            updater::tmd_update_set_auto,
+            updater::tmd_doc_save_result
         ])
         .build(tauri::generate_context!())
         .expect("TMD (tauri spike) 启动失败");

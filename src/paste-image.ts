@@ -16,7 +16,7 @@ import { $prose } from '@milkdown/kit/utils'
 import { Plugin } from '@milkdown/kit/prose/state'
 import type { Selection } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
-import { native } from './native'
+import { native, hasNativeFeature } from './native'
 
 export type ImageStrategy = 'inline' | 'assets' | 'hosting'
 
@@ -120,10 +120,14 @@ async function insertImage(view: EditorView, file: File, selection: Selection) {
   let src = dataUrl
   const strategy = context.getStrategy()
   const baseDir = context.getBaseDir()
-  if (strategy === 'assets' && baseDir && native) {
+  const hasPicGo = hasNativeFeature('picgo')
+  // 壳层无图床能力（Tauri 版）时 hosting 策略按 assets 处理：上传通道是
+  // no-op，强行走一遍只会白等一次 IPC；无文档目录时再退到内联
+  const wantAssets = strategy === 'assets' || (strategy === 'hosting' && !hasPicGo)
+  if (wantAssets && baseDir && native) {
     const savedName = await saveToAssets(baseDir, file, dataUrl)
     if (savedName) src = `assets/${savedName}`
-  } else if (strategy === 'hosting' && native) {
+  } else if (strategy === 'hosting' && native && hasPicGo) {
     const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
     // 扩展名按图片 MIME 推导后传给主进程：base64 首字符无法区分 gif/webp 等格式
     const url = await native.uploadImage(base64, MIME_EXT[file.type] ?? '.png')
