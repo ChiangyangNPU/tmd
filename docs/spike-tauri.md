@@ -1,7 +1,8 @@
 # TMD Tauri 迁移进度与验证清单
 
-> 版本：2.1　作者：chiangyang　更新：2026-10-25
-> 状态：spike 四项验证通过；阶段 B 导出原语（PDF / 截图）macOS 原型验证 **GO**，转入导出链正式迁移
+> 版本：2.2　作者：chiangyang　更新：2026-10-28
+> 状态：spike 四项验证通过；导出链双平台闭环（macOS objc2 + Windows WebView2 原语，
+> 三格式真实链路验证通过）；Windows 侧进入收尾——**剩余硬缺口：PicGo 图床、自动更新、E2E 回归方案**
 > 本文档的作用：记录 spike 验证结论、迁移进度（通道清单 / 模块映射 / 已知缺口）与后续验证项
 > 相关文档：[Tauri迁移评估](Tauri迁移评估.md)　[架构设计](架构设计.md)　[打包发布](打包发布.md)
 
@@ -259,13 +260,49 @@ Electron 离屏导出 = 隐藏窗口 + `backgroundThrottling:false`。WKWebView 
 
 - **print（PDF）**：macOS 无 printToPDF 等价物，走 createPDF 全文档直出——
   **页尺寸/页边距/页眉页脚/大纲选项暂不生效**（渲染层 PdfOptions 保留入参）；
-  语义为「连续版式 PDF」。是否补打印管线（分页 CSS 或系统打印面板）待定
+  语义为「连续版式 PDF」。是否补打印管线（分页 CSS 或系统打印面板）待定。
+  **Windows 侧无此降级**：PrintToPdf 走 Chromium 打印管线，@page / 页尺寸 /
+  朝向 / 页边距 / 页眉页脚均生效（见下节），仅「大纲书签」无对应项
 - **Word / ePub**：与长图共用同一条链（区域截图公式栅格化 + readImage 图片
-  本地化），链路已由长图端到端验证背书；正式 GUI 验收（真实菜单 + 保存框）
-  待做
+  本地化），链路已由长图端到端验证背书；**Windows 真实链路已验证三格式
+  闭环**（82d808d：docx 14774 字节含 OMML 结构化公式与栅格化 Mermaid、
+  epub 5129 字节 mimetype/OPF/nav/XHTML 全对、longimage 99873 字节）；
+  正式 GUI 验收（真实菜单 + 保存框）仍建议人工点一轮 Word/长图/PDF 三项
 - **GUI 验收待做**：导出菜单 → 保存框 → 落盘的全 UX 路径（自动化面板键盘
-  输入受限，建议人工点一轮 Word/长图/PDF 三项）
+  输入受限，建议人工点一轮）；Windows NSIS 安装包已可出包
+  （`npm run dist:tauri:win`，见打包发布.md §10.1）
 - 超时尸检与桥接心跳（`__tmdSteps`）为验证期观测手段，保留至 GUI 验收后
+
+## Windows 侧迁移（2026-10-28，导出链与打包闭环）
+
+评估 §3.3「Windows 导出原语未验证」已拔掉，Windows 从「以 macOS 结论为准」
+转为独立可交付：
+
+- **导出原语**（`export_native_win.rs`，与 export_native.rs 同签名、main.rs
+  `#[path]`+cfg 切换，exporter.rs 编排层零分叉）：JS 执行 `ExecuteScript`、
+  截图 `CapturePreview`（无 rect 参数——区域模式截全视口后按 devicePixelRatio
+  换算裁剪）、PDF `ICoreWebView2_16::PrintToPdf`（临时文件直写后读回）。
+  线程模型与 mac 一致：COM 对象不跨线程，completion 回调经 mpsc 交回调用线程
+- **三格式验证闭环**（82d808d）：exporter.rs `verify_pipeline` 重构为
+  longimage / word / epub 依次跑真实链路，Windows 实测产物全部结构正确
+  （见上节「已知降级与待办」引的数据）
+- **NSIS 打包**：`npm run dist:tauri:win` 三件套（build / dir / open），
+  `TMD_0.2.0-spike.1_x64-setup.exe` 冒烟通过；打包发布.md 新增 §10.1 Windows 段
+- **拖拽路径接线**（82d808d）：Tauri `dragDropEnabled` 拦截下 HTML5 drop 不带
+  文件——shim 增 `onDropPaths`（tauri://drag-drop）+ 新命令
+  `tmd_read_dropped_file`（图片扩展名白名单 + 32MB 上限）渲染层构造 File
+  复用粘贴链；md 按路径打开与 Electron 同款去重/最近列表
+- **壳缺陷修复三连**（c3df526 / 6f6aee2 / 5653129）：release 弹 CMD 窗口 +
+  拖拽文件不打开；watcher 基线读盘竞速（noteWrite 指纹自身保存误报外部修改）；
+  首帧闪原生菜单（菜单改仅 macOS 实挂 + 渲染层 keydown 兜底，见下节缺口）
+- **快捷键真机全量检测**（f4f658f，2026-10-28）：28 键逐一发送 + 截图留证，
+  暴露并修复两处渲染层缺陷——① fmt-* 双触发：`formatKeymap` 命中后事件仍
+  冒泡到 main.ts 通用兜底再执行一次，切换类命令一加一撤等于没生效（修复：
+  命令生效即 `stopPropagation`）；② Shift+数字/符号主键失配：`e.key` 是位移后
+  字符（Shift+8='*'），与配置主键永不相等，无序列表/有序列表/上标/下标结构性
+  失效（修复：按 `e.code` 物理键位还原）。浏览器模式端到端复现并验证
+- **CI**：Rust 双平台编译门禁（mac + win matrix，36023c2）；mac 编译修复
+  （a2f82ff，capture_full_pdf 新参调用点补 None）
 
 ## 标题栏对齐（909392d Windows 侧实现，2026-10-27 mac 侧验证补全）
 
@@ -316,16 +353,60 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 - 验证：暗色主题下爆发截帧（60 帧 × ~90ms）无任何白亮帧，窗口出现即主题色；
   浅色预设主题恢复后渲染正常；72 测试全绿
 
-## 后续验证项（未开工）
+## 缺口清单（2026-10-28 盘点）
 
-1. **Windows 导出原语**：WebView2 `PrintToPdfAsync` / `CapturePreview` 等价
-   原型（exporter.rs 的 objc2 段为 macOS 专属，Windows 侧需对应实现）
-2. **PicGo 方案**：Rust 重写范围圈定（7 家图床取舍）或 sidecar 或产品降级
-3. **E2E 驱动**：CDP 不可用后的回归方案（tauri-driver / 单测下沉 / 人工清单）
+> 通道面精确对账：shim 实现 **59 条**，`native.ts` 契约 **69 条**，差集 11 条——
+> 其中 `getPathForFile` 属**有意替换**（Tauri 走 `onDropPaths` + `readDroppedFile`，
+> Electron 的 `webUtils.getPathForFile` 在 WebView2 无对应），其余 10 条落在
+> 下面 A 组两条硬缺口里。未实现通道在 shim 里是 **no-op + 一次性 console.warn**
+> （`[tmd-tauri-spike] 通道未实现（no-op）`）——不崩、不阻塞启动，但**功能静默无效**。
+
+### A. 硬缺口（功能不可用，必须解决才可转正）
+
+| # | 缺口 | 现状 | 影响 | 候选方案 |
+|---|------|------|------|----------|
+| 1 | **PicGo 图床上传**<br>3 条通道：`uploadImage` / `getPicGoConfig` / `savePicGoConfig` | 全部 no-op；`electron/picgo.cjs`（121 行，纯 Node 库）是唯一实现，Rust 侧零代码 | Tauri 版**粘贴图片上传图床整块不可用**，设置面板配置保存也不落地 | ①Rust 重写（7 家图床取舍，评估 §3.3 缺口 3）②sidecar 打包 Node 运行时（体积 +60MB，抵消迁移收益）③产品降级：Tauri 版仅本地 assets/，上传入口按能力隐藏 |
+| 2 | **自动更新**<br>7 条通道：`checkForUpdates` / `downloadUpdate` / `installUpdate` / `onUpdateStatus` / `setAutoCheckUpdate` + 保存重启握手 `onSaveRequest` / `reportSaveResult` | 全部 no-op；`electron/updater.cjs`（Gitee + GitHub 双源、差量 blockmap、附件配额清理）无 Tauri 对应物；**`tauri-plugin-updater` 未引入**（Cargo.toml 仅 dialog / single-instance） | Tauri 版**无自动更新**，用户只能手动下安装包；「保存并重启」流程同样不可用 | ①`tauri-plugin-updater` + 自建 update.json（全量下载，失去差量）②双源 + minisign 校验 + 差量自研（工作量大）③转正初期只支持全量更新 |
+| 3 | **E2E 回归方案** | `scripts/desktop-app-check.mjs` 依赖 Electron CDP（`--remote-debugging-port`），Tauri WebView2/WKWebView 不可用 | **无自动化 GUI 回归**；本次快捷键 bug 就是靠人工脚本 + 截图排查的 | ①`tauri-driver` + WebDriver（Windows 较好，mac 依赖 WebDriverAgent）②单测下沉：渲染层逻辑抽纯函数补测——f4f658f 已按此思路补 6 例③人工验收清单（当前实际做法） |
+
+### B. 平台差异与降级（功能可用但不完全等价）
+
+| # | 项 | Tauri 现状 | Electron 对照 | 备注 |
+|---|----|------------|---------------|------|
+| 1 | **Windows 原生菜单** | **未实挂**——菜单仅 macOS 构建；Windows 靠渲染层 keydown 兜底分发（5653129） | 全平台原生菜单 | 修复目标是不闪首帧；代价是 Windows 无菜单栏（⋯ 按钮 + 快捷键代替）。是否补原生菜单待产品决策 |
+| 2 | **macOS PDF 选项** | createPDF 连续版式，页尺寸/边距/页眉页脚/大纲**不生效** | printToPDF 全选项 | Windows 侧 PrintToPdf 全生效，仅大纲无对应 |
+| 3 | **macOS 菜单结构** | muda 把「文件」子菜单当应用菜单显示为「TMD」，无编辑/视图 role 菜单 | 标准 macOS 菜单栏 | 功能不受损（webview 原生响应编辑快捷键） |
+| 4 | **zh-TW 排序** | pinyin crate 全拼近似，注音/笔画序**不可达**（降级拼音序） | ICU 完整排序 | zh-CN 拼音序正确 |
+| 5 | **系统最近文档** | 未注册（Jump List / Dock 最近项） | `app.addRecentDocument` | 应用内最近列表正常；系统级集成缺失 |
+| 6 | **原生 crashReporter** | 无 minidump 生成，仅 panic hook 写日志 + 崩溃线索扫描（`.seen-dumps`） | crashReporter 上传 | 崩溃可定位但无堆栈转储 |
+| 7 | **导出期间抢焦点** | 探边窗 `focused(true)` 才稳定（export_probe 矩阵结论）；导出瞬间短暂抢焦点 | 隐藏窗无感 | UX polish 项，非阻塞 |
+| 8 | **`getPathForFile` 通道** | 无（有意替换） | `webUtils.getPathForFile` | Tauri 走 `onDropPaths` + `readDroppedFile`，语义等价 |
+
+### C. 转正前的收尾工作
+
+1. **identifier 转正**：`com.chiangyang.tmd.spike` → `com.chiangyang.tmd`，安装名 `TMD-spike.app` → `TMD.app`；userData 迁移（或明确告知用户重新配置）
+2. **双壳下线**：`electron/` 目录 27 个模块（约对应 16 个已 Rust 化的纯逻辑模块 + 壳自身 + PicGo/updater 两个未迁移件）在 Tauri 转正后归档；`native.ts` 契约层的 Electron 分支保留还是清理需决策
+3. **版本号对齐**：`package.json` 0.1.6 / `tauri.conf.json` 0.2.0-spike.1，转正时统一
+4. **GUI 验收清单**（人工，一次性）：导出三格式走真实菜单+保存框、文件夹挂载后 CJK 排序对比、搜索面板、图谱、真实鼠标拖拽移窗/双击最大化
+5. **发布流水线**：Windows NSIS 已可出包，但 release 工作流（Gitee 双源上传、附件配额清理）仍是 Electron 口径，需按 Tauri 产物重写
 
 ## 判定与去向
 
-- 验证 1–4 通过 → 按评估 §6 顺序在 master 双壳共存迁移（不拉长分支，理由见评估与迁移讨论）
-- 阶段 B 导出原语验证通过（macOS）→ 导出链正式迁移放行；Windows 等价原语验证前，跨平台结论以 macOS 为准
-- 验证 2（IME）失败且无 workaround → 停止迁移，Tauri 评估结论作废，Electron 路线继续
-- 验证 1/3/4 有缺口但验证 2 通过 → 评估工作量重估后再决策
+- 验证 1–4 通过 → 按评估 §6 顺序在 master 双壳共存迁移（不拉长分支，理由见评估与迁移讨论）——**已执行**
+- 阶段 B 导出原语验证通过（macOS）→ 导出链正式迁移放行——**已执行**；
+  Windows 等价原语**已验证**（`export_native_win.rs`，PrintToPdf 反而优于 mac 的 createPDF）
+- 验证 2（IME）失败且无 workaround → 停止迁移，Tauri 评估结论作废，Electron 路线继续——**未触发**（IME 验证通过）
+- 验证 1/3/4 有缺口但验证 2 通过 → 评估工作量重估后再决策——**未触发**
+
+### 当前判定（2026-10-28）
+
+双平台壳与导出链都已闭环，迁移主体完成。**转正（v0.2.0）的阻塞项收敛为
+缺口清单 A 组三条**：PicGo 图床、自动更新、E2E 回归方案。其中：
+
+- PicGo 影响「粘贴图片 → 自动传图床」这条常用链路，属功能回归，**须先定方案**
+  （推荐先产品降级：Tauri 版明确标注仅本地图片，把 Rust/sidecar 方案留到 v0.2.x）
+- 自动更新可先用 `tauri-plugin-updater` 全量方案顶上，差量优化后置
+- E2E 方案不阻塞发版，但**转正后没有它 GUI 回归只能人工**——建议随转正一并落地
+  tauri-driver 最小骨架
+
+B 组为平台差异，可带病转正（清单内逐条记录即可）；C 组为转正动作本身。
