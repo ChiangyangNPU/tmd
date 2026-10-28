@@ -27,6 +27,9 @@
     "dist:tauri": "tauri build",
     "dist:tauri:dir": "tauri build --bundles app",
     "dist:tauri:install": "npm run dist:tauri:dir && rm -rf \"/Applications/TMD-spike.app\" && cp -R src-tauri/target/release/bundle/macos/TMD.app \"/Applications/TMD-spike.app\"",
+    "dist:tauri:win": "tauri build --bundles nsis",
+    "dist:tauri:win:dir": "tauri build --no-bundle",
+    "dist:tauri:win:open": "start \"\" \"src-tauri\\target\\release\\bundle\\nsis\"",
     "release:gitee": "node scripts/prepare-gitee-release.mjs"
   },
   "devDependencies": {
