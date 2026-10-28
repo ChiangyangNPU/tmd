@@ -15,8 +15,8 @@
  * @author chiangyang
  */
 import { spawn, execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { tmpdir, homedir } from 'node:os'
+import { existsSync, mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -143,11 +143,8 @@ function runningInstances() {
 
 // ---------- 测试素材 ----------
 function makeFixtures(dir) {
-  const gbk = Buffer.concat([
-    Buffer.from([0xff, 0xfe]), // UTF-16LE BOM?否——GBK 无 BOM；直接 GBK 字节
-  ])
-  // 用 iconv 不可得：手工构造 GBK 字节（"你好世界" GBK 编码）
-  const gbkHello = Buffer.from([0xc4, 0xe3, 0xba, 0xc3, 0xca, 0xc0, 0xbd, 0xe7]) // 你好世界
+  // "你好世界" 的 GBK 字节序列（GBK 无 BOM，直接裸字节）
+  const gbkHello = Buffer.from([0xc4, 0xe3, 0xba, 0xc3, 0xca, 0xc0, 0xbd, 0xe7])
   writeFileSync(join(dir, 'gbk-sample.md'), gbkHello)
   // 双链素材
   writeFileSync(
@@ -205,7 +202,7 @@ async function main() {
       page = await waitForPage(PORT, 25000, () => childExited)
     } catch (err) {
       if (childExited) {
-        throw new Error('应用启动后立即退出——同 identifier 实例在跑（--kill 清场）')
+        throw new Error('应用启动后立即退出——同 identifier 实例在跑（--kill 清场）', { cause: err })
       }
       throw err
     }
@@ -247,13 +244,6 @@ async function main() {
     }
     const type = async (text) => {
       await cdp.send('Input.insertText', { text })
-      await sleep(200)
-    }
-    const clearAll = async () => {
-      await pressKey(cdp, { key: 'a', code: 'KeyA', vk: 65, modifiers: 2 })
-      await sleep(100)
-      await cdp.send('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 })
-      await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Delete', code: 'Delete', windowsVirtualKeyCode: 46 })
       await sleep(200)
     }
     await evalJson(cdp, `${pmSel}.focus(); true`)

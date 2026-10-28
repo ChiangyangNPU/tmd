@@ -110,7 +110,10 @@ pub fn tmd_update_set_auto(app: AppHandle, enabled: bool) {
         state.auto_check.store(enabled, Ordering::SeqCst);
     }
     if let Ok(dir) = app.path().app_data_dir() {
-        shell::save_shell_state(&dir.join("shell-state.json"), json!({ "autoCheckUpdate": enabled }));
+        shell::save_shell_state(
+            &dir.join("shell-state.json"),
+            json!({ "autoCheckUpdate": enabled }),
+        );
     }
 }
 

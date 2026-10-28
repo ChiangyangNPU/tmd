@@ -201,6 +201,7 @@ async function main() {
         throw new Error(
           '应用启动后立即退出——通常是同 identifier 的实例已在运行（单实例锁把 argv 转交给它）。\n' +
             '  请关闭正在运行的 TMD 后重试，或加 --kill 清场。',
+          { cause: err },
         )
       }
       throw err

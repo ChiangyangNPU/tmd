@@ -41,9 +41,9 @@ function parseArgs(argv) {
 
 /**
  * 组装单平台条目（纯函数，供单测）。
- * @param {{ version: string, pubDate: string, url: string, signature: string }} p
+ * @param {{ url: string, signature: string }} p
  */
-export function platformEntry({ version, pubDate, url, signature }) {
+export function platformEntry({ url, signature }) {
   return {
     signature,
     url,
@@ -75,8 +75,6 @@ function main() {
     }
     const name = basenameOf(args['win-setup'])
     platforms['windows-x86_64'] = platformEntry({
-      version,
-      pubDate: new Date().toISOString(),
       url: giteeUrl(name),
       signature: readText(sigPath),
     })
@@ -85,8 +83,6 @@ function main() {
   if (args['mac-sig']) {
     const name = args['mac-url-name'] ?? 'TMD.app.tar.gz'
     platforms['darwin-aarch64'] = platformEntry({
-      version,
-      pubDate: new Date().toISOString(),
       url: giteeUrl(name),
       signature: readText(args['mac-sig']),
     })
