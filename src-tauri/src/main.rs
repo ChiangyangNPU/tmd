@@ -845,14 +845,33 @@ fn main() {
             #[cfg(not(target_os = "macos"))]
             {
                 builder = builder.decorations(false);
-                // Windows 消除首帧白闪：隐藏创建，页面加载完成（工具栏已可绘制）
-                // 再显示——对齐 Electron 版 show:false + ready-to-show 的时序
-                builder = builder.visible(false).on_page_load(|window, payload| {
+            }
+            // 首帧防闪（三平台）：隐藏创建 + 绘制就绪后再上屏，对齐 Electron 版
+            // show:false + ready-to-show 的时序。WKWebView/WebView2 创建后到首帧
+            // 绘制前露出的是默认白底（暗色/自定义主题下必闪）。
+            // - 上屏通道一：Windows/Linux 走页面加载完成（此时 boot.js 同步挂好
+            //   深浅类与预设属性，工具栏已可绘制）
+            // - 上屏通道二：三平台共有——渲染层 ready（boot 末尾，文件主题经 IPC
+            //   异步注入完毕）时经 flush_pending_open_paths 的 show 上屏
+            //   （macOS 只走这条：boot 里的 await 晚于页面加载完成，file 主题在
+            //   Finished 时可能未注入，提前上屏会闪内置配色）
+            // - 兜底：8s 看门狗强制上屏（页面加载失败/渲染层崩溃时窗口不能永久隐藏）
+            builder = builder.visible(false);
+            #[cfg(not(target_os = "macos"))]
+            {
+                builder = builder.on_page_load(|window, payload| {
                     if payload.event() == tauri::webview::PageLoadEvent::Finished {
                         let _ = window.show();
                     }
                 });
             }
+            // 底色跟随持久化主题（#1e2127 / #ffffff，与 Electron SHELL_BG 同值）：
+            // 兜底「已上屏但首帧未合成」的瞬间——即便露出窗口底色也是主题色而非白
+            let shell_bg = match restored_theme {
+                Some(tauri::Theme::Dark) => tauri::window::Color(30, 33, 39, 255),
+                _ => tauri::window::Color(255, 255, 255, 255),
+            };
+            builder = builder.background_color(shell_bg);
             match restored {
                 Some(win) => {
                     builder = builder.inner_size(win.width, win.height);
@@ -867,6 +886,18 @@ fn main() {
             let window = builder.build()?;
             if restored.is_some_and(|w| w.maximized) {
                 let _ = window.maximize();
+            }
+            // 隐藏创建的上屏兜底（见上方「首帧防闪」）：正常路径是页面加载完成
+            // （Win/Linux）或渲染层 ready（三平台）触发 show；渲染层加载失败时
+            // 不能让窗口永久隐藏——8s 后强制上屏，用户至少能看到错误页
+            {
+                let win = window.clone();
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(8));
+                    if !win.is_visible().unwrap_or(true) {
+                        let _ = win.show();
+                    }
+                });
             }
             // spike 阶段 B 后续：导出窗口形态矩阵自动验证（TMD_SPIKE_MATRIX=1）。
             // 不依赖主窗口内容，5s 后直接跑；须以 `open -a --env TMD_SPIKE_MATRIX=1`

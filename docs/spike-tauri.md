@@ -295,6 +295,27 @@ Electron 离屏导出 = 隐藏窗口 + `backgroundThrottling:false`。WKWebView 
 待人工复核：真实鼠标拖拽工具栏移窗、双击最大化（合成事件因 invoke 异步
 延迟 / dblclick 时间阈值无法自动化验证，机制与 Windows 实测版同源）。
 
+## 首帧防闪（2026-10-28，mac 补全）
+
+Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消除启动
+白闪。Tauri 侧此前只有 Windows 分支做了隐藏创建（f4f658f），**macOS 窗口立即
+上屏**，WKWebView 首帧绘制前露出默认白底——暗色/自定义预设主题下启动先闪白
+再切主题（用户实测）。
+
+修复（main.rs 主窗口 builder，三平台统一）：
+
+- **隐藏创建** `visible(false)` 提为跨平台；上屏通道：
+  - Win/Linux：页面加载完成 `on_page_load(Finished)`（boot.js 同步挂好深浅
+    类与预设属性，工具栏已可绘制）
+  - 三平台共有：渲染层 `ready`（boot 末尾，文件主题经 IPC 异步注入完毕）经
+    `flush_pending_open_paths` 的 show 上屏。macOS **只**走这条——boot 中的
+    `await restoreFileTheme` 晚于页面加载完成，提前上屏会闪内置配色
+  - 兜底：8s 看门狗强制 show（页面加载失败时窗口不能永久隐藏）
+- **主题底色** `background_color`（dark #1e2127 / light #ffffff，对齐 Electron
+  SHELL_BG）：兜底「已上屏但首帧未合成」瞬间露出的也是主题色而非白
+- 验证：暗色主题下爆发截帧（60 帧 × ~90ms）无任何白亮帧，窗口出现即主题色；
+  浅色预设主题恢复后渲染正常；72 测试全绿
+
 ## 后续验证项（未开工）
 
 1. **Windows 导出原语**：WebView2 `PrintToPdfAsync` / `CapturePreview` 等价
