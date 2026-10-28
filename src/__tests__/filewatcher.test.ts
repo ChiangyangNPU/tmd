@@ -36,6 +36,18 @@ async function waitForEvent(
   return events.some(pred)
 }
 
+/** 等待某路径的内容基线落定（轮询 knownOf，取代盲等——CI 慢盘上 150ms 不够） */
+async function waitBaseline(
+  w: { knownOf: (path: string) => string | undefined },
+  path: string,
+  timeoutMs = 5000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline && !w.knownOf(path)) {
+    await new Promise((r) => setTimeout(r, 50))
+  }
+}
+
 const dirs: string[] = []
 
 async function makeTempDir(): Promise<string> {
@@ -58,7 +70,7 @@ describe('createFileWatcher', () => {
     const w = createFileWatcher({ onEvent: (e) => events.push(e) })
     w.sync([file])
     // 基线读取是异步的：等指纹落定再测
-    await new Promise((r) => setTimeout(r, 150))
+    await waitBaseline(w, file)
 
     // 自身保存：写盘 + 登记新指纹 → 事件即使到达也按指纹被过滤
     await writeFile(file, 'v2-self', 'utf-8')
@@ -80,7 +92,7 @@ describe('createFileWatcher', () => {
     const events: { path: string; kind: 'change' | 'unlink' }[] = []
     const w = createFileWatcher({ onEvent: (e) => events.push(e) })
     w.sync([file])
-    await new Promise((r) => setTimeout(r, 150))
+    await waitBaseline(w, file)
     expect(w.size()).toBe(1)
 
     await rm(path.dirname(file) === dir ? file : file)
@@ -102,7 +114,7 @@ describe('createFileWatcher', () => {
     const events: { path: string; kind: 'change' | 'unlink' }[] = []
     const w = createFileWatcher({ onEvent: (e) => events.push(e) })
     w.sync([file])
-    await new Promise((r) => setTimeout(r, 150))
+    await waitBaseline(w, file)
 
     // 模拟 VS Code 式原子保存：写临时文件再 rename 覆盖（旧 watcher 随 inode 失效）
     const tmp = file + '.tmp'
@@ -131,12 +143,12 @@ describe('createFileWatcher', () => {
     await writeFile(b, 'b', 'utf-8')
     const w = createFileWatcher({ onEvent: () => {} })
     w.sync([a])
-    await new Promise((r) => setTimeout(r, 120))
+    await waitBaseline(w, a)
     expect(w.size()).toBe(1)
     expect(w.knownOf(a)).toBeTruthy()
 
     w.sync([a, b])
-    await new Promise((r) => setTimeout(r, 120))
+    await waitBaseline(w, b)
     expect(w.size()).toBe(2)
     expect(w.knownOf(b)).toBeTruthy()
 
@@ -166,7 +178,7 @@ describe('createFileWatcher', () => {
     const events: { path: string; kind: 'change' | 'unlink' }[] = []
     const w = createFileWatcher({ onEvent: (e) => events.push(e) })
     w.sync([file])
-    await new Promise((r) => setTimeout(r, 150))
+    await waitBaseline(w, file)
 
     // 主进程 noteWrite 过滤正常路径；即使漏登记（回声窗口），渲染层还会比对
     // 「磁盘内容 === tab.markdown」跳过——这里验证 noteWrite 后指纹确实更新

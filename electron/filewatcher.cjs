@@ -143,10 +143,13 @@ function createFileWatcher({ onEvent }) {
       if (watchers.has(p)) continue
       attach(p)
       // 建立内容基线：基线落定前到达的事件至多触发一次多余通知，
-      // 渲染层有「内容与内存一致则跳过」的兜底，不会误重载
+      // 渲染层有「内容与内存一致则跳过」的兜底，不会误重载。
+      // 只补空、不覆盖（CI 实测竞速，2026-10-28）：慢盘上基线读盘可能
+      // 迟于 noteWrite 落定——打开文件后立刻保存时，迟到的基线（旧内容）
+      // 会覆盖 noteWrite 指纹，令自身保存被误报为外部修改
       readComparable(p).then(
         (content) => {
-          if (watchers.has(p)) known.set(p, sha1(content))
+          if (watchers.has(p) && !known.has(p)) known.set(p, sha1(content))
         },
         () => {},
       )
