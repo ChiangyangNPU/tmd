@@ -30,6 +30,8 @@
     "dist:tauri:win": "tauri build --bundles nsis",
     "dist:tauri:win:dir": "tauri build --no-bundle",
     "dist:tauri:win:open": "start \"\" \"src-tauri\\target\\release\\bundle\\nsis\"",
+    "dist:tauri:win:signed": "node scripts/tauri-build-signed.mjs -- --bundles nsis",
+    "dist:tauri:mac:signed": "node scripts/tauri-build-signed.mjs -- --bundles app,dmg",
     "smoke:tauri": "node scripts/tauri-gui-check.mjs",
     "release:gitee": "node scripts/prepare-gitee-release.mjs"
   },
