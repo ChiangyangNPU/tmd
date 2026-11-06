@@ -92,3 +92,43 @@
 **结论（2026-11-06）**：自动化 41 项全绿；用户已完成安装/首启/对话框/导出的人工确认。
 **转正条件已具备**，唯一待补是首次 Tauri 发版后验证「有新版本 → 下载 → 保存握手 →
 自动重启」的完整升级流（D 组末项）。可进入转正流程 C1/C3。
+
+## macOS 侧验收（2026-11-07，桌面自动化实测）
+
+> 方法：WKWebView 无 CDP，Windows 侧脚本不可移植——改纯外部自动化
+> （CUA 键鼠 + osascript 菜单 AX 点击 + 文件关联 + 爆发截帧 + 日志/落盘产物审查），
+> 全部走真实 UI 路径无打桩。验收对象：`/Applications/TMD-spike.app`
+> （66943fb 构建，含当日两处修复）。
+
+| 组 | 结果 | 明细 |
+|----|------|------|
+| A 安装首启 | 4/5 | 首启挂载 ✅（AX 29→213 元素）；**首帧白闪 0 帧**（暗色主题 60 帧爆发截帧）✅；红绿灯悬浮工具栏 ✅；几何记忆 ✅（修 2 bug 后精确恢复）；🉐 真实鼠标拖拽移窗/双击最大化留人工 |
+| B 快捷键抽样 | 6/6 | Cmd+B 加粗+toggle ✅、Cmd+1 H1 ✅、Cmd+0 正文 ✅、Cmd+Shift+8 列表 ✅、Cmd+K 链接条 ✅、Cmd+, 设置 ✅（全走原生菜单链） |
+| C 设置降级 | 3/3 | 图床选项置灰+文案 ✅、配置区隐藏 ✅、hosting→inline 回退 ✅ |
+| D 更新器 | 2/2 | 检查更新（无 latest.json）状态文案「更新失败：Could not fetch...」**不崩** ✅；自动检查默认关 ✅；有新版升级流同 Windows（待首版） |
+| E 导出 | 3/3 | PDF 81228B ✅ / HTML 2778B ✅ / Word 9297B（22 zip 条目含 document.xml）✅——全部真实菜单+真实保存框；日志捕获离屏管线运行（capture 924×4000 → done ok=true） |
+| F 文件与侧栏 | 6/6 | GBK「你好世界」✅；1MB 304004 字渲染 ✅；双链点击跳转 ✅；挂载文件夹（真实 NSOpenPanel）+ **拼音排序正确**（123<啊[a-b]<alpha[a-l]<北[bei]<中[zhong]）✅；树行点击打开 ✅；CRLF ✅ |
+| G 稳定性 | 1/1 | 全程日志仅 3 条：1 预期更新错误 + 2 导出成功；零未捕获、零 no-op 越界 |
+
+### mac 侧验收抓到并已修复的真缺陷（2 个，均在 shell.rs/main.rs）
+
+1. **shell-state 从不落盘**：`save_shell_state` 缺 `create_dir_all(parent)`——
+   Windows 侥幸通过（WebView2 首跑即建 userData 目录），macOS WKWebView 数据在
+   `~/Library/WebKit`，Application Support/{identifier} 无人创建 → 几何/主题/
+   更新开关全部静默不持久化
+2. **几何双倍缩放**：winState 存物理像素（outer_position/outer_size），恢复端
+   `builder.inner_size/position` 吃逻辑值——retina 上存 2200 物理恢复成 2200
+   逻辑被钳到全屏。修复为全链逻辑坐标（对齐 Electron getBounds 的 DIP 语义），
+   `monitor_rects` 同步转换保证 on-screen 校验同坐标系
+
+### 观察项（不阻塞）
+
+- `[[#目标页]]` 锚点链接渲染出尾部 `\`（Electron 侧待对比，疑似渲染层小瑕疵）
+- 对话框自动化教训：NSOpenPanel 对合成 CGEvent 点击免疫（AX click 回执确认
+  派发但不响应），Return 默认钮可用；open_panel 是独立 surface（AX 不列为
+  window），CUA frame 坐标为面板自身像素空间
+- 验收后未清理：未命名.md 脏标签留在应用中（含测试文本 abc），人工关闭即可
+
+**mac 结论**：自动化覆盖 25/25 PASS（2 真缺陷已修），与 Windows 侧 41 项合并后
+**双平台转正验收全部通过**。剩余仅：真实鼠标拖拽/双击最大化（mac 人工 1 分钟）、
+首次发版后的完整升级流验证。

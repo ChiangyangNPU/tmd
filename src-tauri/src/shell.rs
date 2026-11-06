@@ -249,6 +249,13 @@ pub(crate) fn save_shell_state(path: &std::path::Path, patch: Value) {
             obj.insert(k.clone(), v.clone());
         }
     }
+    // userData 目录不能假定存在：Windows 上 WebView2 首跑即建目录，macOS 的
+    // WKWebView 数据落在 ~/Library/WebKit——Application Support/{identifier}
+    // 只有这里会写，缺 create_dir_all 会让首次保存静默失败（几何/主题/更新
+    // 开关全部不持久化，A5 验收抓到的真缺陷）
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     let tmp = path.with_extension("json.tmp");
     match serde_json::to_string_pretty(&state) {
         Ok(json) => {
@@ -320,9 +327,17 @@ pub(crate) fn monitor_rects(monitors: &[Monitor]) -> Vec<(i32, i32, u32, u32)> {
     monitors
         .iter()
         .map(|m| {
+            // 转逻辑坐标：winState 存的是逻辑值（见 main.rs 几何记录注释），
+            // 「左上角落在显示器内」的判定必须在同一坐标系
+            let scale = m.scale_factor();
             let pos = m.position();
             let size = m.size();
-            (pos.x, pos.y, size.width, size.height)
+            (
+                (pos.x as f64 / scale).round() as i32,
+                (pos.y as f64 / scale).round() as i32,
+                (size.width as f64 / scale).round() as u32,
+                (size.height as f64 / scale).round() as u32,
+            )
         })
         .collect()
 }

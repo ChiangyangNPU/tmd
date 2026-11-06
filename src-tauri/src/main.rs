@@ -1116,14 +1116,18 @@ fn main() {
                             .save_now(window.app_handle());
                     }
                     // 几何记录 + 防抖 500ms 落盘（高频事件不刷盘；代数防抖——
-                    // 落盘线程醒来时代数未变才写）
+                    // 落盘线程醒来时代数未变才写）。**存逻辑坐标**：恢复端
+                    // builder.inner_size/position 吃逻辑值，物理直存会在 retina
+                    // 上双倍放大（A5 验收实测：存 2200 物理恢复成 2200 逻辑被
+                    // macOS 钳到全屏）。Electron getBounds 也是 DIP，语义对齐
                     if let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) {
+                        let scale = window.scale_factor().unwrap_or(1.0);
                         let tracker = window.app_handle().state::<WinStateTracker>();
                         tracker.record(
-                            pos.x,
-                            pos.y,
-                            size.width as f64,
-                            size.height as f64,
+                            (pos.x as f64 / scale).round() as i32,
+                            (pos.y as f64 / scale).round() as i32,
+                            size.width as f64 / scale,
+                            size.height as f64 / scale,
                             maximized,
                         );
                         let gen_before = tracker.generation.load(Ordering::SeqCst);
