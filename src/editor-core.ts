@@ -218,6 +218,16 @@ export function getSourceView(): SourceView | null {
 }
 
 /**
+ * 源码栏当前是否可编辑（无实例时视为 true，与创建时的 editable 参数恒同步——
+ * 实例不带 Compartment、可编辑性只随重建翻转）。context-menu 据此判断粘贴/剪切
+ * 项的可用性：取代读取 CodeMirror 的 editable facet，避免为这一个布尔值静态
+ * 引入 CodeMirror 值依赖（CodeMirror 已随 sourcemode 懒加载）。
+ */
+export function isSourcePaneEditable(): boolean {
+  return cmView ? cmEditable : true
+}
+
+/**
  * 跳到标题锚：双链 [[目标#标题]] 打开目标文档后调用。
  * 所见即所得侧匹配 heading 节点文本（全等优先、前缀兜底，大小写不敏感）；
  * 源码/分屏源码侧匹配 ATX 标题行。未找到返回 false（停留在文档顶部）。
@@ -570,7 +580,8 @@ export function setViewMode(mode: ViewMode) {
 /** 编辑器重建 / 视图模式切换后重新应用：源码栏内容跟随当前文档，布局与可编辑性重设 */
 function reapplyViewMode() {
   disposeSourcePane()
-  if (viewMode !== 'wysiwyg') rebuildSourcePane()
+  // 懒加载下重建异步：fire-and-forget，布局与 PM 侧可编辑性无需等它
+  if (viewMode !== 'wysiwyg') void rebuildSourcePane()
   applyViewLayout()
   applyEditableState()
 }
@@ -590,7 +601,7 @@ export function setSourceMode(on: boolean) {
  * @param pane - 目标可编辑侧
  * @param coords - 点击坐标（用于把光标落到点中的位置，可省略）
  */
-export function setSplitActivePane(pane: SplitPane, coords?: { x: number; y: number }) {
+export async function setSplitActivePane(pane: SplitPane, coords?: { x: number; y: number }) {
   if (viewMode !== 'split' || pane === activePane) return
   if (activePane === 'cm' && cmView) {
     const markdown = cmView.state.doc.toString()
@@ -598,7 +609,8 @@ export function setSplitActivePane(pane: SplitPane, coords?: { x: number; y: num
   }
   const caret = pane === 'cm' && cmView && coords ? cmView.posAtCoords(coords) : null
   activePane = pane
-  rebuildSourcePane()
+  // CodeMirror 懒加载使重建异步：await 后再恢复光标，避免「点过去后光标跳回开头」
+  await rebuildSourcePane()
   applyEditableState()
   if (caret != null && cmView) {
     cmView.dispatch({ selection: { anchor: caret } })
@@ -609,6 +621,8 @@ export function setSplitActivePane(pane: SplitPane, coords?: { x: number; y: num
 
 /** 销毁源码栏实例并清空容器（切换模式 / 重建编辑器时调用） */
 function disposeSourcePane() {
+  // 使在途的异步重建过期：其完成结果按代次核对后自毁，不会复活已清空的容器
+  rebuildSeq++
   window.clearTimeout(pmSyncTimer)
   window.clearTimeout(cmSyncTimer)
   cmView?.destroy()
@@ -617,11 +631,20 @@ function disposeSourcePane() {
   if (srcEl) srcEl.textContent = ''
 }
 
+/** 源码栏重建代次：dispose 与新一轮重建都递增，过期的异步完成结果自毁丢弃 */
+let rebuildSeq = 0
+/** 当前源码实例的可编辑侧标记（与最近一次创建参数同步；见 isSourcePaneEditable） */
+let cmEditable = true
+
 /**
  * 按当前视图模式与可编辑侧重建源码栏（内容沿用现有实例，实例不存在时取实时文档）。
  * 只有「纯源码」或「分屏且源码为编辑侧」才创建可编辑实例，其余为只读跟随。
+ *
+ * CodeMirror 模块经 sourcemode 壳懒加载，创建是异步的：期间可能有 dispose /
+ * 新一轮重建插入（快速切模式、切标签），完成后按代次核对——过期实例当场销毁。
  */
-function rebuildSourcePane() {
+async function rebuildSourcePane() {
+  const seq = ++rebuildSeq
   const srcEl = document.getElementById('src-editor')
   if (!srcEl) return
   const markdown = cmView ? cmView.state.doc.toString() : currentMarkdown()
@@ -629,8 +652,19 @@ function rebuildSourcePane() {
   cmView?.destroy()
   srcEl.textContent = ''
   const editable = viewMode === 'source' || activePane === 'cm'
-  cmView = createSourceEditor(srcEl, markdown, editable, onSourceChange)
-  cmView.scrollDOM.scrollTop = scrollTop
+  try {
+    const view = await createSourceEditor(srcEl, markdown, editable, onSourceChange)
+    if (seq !== rebuildSeq) {
+      view.destroy()
+      return
+    }
+    cmView = view
+    cmEditable = editable
+    view.scrollDOM.scrollTop = scrollTop
+  } catch (err) {
+    // 嵌入式资产下模块装载近乎不可能失败；兜底只记日志，源码栏保持空白不崩
+    console.error('[tmd] 源码编辑器模块加载失败', err)
+  }
 }
 
 /** 按当前视图模式应用布局（哪一栏可见、分隔条是否出现、body 上的模式类） */

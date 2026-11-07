@@ -14,9 +14,14 @@
  *
  * @author chiangyang
  */
-import { getPmView, isSourceMode, getSourceView, canEditWysiwyg } from './editor-core'
+import {
+  getPmView,
+  isSourceMode,
+  getSourceView,
+  isSourcePaneEditable,
+  canEditWysiwyg,
+} from './editor-core'
 import type { EditorView as SourceView } from 'codemirror'
-import { EditorView as CMFacets } from 'codemirror'
 import { applyFormatAction, toggleLink } from './format'
 import { isAiEnabled } from './ai'
 import { openAiBubble } from './ai-popover'
@@ -226,7 +231,9 @@ export function wireContextMenu(): void {
     e.preventDefault()
     const cm = getSourceView()
     const hasSelection = !!cm && !cm.state.selection.main.empty
-    const editable = cm ? cm.state.facet(CMFacets.editable) : true
+    // 可编辑性取 editor-core 的创建时标记（原为读 CodeMirror editable facet，
+    // 为拆出 CodeMirror 静态依赖改为纯应用态；两者语义恒等，见 editor-core）
+    const editable = isSourcePaneEditable()
     openContextMenu(
       e.clientX,
       e.clientY,
