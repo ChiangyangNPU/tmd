@@ -43,6 +43,9 @@ mod themes;
 mod updater;
 mod watcher;
 mod wikilinks;
+// macOS 最大化/还原的自绘逐帧缩放（原生 zoom 过渡期间页面不重排）
+#[cfg(target_os = "macos")]
+mod win_anim;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use history::{FileHistory, HistoryEntry};
@@ -414,12 +417,23 @@ fn tmd_win_minimize(window: tauri::WebviewWindow) {
 }
 
 /// 对应 native.ts winMaximizeToggle：最大化 / 还原切换。
+///
+/// macOS 走自绘逐帧缩放（见 win_anim：原生 zoom 过渡期间 WKWebView 不重排，
+/// 工具栏右侧按钮与居中标题会滞后到过渡结束）；其余平台最大化本身即时生效，
+/// 沿用原生调用。
 #[tauri::command]
 fn tmd_win_max_toggle(window: tauri::WebviewWindow) {
-    if window.is_maximized().unwrap_or(false) {
-        let _ = window.unmaximize();
-    } else {
-        let _ = window.maximize();
+    #[cfg(target_os = "macos")]
+    {
+        win_anim::toggle(&window);
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if window.is_maximized().unwrap_or(false) {
+            let _ = window.unmaximize();
+        } else {
+            let _ = window.maximize();
+        }
     }
 }
 
@@ -907,6 +921,9 @@ fn main() {
             }
             let window = builder.build()?;
             if restored.is_some_and(|w| w.maximized) {
+                // macOS：先记下正常 frame，用户双击还原时才有几何可回（原生 zoom 不经过 win_anim）
+                #[cfg(target_os = "macos")]
+                win_anim::remember_current_frame(&window);
                 let _ = window.maximize();
             }
             // 隐藏创建的上屏兜底（见上方「首帧防闪」）：正常路径是页面加载完成
@@ -1119,7 +1136,16 @@ fn main() {
                     // 落盘线程醒来时代数未变才写）。**存逻辑坐标**：恢复端
                     // builder.inner_size/position 吃逻辑值，物理直存会在 retina
                     // 上双倍放大（A5 验收实测：存 2200 物理恢复成 2200 逻辑被
-                    // macOS 钳到全屏）。Electron getBounds 也是 DIP，语义对齐
+                    // macOS 钳到全屏）。Electron getBounds 也是 DIP，语义对齐。
+                    // macOS 逐帧最大化动画会连发 Resized：跳过记录，避免把过渡
+                    // 中的中间尺寸当成「非最大化最近几何」落盘（下一帧即恢复）
+                    #[cfg(target_os = "macos")]
+                    let animating = win_anim::animating();
+                    #[cfg(not(target_os = "macos"))]
+                    let animating = false;
+                    if animating {
+                        return;
+                    }
                     if let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) {
                         let scale = window.scale_factor().unwrap_or(1.0);
                         let tracker = window.app_handle().state::<WinStateTracker>();
