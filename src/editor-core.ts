@@ -12,7 +12,7 @@ import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { getMarkdown, replaceRange } from '@milkdown/kit/utils'
 import { mathLazyPlugins } from './math-lazy'
-import { prism } from '@milkdown/plugin-prism'
+import { prismLazy } from './prism-lazy'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { Fragment, Slice } from '@milkdown/kit/prose/model'
 import { Plugin as ProsePlugin, TextSelection } from '@milkdown/kit/prose/state'
@@ -375,7 +375,7 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(listener)
       .use(selectionWordCount)
       .use(mermaidPlugins)
-      .use(prism)
+      .use(prismLazy)
       .use(mathLazyPlugins)
       .use(pasteImage)
       .use(pasteHtml)
