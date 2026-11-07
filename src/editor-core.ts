@@ -14,7 +14,7 @@ import { getMarkdown, replaceRange } from '@milkdown/kit/utils'
 import { mathLazyPlugins } from './math-lazy'
 import { prism } from '@milkdown/plugin-prism'
 import type { EditorView } from '@milkdown/kit/prose/view'
-import { Slice } from '@milkdown/kit/prose/model'
+import { Fragment, Slice } from '@milkdown/kit/prose/model'
 import { Plugin as ProsePlugin, TextSelection } from '@milkdown/kit/prose/state'
 import { $prose } from '@milkdown/kit/utils'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
@@ -350,6 +350,9 @@ async function createEditor(markdown: string): Promise<Editor> {
         // 文档变更通知拆两路（见 EditorHooks）：置脏同步 O(1)；序列化合并低优调度——
         // markdownUpdated 回调逐键全量 getMarkdown 曾占大文档输入延迟的大头（§26.3）
         ctx.get(listenerCtx).updated((_ctx, doc) => {
+          // 分帧追加期间抑制：批次事务不是用户编辑（不置脏），半截文档也
+          // 不进低优序列化；末批已摘标记，补齐完成那一刻会走一次完整通知
+          if (streamState) return
           hooks.onDocDirty()
           hooks.onDocUpdate(doc)
           scheduleMarkdownSync()
@@ -405,8 +408,173 @@ async function createEditor(markdown: string): Promise<Editor> {
   )
 }
 
+// ---------------------------------------------------------------------------
+// 大文档分帧挂载
+// ---------------------------------------------------------------------------
+
+/** 超过该字符数的文档走分帧挂载：编辑器先以空文档立即可用，内容分帧追加 */
+const STREAM_THRESHOLD = 200_000
+/**
+ * 单批追加的文本量上限。DOM 构建发生在 dispatch 内（同步、不可中断），
+ * 帧预算靠限制每批文本量实现；批间固定开销（事务 + 装饰重扫）随批数线性
+ * 增长，16K 字符在「单帧 DOM 成本」与「批数开销」之间取衡。
+ */
+const STREAM_BATCH_CHARS = 16_000
+
+/**
+ * 分帧挂载状态。target 是完整目标 markdown——流式期间 currentMarkdown 以它为
+ * 权威：自动保存/恢复副本/脏比对在内容尚未追加完时也看到全量目标，不会把
+ * 半截文档写进任何持久层。
+ */
+let streamState: { target: string; seq: number } | null = null
+let streamSeq = 0
+
+/** 取消在途分帧追加（新一轮挂载/重建/销毁/整段替换前调用） */
+function cancelStreamContent(): void {
+  streamSeq++
+  streamState = null
+}
+
+/** 帧间让出：rAF 对齐绘制节奏；不可见时 rAF 停摆，50ms setTimeout 兜底续流 */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => resolve())
+    window.setTimeout(resolve, 50)
+  })
+}
+
+/**
+ * 大文档分帧挂载入口：全量解析一次（数据层构建，无 DOM），顶层块按批插入。
+ * 打开大文档从「主线程卡死 1 秒以上」变为「空编辑器立即可用、内容数百毫秒
+ * 内分帧补齐」。
+ *
+ * 竞态安全：seq 在销毁/新一轮重建/AI 整段替换时递增，在途批次自弃。
+ */
+function beginStreamContent(markdown: string): void {
+  const seq = ++streamSeq
+  streamState = { target: markdown, seq }
+  // 下一轮宏任务再解析：让 mountEditor 先返回、启动序列与首帧绘制先行，
+  // 解析长任务不挡「编辑器已可用」的首屏
+  window.setTimeout(() => void streamAppend(markdown, seq), 0)
+}
+
+/** 可按子块续写的容器：超大列表（真实长笔记与长基准文档的常见形态）——
+ *  整节点插入会让 DOM 构建退化成一次成型，按 li 分批才能压住单帧成本 */
+function isSplittableContainer(node: ProseNode): boolean {
+  return node.type.name === 'bullet_list' || node.type.name === 'ordered_list'
+}
+
+/** 原子序列项：parent=null 自包含顶层块；parent=列表 → node 是待续写的 li */
+type StreamAtom = { parent: ProseNode | null; node: ProseNode }
+
+async function streamAppend(markdown: string, seq: number): Promise<void> {
+  if (seq !== streamSeq || !editor) return
+  const parsed = editor.action((ctx) => ctx.get(parserCtx)(markdown))
+  if (!parsed) {
+    // 解析失败：必须摘掉流式标记，否则 currentMarkdown 永远返回 target
+    cancelStreamContent()
+    return
+  }
+  // 展开为原子序列：超过单批预算的列表拆成 li（parent 引用原列表节点，
+  // 续写批插入已打开列表内部，序号随位置自动连续）；其余顶层块整体插入
+  const atoms: StreamAtom[] = []
+  parsed.content.forEach((top: ProseNode) => {
+    if (top.textContent.length > STREAM_BATCH_CHARS && isSplittableContainer(top)) {
+      top.content.forEach((li: ProseNode) => atoms.push({ parent: top, node: li }))
+    } else {
+      atoms.push({ parent: null, node: top })
+    }
+  })
+  let i = 0
+  let pendingFirst = true
+  // 文档级插入点（下一顶层块位置；列表打开期间指向其闭合边界之后）
+  let cursor = 0
+  // 打开列表的闭合边界位置与身份：li 续写在 listEnd-1，换父/遇自包含块时闭合
+  let listEnd = -1
+  let openList: ProseNode | null = null
+  while (i < atoms.length) {
+    if (seq !== streamSeq || !editor || !pmView) {
+      return
+    }
+    // 按文本量凑批：DOM 构建成本与文本量近似线性，8K 字符单批可把每次
+    // dispatch 的同步耗时压在帧预算内
+    let batchChars = 0
+    const batch: StreamAtom[] = []
+    while (i < atoms.length && batchChars < STREAM_BATCH_CHARS) {
+      const a = atoms[i++]
+      batch.push(a)
+      batchChars += a.node.textContent.length + 1
+    }
+    const final = i >= atoms.length
+    // 末批先摘流式标记再入队：本次事务的 updated 通知走完整钩子
+    // （大纲/字数/恢复副本在补齐完成那一刻刷新）
+    if (final) cancelStreamContent()
+    const view = pmView
+    if (!view) return
+    const tr = view.state.tr
+    // 分帧不是用户编辑：不进撤销历史（否则 Ctrl+Z 会撤掉最后一批内容）
+    tr.setMeta('addToHistory', false)
+    try {
+      for (const a of batch) {
+        const replaceMount = pendingFirst
+        if (a.parent === null) {
+          const node = a.node
+          if (replaceMount) {
+            // 挂载时的空段落被首批内容替换（空文档则原位插入）
+            if (view.state.doc.childCount > 0) tr.replaceWith(0, 1, node)
+            else tr.replaceWith(0, 0, node)
+            cursor = node.nodeSize
+            pendingFirst = false
+          } else {
+            tr.insert(cursor, node)
+            cursor += node.nodeSize
+          }
+          openList = null
+          listEnd = -1
+          continue
+        }
+        if (openList === a.parent && listEnd >= 0) {
+          // 续写：插到已打开列表内容末尾（闭合边界前）
+          tr.insert(listEnd - 1, a.node)
+          listEnd += a.node.nodeSize
+          continue
+        }
+        // 打开新列表：插入仅含当前 li 的列表副本（attrs 保自原解析节点，
+        // 后续 li 按位置续进同一列表，序列化结构与全量解析一致）
+        const list = a.parent.type.create(a.parent.attrs, Fragment.fromArray([a.node]))
+        if (replaceMount) {
+          if (view.state.doc.childCount > 0) tr.replaceWith(0, 1, list)
+          else tr.replaceWith(0, 0, list)
+          pendingFirst = false
+        } else {
+          tr.insert(cursor, list)
+        }
+        listEnd = cursor + list.nodeSize
+        cursor = listEnd
+        openList = a.parent
+      }
+      view.dispatch(tr)
+    } catch (err) {
+      // 分帧追加失败不静默：摘标记（currentMarkdown 回到实时文档）并留痕
+      cancelStreamContent()
+      console.error('[tmd] 分帧挂载追加失败', err)
+      return
+    }
+    await nextFrame()
+  }
+}
+
 /** 创建编辑器并挂载（启动时用） */
 export async function mountEditor(markdown: string): Promise<void> {
+  if (markdown.length > STREAM_THRESHOLD) {
+    // 大文档：空文档先挂载立即可用，内容分帧补齐（见 beginStreamContent）
+    editor = await createEditor('')
+    editor.action((ctx) => {
+      pmView = ctx.get(editorViewCtx)
+    })
+    beginStreamContent(markdown)
+    return
+  }
   editor = await createEditor(markdown)
   editor.action((ctx) => {
     pmView = ctx.get(editorViewCtx)
@@ -415,6 +583,7 @@ export async function mountEditor(markdown: string): Promise<void> {
 
 /** 销毁当前编辑器（关闭最后一个标签时用） */
 export async function destroyEditor() {
+  cancelStreamContent()
   await editor?.destroy()
   editor = null
   pmView = null
@@ -478,9 +647,14 @@ async function doReplaceEditor(markdown: string, options: ReplaceOptions) {
   //（后续 pmMarkdown()/currentMarkdown() 会对销毁实例调 action 直接抛错）
   editor = null
   pmView = null
-  editor = await createEditor(markdown)
+  // 在途分帧追加随旧实例一并作废（新一轮重建接管）
+  cancelStreamContent()
+  // 大文档：空文档先挂载立即可用，内容分帧补齐；小文档走原路径
+  const streaming = markdown.length > STREAM_THRESHOLD
+  editor = await createEditor(streaming ? '' : markdown)
   const nextView = editor.action((ctx) => ctx.get(editorViewCtx))
   pmView = nextView
+  if (streaming) beginStreamContent(markdown)
   updateWordCount(markdown)
   const list = document.getElementById('outline-list')
   if (list && pmView) renderOutline(list, collectOutline(pmView.state.doc), pmView)
@@ -531,6 +705,11 @@ async function doReplaceEditor(markdown: string, options: ReplaceOptions) {
  * ——所见即所得侧此时是只读跟随，存在同步防抖延迟。
  */
 export function currentMarkdown(): string {
+  // 分帧挂载期间以目标全文为权威：自动保存/恢复副本/脏比对看到的是完整
+  // 文档，不会把尚未追加完的半截内容写进任何持久层
+  if (streamState) {
+    return streamState.target
+  }
   if (cmView && (viewMode === 'source' || (viewMode === 'split' && activePane === 'cm'))) {
     return cmView.state.doc.toString()
   }
@@ -747,6 +926,9 @@ function onSourceChange(markdown: string) {
 function applyMarkdownToPm(markdown: string) {
   const view = pmView
   if (!editor || !view) return
+  // 整段替换以用户内容为权威：取消在途分帧追加，避免余量继续插到替换后
+  // 的文档尾部造成内容重复
+  cancelStreamContent()
   try {
     editor.action((ctx) => {
       const doc = ctx.get(parserCtx)(markdown)
