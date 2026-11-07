@@ -738,9 +738,10 @@
   font-size: 11px;
 }
 
-/* 关闭「×」字号与文件行里的「×」一致 */
+/* 关闭「×」与「清空」同规格：字号/内边距对齐，两按钮视觉等大 */
 .ai-chat-panel .panel-close:not(.ai-chat-title-btn) {
-  font-size: 14px;
+  font-size: 11px;
+  padding: 0 4px;
 }
 
 .ai-chat-panel .panel-close:hover {
