@@ -414,13 +414,132 @@ fn tmd_win_minimize(window: tauri::WebviewWindow) {
 }
 
 /// 对应 native.ts winMaximizeToggle：最大化 / 还原切换。
+///
+/// macOS 走自绘动画（`mac_zoom_toggle`）：系统 `NSWindow zoom` 动画期间
+/// WKWebView 不逐帧重排（内容被窗口服务拉伸、动画结束才回流）——分步
+/// `set_position/set_size` 驱动真实逐帧 resize，回流与 Electron 观感对齐。
+/// Windows/Linux 保持原生最大化（WebView2 重排无此问题）。
 #[tauri::command]
 fn tmd_win_max_toggle(window: tauri::WebviewWindow) {
-    if window.is_maximized().unwrap_or(false) {
-        let _ = window.unmaximize();
-    } else {
-        let _ = window.maximize();
+    #[cfg(target_os = "macos")]
+    {
+        mac_zoom_toggle(&window);
     }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if window.is_maximized().unwrap_or(false) {
+            let _ = window.unmaximize();
+        } else {
+            let _ = window.maximize();
+        }
+    }
+}
+
+/// 自绘最大化动画的运行时状态（三平台共用定义；Windows 恒为默认值）
+#[derive(Default)]
+struct MacZoomState {
+    /// 最大化前的逻辑帧 (x, y, w, h)，还原动画的目标
+    pre_max: std::sync::Mutex<Option<(f64, f64, f64, f64)>>,
+    /// 动画进行中：连点忽略
+    animating: AtomicBool,
+    /// 自绘最大化生效中：并入几何记录/save_now 的 maximized 语义
+    /// （自绘路径不走 NSWindow zoom，AppKit isZoomed 恒 false）
+    user_max: AtomicBool,
+}
+
+/// 读 user_max（无状态时 false；shell.rs save_now 与事件门控共用）
+fn user_max_flag(app: &tauri::AppHandle) -> bool {
+    app.try_state::<MacZoomState>()
+        .map(|s| s.user_max.load(Ordering::SeqCst))
+        .unwrap_or(false)
+}
+
+/// mac 自绘最大化/还原：分步 setFrame（~180ms，easeOut），每步都是真实
+/// resize → WKWebView 像交互式拖拽一样逐帧回流。
+#[cfg(target_os = "macos")]
+fn mac_zoom_toggle(window: &tauri::WebviewWindow) {
+    if window.is_fullscreen().unwrap_or(false) {
+        return; // 全屏态交给系统，不参与自绘切换
+    }
+    let app = window.app_handle();
+    let Some(state) = app.try_state::<MacZoomState>() else {
+        return;
+    };
+    if state.animating.swap(true, Ordering::SeqCst) {
+        return; // 动画进行中：连点忽略
+    }
+    // 起点与目标（逻辑坐标）
+    let scale = window.scale_factor().unwrap_or(1.0);
+    let cur = (|| -> Option<(f64, f64, f64, f64)> {
+        let pos = window.outer_position().ok()?;
+        let size = window.outer_size().ok()?;
+        Some((
+            pos.x as f64 / scale,
+            pos.y as f64 / scale,
+            size.width as f64 / scale,
+            size.height as f64 / scale,
+        ))
+    })();
+    let Some(from) = cur else {
+        state.animating.store(false, Ordering::SeqCst);
+        return;
+    };
+    let to_max = !state.user_max.load(Ordering::SeqCst);
+    let to = if to_max {
+        match export_native::visible_frame_logical(window) {
+            Ok(vf) => vf,
+            Err(_) => {
+                state.animating.store(false, Ordering::SeqCst);
+                return;
+            }
+        }
+    } else {
+        state
+            .pre_max
+            .lock()
+            .expect("pre_max 锁中毒")
+            .unwrap_or(from)
+    };
+    if to_max {
+        // 记录还原帧并立即置位：动画每步的 Resized 事件由此门控，
+        // 不会把最大化中间帧写进 last_normal
+        *state.pre_max.lock().expect("pre_max 锁中毒") = Some(from);
+        state.user_max.store(true, Ordering::SeqCst);
+    }
+
+    let window = window.clone();
+    let app = app.clone();
+    std::thread::spawn(move || {
+        const STEPS: u32 = 12;
+        for i in 1..=STEPS {
+            let t = i as f64 / STEPS as f64;
+            let ease = 1.0 - (1.0 - t) * (1.0 - t); // easeOutQuad
+            let (x, y, w, h) = (
+                from.0 + (to.0 - from.0) * ease,
+                from.1 + (to.1 - from.1) * ease,
+                from.2 + (to.2 - from.2) * ease,
+                from.3 + (to.3 - from.3) * ease,
+            );
+            let _ = window.set_position(tauri::LogicalPosition::new(x, y));
+            let _ = window.set_size(tauri::LogicalSize::new(w, h));
+            std::thread::sleep(std::time::Duration::from_millis(15));
+        }
+        // 终帧精确对齐（插值不保证落在整数像素）
+        let _ = window.set_position(tauri::LogicalPosition::new(to.0, to.1));
+        let _ = window.set_size(tauri::LogicalSize::new(to.2, to.3));
+        // 收尾：标记翻转（与事件处理器共享去重语义）+ 动画闸释放。
+        // state 从 app 重取（State 借用不能跨线程搬运）
+        let state = app.state::<MacZoomState>();
+        let flag = app.state::<MaximizedFlag>();
+        let now_max = to_max;
+        if flag.0.swap(now_max, Ordering::SeqCst) != now_max {
+            let _ = app.emit("tmd-win-max-changed", now_max);
+        }
+        if !to_max {
+            state.user_max.store(false, Ordering::SeqCst);
+        }
+        state.animating.store(false, Ordering::SeqCst);
+    });
 }
 
 /// 对应 native.ts winClose：走统一关闭流程（脏标记 → 原生确认对话框拦截）。
@@ -810,6 +929,7 @@ fn main() {
             exporter::init(app.handle());
             app.manage(ShellState::new());
             app.manage(MaximizedFlag(AtomicBool::new(false)));
+            app.manage(MacZoomState::default());
             app.manage(PendingOpenPaths {
                 queue: std::sync::Mutex::new(Vec::new()),
                 ready: AtomicBool::new(false),
@@ -1104,22 +1224,36 @@ fn main() {
         .on_window_event(|window, event| {
             match event {
                 tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                    // 自绘最大化期间的原生还原同步：绿灯钮 zoom-out 等原生路径
+                    // 不经过 user_max 翻转，检测到「原生已非最大化 + 自绘标记
+                    // 还挂着 + 动画已结束」即同步清标记并推还原事件（罕见：
+                    // 双击自绘与绿灯钮混用时）
+                    let native_max = window.is_maximized().unwrap_or(false);
+                    let app_handle = window.app_handle();
+                    if !native_max && user_max_flag(app_handle) {
+                        let st = app_handle.state::<MacZoomState>();
+                        if !st.animating.load(Ordering::SeqCst)
+                            && !window.is_fullscreen().unwrap_or(false)
+                        {
+                            st.user_max.store(false, Ordering::SeqCst);
+                            *st.pre_max.lock().expect("pre_max 锁中毒") = None;
+                        }
+                    }
+                    let maximized = native_max || user_max_flag(app_handle);
                     // 最大化状态推送（仅状态变化时发，对应 Electron maximize/unmaximize），
-                    // 变化瞬间同步落盘 winState（对应 JS 的 maximize/unmaximize 即时记录）
-                    let maximized = window.is_maximized().unwrap_or(false);
-                    let last = window.app_handle().state::<MaximizedFlag>();
-                    if last.0.swap(maximized, Ordering::SeqCst) != maximized {
-                        let _ = window.app_handle().emit("tmd-win-max-changed", maximized);
-                        window
-                            .app_handle()
-                            .state::<WinStateTracker>()
-                            .save_now(window.app_handle());
+                    // 变化瞬间同步落盘 winState（对应 JS 的 maximize/unmaximize 即时记录）。
+                    // 去重基于原生 is_maximized——自绘动画由动画收尾手动推送
+                    let last = app_handle.state::<MaximizedFlag>();
+                    if last.0.swap(native_max, Ordering::SeqCst) != native_max {
+                        let _ = app_handle.emit("tmd-win-max-changed", native_max);
+                        app_handle.state::<WinStateTracker>().save_now(app_handle);
                     }
                     // 几何记录 + 防抖 500ms 落盘（高频事件不刷盘；代数防抖——
                     // 落盘线程醒来时代数未变才写）。**存逻辑坐标**：恢复端
                     // builder.inner_size/position 吃逻辑值，物理直存会在 retina
                     // 上双倍放大（A5 验收实测：存 2200 物理恢复成 2200 逻辑被
-                    // macOS 钳到全屏）。Electron getBounds 也是 DIP，语义对齐
+                    // macOS 钳到全屏）。Electron getBounds 也是 DIP，语义对齐。
+                    // maximized 并入 user_max：自绘动画的中间帧不得写进 last_normal
                     if let (Ok(pos), Ok(size)) = (window.outer_position(), window.outer_size()) {
                         let scale = window.scale_factor().unwrap_or(1.0);
                         let tracker = window.app_handle().state::<WinStateTracker>();

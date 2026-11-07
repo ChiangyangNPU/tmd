@@ -42,6 +42,40 @@ where
         .map_err(|_| "with_webview 派发超时".to_string())
 }
 
+/// 主屏可见区域（扣除菜单栏/Dock），返回 tauri 逻辑坐标（左上原点）。
+/// 自绘最大化动画的目标帧来源：NSWindow zoom 的目标即 visibleFrame，但其
+/// 坐标系是 Cocoa 全局 bottom-left——这里换算成渲染层 set_position 的
+/// top-left 语义（primary 屏高度做全局翻转基准，多屏与 Electron 同数学）。
+pub(crate) fn visible_frame_logical(
+    window: &WebviewWindow,
+) -> Result<(f64, f64, f64, f64), String> {
+    // objc2 封装的方法调用本身安全（无需 unsafe）：NSScreen/NSWindow 只读查询
+    with_wk(window, move |wk| {
+        let Some(win) = wk.window() else {
+            return None;
+        };
+        let mtm = objc2::MainThreadMarker::new()?;
+        let screens = objc2_app_kit::NSScreen::screens(mtm);
+        let Some(primary) = screens.firstObject() else {
+            return None;
+        };
+        let primary_h = primary.frame().size.height;
+        let Some(current) = win.screen() else {
+            return None;
+        };
+        let vf = current.visibleFrame();
+        Some((
+            vf.origin.x,
+            primary_h - (vf.origin.y + vf.size.height),
+            vf.size.width,
+            vf.size.height,
+        ))
+    })
+    .ok()
+    .flatten()
+    .ok_or_else(|| "可见区域获取失败".to_string())
+}
+
 /// 在 webview 内执行 JS 并取字符串结果（completion 经 mpsc 回传，阻塞等待）。
 ///
 /// 约定：脚本应返回**字符串**（内部把回调对象按 NSString 强转取值）；

@@ -391,10 +391,17 @@ impl WinStateTracker {
 
     /// 落盘当前 winState（last_normal 缺失时跳过——首帧即最大化且无历史几何）
     pub fn save_now(&self, app: &AppHandle) {
+        // maximized 并入自绘最大化的 user_max（mac 分步动画不走 NSWindow
+        // zoom，AppKit isZoomed 恒 false——见 main.rs MacZoomState）
+        let user_max = app
+            .try_state::<crate::MacZoomState>()
+            .map(|s| s.user_max.load(AtomicOrdering::SeqCst))
+            .unwrap_or(false);
         let maximized = app
             .get_webview_window("main")
             .and_then(|w| w.is_maximized().ok())
-            .unwrap_or(false);
+            .unwrap_or(false)
+            || user_max;
         let geom = *self.last_normal.lock().expect("win tracker 锁中毒");
         let Some((x, y, width, height)) = geom else {
             return;
