@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { convertHtmlBlocks, sanitizeRawHtml } from '../raw-html'
+import { convertHtmlBlocks } from '../raw-html'
+import { sanitizeRawHtml } from '../html-sanitize'
 import { renderMarkdown } from '../export-doc'
 
 type MdNode = {

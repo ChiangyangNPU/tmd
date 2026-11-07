@@ -11,7 +11,7 @@ import { gfm } from '@milkdown/kit/preset/gfm'
 import { history } from '@milkdown/kit/plugin/history'
 import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
 import { getMarkdown, replaceRange } from '@milkdown/kit/utils'
-import { math } from '@milkdown/plugin-math'
+import { mathLazyPlugins } from './math-lazy'
 import { prism } from '@milkdown/plugin-prism'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { Slice } from '@milkdown/kit/prose/model'
@@ -373,7 +373,7 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(selectionWordCount)
       .use(mermaidPlugins)
       .use(prism)
-      .use(math)
+      .use(mathLazyPlugins)
       .use(pasteImage)
       .use(pasteHtml)
       .use(pasteTsv)

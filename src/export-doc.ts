@@ -22,7 +22,7 @@ import { getLocale } from './i18n'
 import { slugify } from './toc'
 import { parseImgHtml } from './image-attrs'
 import { toFileUrl } from './fs-path'
-import { sanitizeRawHtml } from './raw-html'
+import { sanitizeRawHtml } from './html-sanitize'
 
 /**
  * 解析管线工厂：与渲染目标无关的解析权威。

@@ -8,11 +8,26 @@
  * remark 拆成多个 html 节点，逐段渲染会破坏嵌套；按块级支持是安全且可
  * 字节级往返的取舍。
  *
+ * sanitizer（sanitize-html，压缩后约 550KB）在 ./html-sanitize 经动态 import
+ * 懒加载：文档模型全程存原始 HTML，清洗只影响 NodeView 显示层，因此模块
+ * 未就绪时先显示占位、就绪后补渲，parse/serialize 往返不受影响。sanitizer
+ * 本体不进启动包。
+ *
  * @author chiangyang
  */
-import sanitizeHtml from 'sanitize-html'
 import { $nodeSchema, $remark, $view } from '@milkdown/kit/utils'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
+
+/** html-sanitize 模块（sanitize-html）的单例加载器；失败清缓存允许重试 */
+let sanitizeModule: Promise<typeof import('./html-sanitize')> | null = null
+
+function loadSanitizeModule(): Promise<typeof import('./html-sanitize')> {
+  sanitizeModule ??= import('./html-sanitize').catch((err: unknown) => {
+    sanitizeModule = null
+    throw err
+  })
+  return sanitizeModule
+}
 
 type MdNode = {
   type: string
@@ -21,89 +36,6 @@ type MdNode = {
   position?: unknown
 }
 
-/** 允许渲染的标签：覆盖常见文档结构；script/style/iframe/svg 等一律剔除 */
-const ALLOWED_TAGS = [
-  'a',
-  'abbr',
-  'b',
-  'blockquote',
-  'br',
-  'caption',
-  'code',
-  'col',
-  'colgroup',
-  'dd',
-  'del',
-  'details',
-  'div',
-  'dl',
-  'dt',
-  'em',
-  'figcaption',
-  'figure',
-  'h1',
-  'h2',
-  'h3',
-  'h4',
-  'h5',
-  'h6',
-  'hr',
-  'i',
-  'img',
-  'ins',
-  'kbd',
-  'li',
-  'mark',
-  'ol',
-  'p',
-  'pre',
-  'q',
-  's',
-  'samp',
-  'section',
-  'small',
-  'span',
-  'strong',
-  'sub',
-  'summary',
-  'sup',
-  'table',
-  'tbody',
-  'td',
-  'tfoot',
-  'th',
-  'thead',
-  'tr',
-  'u',
-  'ul',
-  'var',
-]
-
-/**
- * 白名单清洗：去掉脚本/事件处理器/样式/class/id，只保留安全结构与少量
- * 展示属性。href/src 走协议白名单（img 额外允许 data:image）。
- */
-export function sanitizeRawHtml(html: string): string {
-  return sanitizeHtml(html, {
-    allowedTags: ALLOWED_TAGS,
-    allowedAttributes: {
-      a: ['href', 'title'],
-      img: ['src', 'alt', 'title', 'width', 'height', 'align'],
-      td: ['colspan', 'rowspan', 'align'],
-      th: ['colspan', 'rowspan', 'align', 'scope'],
-      ol: ['start', 'type'],
-      details: ['open'],
-      '*': ['title'],
-    },
-    allowedSchemes: ['http', 'https', 'mailto'],
-    allowedSchemesByTag: { img: ['http', 'https', 'data'] },
-    allowedSchemesAppliedToAttributes: ['href', 'src'],
-    allowProtocolRelative: false,
-    disallowedTagsMode: 'discard',
-    // 不保留 HTML 注释（TOC 标记在更早的 remark 插件里已成为 toc 节点）
-    allowedIframeHostnames: [],
-  })
-}
 
 /** 可承载块级 HTML 的 mdast 容器（段落/标题里的 html 属于行内，保持原样） */
 const BLOCK_PARENTS = new Set(['root', 'blockquote', 'listItem', 'footnoteDefinition'])
@@ -175,14 +107,27 @@ const rawHtmlView = $view(rawHtmlSchema.node, () => (node: ProseNode) => {
   dom.className = 'raw-html-block'
   dom.dataset.type = 'html-block'
   dom.setAttribute('contenteditable', 'false')
+  // sanitizer 懒加载：就绪前显示占位，就绪后按序号补渲（视图内防竞态——
+  // update 可能先于上一次异步补渲到达，过期结果必须丢弃）
+  let renderSeq = 0
   const render = (value: string) => {
-    const safe = sanitizeRawHtml(value)
-    if (safe.trim()) {
-      dom.innerHTML = safe
-    } else {
-      // 纯注释 / 被清洗掉的标签：留一个可见占位，避免出现无法感知的空块
-      dom.innerHTML = '<span class="raw-html-empty">HTML</span>'
+    const seq = ++renderSeq
+    const apply = (safe: string) => {
+      if (seq !== renderSeq) return
+      if (safe.trim()) {
+        dom.innerHTML = safe
+      } else {
+        // 纯注释 / 被清洗掉的标签：留一个可见占位，避免出现无法感知的空块
+        dom.innerHTML = '<span class="raw-html-empty">HTML</span>'
+      }
     }
+    void loadSanitizeModule()
+      .then((m) => apply(m.sanitizeRawHtml(value)))
+      .catch((err: unknown) => {
+        // 模块装载近乎不可能失败（嵌入式资产）；兜底占位且绝不裸插原始 HTML
+        console.error('[tmd] sanitizer 模块加载失败', err)
+        apply('')
+      })
   }
   render(node.attrs.value)
   return {
