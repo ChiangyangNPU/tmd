@@ -381,14 +381,6 @@ impl WinStateTracker {
         }
     }
 
-    /// 直接播种 last_normal（不触发防抖保存）：tao 对程序化 setFrame 的事件
-    /// 合并不可控（macOS 实测 14 步动画仅 1 个事件、启动恢复可能 0 事件），
-    /// 依赖事件流填充 last_normal 在 mac 上必然拿不到值——恢复与最大化
-    /// 路径各自显式播种，save_now 才有几何可写
-    pub fn seed_last_normal(&self, x: i32, y: i32, width: f64, height: f64) {
-        *self.last_normal.lock().expect("win tracker 锁中毒") = Some((x, y, width, height));
-    }
-
     /// 记录一次几何事件：非最大化时更新 last_normal（调用方负责调度防抖落盘）
     pub fn record(&self, x: i32, y: i32, width: f64, height: f64, maximized: bool) {
         if !maximized {

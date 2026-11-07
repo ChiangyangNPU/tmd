@@ -440,19 +440,11 @@ fn tmd_win_max_toggle(window: tauri::WebviewWindow) {
 struct MacZoomState {
     /// 最大化前的逻辑帧 (x, y, w, h)，还原动画的目标
     pre_max: std::sync::Mutex<Option<(f64, f64, f64, f64)>>,
-    /// 最大化目标帧（visibleFrame 逻辑坐标缓存）：事件同步分支据此区分
-    /// 「迟到的动画尾事件」与「真正的原生还原」
-    max_frame: std::sync::Mutex<Option<(f64, f64, f64, f64)>>,
     /// 动画进行中：连点忽略
     animating: AtomicBool,
     /// 自绘最大化生效中：并入几何记录/save_now 的 maximized 语义
     /// （自绘路径不走 NSWindow zoom，AppKit isZoomed 恒 false）
     user_max: AtomicBool,
-    /// user_max 置位时刻：同步分支的宽限判别依据——live-resize 模式下主线程
-    /// 被 WebKit 同步布局拖慢，动画收尾的 animating=false 会先于排队的
-    /// set_size 事件被处理器观察到（活体尺寸短暂还是旧值），帧比别的
-    /// still_max 判定存在竞态；2 秒宽限内一律不视为原生还原
-    user_max_at: std::sync::Mutex<Option<std::time::Instant>>,
 }
 
 /// 读 user_max（无状态时 false；shell.rs save_now 与事件门控共用）
@@ -512,28 +504,13 @@ fn mac_zoom_toggle(window: &tauri::WebviewWindow) {
         // 记录还原帧并立即置位：动画每步的 Resized 事件由此门控，
         // 不会把最大化中间帧写进 last_normal
         *state.pre_max.lock().expect("pre_max 锁中毒") = Some(from);
-        *state.max_frame.lock().expect("max_frame 锁中毒") = Some(to);
         state.user_max.store(true, Ordering::SeqCst);
-        // 播种 last_normal = 最大化前帧：动画期间 record 被 user_max 门控，
-        // 若事件流从未填充过（mac 事件合并），此处的 save_now 将无几何可写
-        window
-            .app_handle()
-            .state::<WinStateTracker>()
-            .seed_last_normal(from.0.round() as i32, from.1.round() as i32, from.2, from.3);
-        *state.user_max_at.lock().expect("user_max_at 锁中毒") = Some(std::time::Instant::now());
     }
-    // 进入 live-resize 模式：WebKit 对处于 live resize 的视图做同步逐帧
-    // 重排（交互式拖拽流畅、程序化 resize 滞后的差异就在这条路径上）；
-    // 手动圈定动画区间让分步 setFrame 获得同等的回流质量
-    let _ = window.with_webview(|platform| unsafe {
-        let wk = &*(platform.inner() as *const objc2_web_kit::WKWebView);
-        let _: () = objc2::msg_send![wk, viewWillStartLiveResize];
-    });
 
     let window = window.clone();
     let app = app.clone();
     std::thread::spawn(move || {
-        const STEPS: u32 = 14;
+        const STEPS: u32 = 12;
         for i in 1..=STEPS {
             let t = i as f64 / STEPS as f64;
             let ease = 1.0 - (1.0 - t) * (1.0 - t); // easeOutQuad
@@ -545,17 +522,11 @@ fn mac_zoom_toggle(window: &tauri::WebviewWindow) {
             );
             let _ = window.set_position(tauri::LogicalPosition::new(x, y));
             let _ = window.set_size(tauri::LogicalSize::new(w, h));
-            std::thread::sleep(std::time::Duration::from_millis(18));
+            std::thread::sleep(std::time::Duration::from_millis(15));
         }
         // 终帧精确对齐（插值不保证落在整数像素）
         let _ = window.set_position(tauri::LogicalPosition::new(to.0, to.1));
         let _ = window.set_size(tauri::LogicalSize::new(to.2, to.3));
-        // 末步沉降后退出 live-resize 模式（须晚于最后一步的 main 线程落地）
-        std::thread::sleep(std::time::Duration::from_millis(60));
-        let _ = window.with_webview(|platform| unsafe {
-            let wk = &*(platform.inner() as *const objc2_web_kit::WKWebView);
-            let _: () = objc2::msg_send![wk, viewDidEndLiveResize];
-        });
         // 收尾：标记翻转（与事件处理器共享去重语义）+ 动画闸释放。
         // state 从 app 重取（State 借用不能跨线程搬运）
         let state = app.state::<MacZoomState>();
@@ -566,14 +537,8 @@ fn mac_zoom_toggle(window: &tauri::WebviewWindow) {
         }
         if !to_max {
             state.user_max.store(false, Ordering::SeqCst);
-            *state.max_frame.lock().expect("max_frame 锁中毒") = None;
         }
         state.animating.store(false, Ordering::SeqCst);
-        // 同步落盘 winState：程序化 setFrame 的事件合并行为不可控（实测 14 步
-        // 动画仅派发 1 个 Resized 事件），事件驱动的防抖保存不保证触发——
-        // 动画收尾线程直接写，语义确定性 100%（maximized 与 last_normal
-        // 均已由上方门控保证正确）
-        app.state::<WinStateTracker>().save_now(&app);
     });
 }
 
@@ -1061,20 +1026,6 @@ fn main() {
                 }
             }
             let window = builder.build()?;
-            // 播种 last_normal：启动恢复路径可能零 resize 事件（tao 事件合并），
-            // 不播种则首次 save_now 拿 None 早退（mac 实测）
-            {
-                let tracker = app.state::<WinStateTracker>();
-                match &restored {
-                    Some(win) => tracker.seed_last_normal(
-                        win.x.unwrap_or(0),
-                        win.y.unwrap_or(0),
-                        win.width,
-                        win.height,
-                    ),
-                    None => tracker.seed_last_normal(0, 0, 1280.0, 820.0),
-                }
-            }
             if restored.is_some_and(|w| w.maximized) {
                 let _ = window.maximize();
             }
@@ -1275,52 +1226,17 @@ fn main() {
                 tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
                     // 自绘最大化期间的原生还原同步：绿灯钮 zoom-out 等原生路径
                     // 不经过 user_max 翻转，检测到「原生已非最大化 + 自绘标记
-                    // 还挂着 + 动画已结束」即同步清标记并推还原事件。须甄别
-                    // 迟到的动画尾事件：当前帧仍在最大化目标位（±8px）则窗口
-                    // 还在最大化，不是还原
+                    // 还挂着 + 动画已结束」即同步清标记并推还原事件（罕见：
+                    // 双击自绘与绿灯钮混用时）
                     let native_max = window.is_maximized().unwrap_or(false);
                     let app_handle = window.app_handle();
                     if !native_max && user_max_flag(app_handle) {
                         let st = app_handle.state::<MacZoomState>();
-                        let animating = st.animating.load(Ordering::SeqCst);
-                        let still_max = st
-                            .max_frame
-                            .lock()
-                            .expect("max_frame 锁中毒")
-                            .map(|(mx, my, mw, mh)| {
-                                window
-                                    .outer_position()
-                                    .ok()
-                                    .zip(window.outer_size().ok())
-                                    .map(|(pos, size)| {
-                                        let scale = window.scale_factor().unwrap_or(1.0);
-                                        let (x, y) = (pos.x as f64 / scale, pos.y as f64 / scale);
-                                        let (w, h) =
-                                            (size.width as f64 / scale, size.height as f64 / scale);
-                                        (x - mx).abs() < 8.0
-                                            && (y - my).abs() < 8.0
-                                            && (w - mw).abs() < 8.0
-                                            && (h - mh).abs() < 8.0
-                                    })
-                                    .unwrap_or(false)
-                            })
-                            .unwrap_or(false);
-                        // 2s 宽限：动画收尾的事件竞态（见 MacZoomState 注释）
-                        // 期间活体尺寸可能短暂偏离目标帧，不得误判为原生还原
-                        let grace_ok = st
-                            .user_max_at
-                            .lock()
-                            .expect("user_max_at 锁中毒")
-                            .map(|t| t.elapsed() > std::time::Duration::from_secs(2))
-                            .unwrap_or(false);
-                        if !animating
-                            && !still_max
-                            && grace_ok
+                        if !st.animating.load(Ordering::SeqCst)
                             && !window.is_fullscreen().unwrap_or(false)
                         {
                             st.user_max.store(false, Ordering::SeqCst);
                             *st.pre_max.lock().expect("pre_max 锁中毒") = None;
-                            *st.max_frame.lock().expect("max_frame 锁中毒") = None;
                         }
                     }
                     let maximized = native_max || user_max_flag(app_handle);
