@@ -11,6 +11,7 @@ import remarkStringify from 'remark-stringify'
 import remarkGfm from 'remark-gfm'
 import type { Root } from 'mdast'
 import {
+  wikilinkDisplayText,
   convertWikiLinks,
   parseWikiInner,
   parseWikiText,
@@ -191,5 +192,21 @@ describe('输入规则正则', () => {
   test('未闭合不触发', () => {
     expect(WIKI_INPUT_RE.test('看 [[Note|名]')).toBe(false)
     expect(WIKI_INPUT_RE.test('看 [[Note')).toBe(false)
+  })
+})
+
+
+describe('wikilinkDisplayText（显示文本三形态）', () => {
+  test('目标形态显示目标名', () => {
+    expect(wikilinkDisplayText('目标页', '', '')).toBe('目标页')
+  })
+  test('别名优先于目标', () => {
+    expect(wikilinkDisplayText('目标页', '别名', '')).toBe('别名')
+  })
+  test('纯锚点形态回落到标题名（否则渲染零宽空链接）', () => {
+    expect(wikilinkDisplayText('', '', '目标页')).toBe('目标页')
+  })
+  test('目标+标题形态仍显示目标名', () => {
+    expect(wikilinkDisplayText('目标页', '', '标题')).toBe('目标页')
   })
 })

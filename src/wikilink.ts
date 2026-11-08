@@ -59,6 +59,15 @@ export interface WikiParts {
 }
 
 /**
+ * 双链的显示文本：别名优先，其次目标文件名，两者皆空（[[#标题]] 纯锚点
+ * 形态）回落到标题名——否则渲染成零宽空 <a>，视口里只剩悬空占位
+ * （mac 实测的「尾部 \」伪影即源于此）。导出供单测。
+ */
+export function wikilinkDisplayText(target: string, alias: string, heading: string): string {
+  return alias || target || heading
+}
+
+/**
  * 解析 [[...]] 内部文本（不含双方括号）：第一个 | 切别名，
  * | 之前的部分里第一个 # 切标题；各段 trim。导出供单测。
  */
@@ -189,7 +198,7 @@ const wikilinkSchema = $nodeSchema('wikilink', () => ({
         'data-alias': alias,
         'data-heading': heading,
       },
-      alias || target,
+      wikilinkDisplayText(target, alias, heading),
     ]
   },
   parseMarkdown: {
