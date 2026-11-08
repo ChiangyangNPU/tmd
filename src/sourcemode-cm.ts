@@ -17,6 +17,7 @@ import { markdown as cmMarkdown } from '@codemirror/lang-markdown'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import type { InlineContext, MarkdownExtension } from '@lezer/markdown'
 import { Tag, tags as t } from '@lezer/highlight'
+import { t as i18nT } from './i18n'
 
 /** 双链着色 tag（独立定义，不与普通链接共用样式规则） */
 const wikiTag = Tag.define()
@@ -104,7 +105,9 @@ export function createSourceEditor(
   editable = true,
   onDocChange?: (markdown: string) => void,
 ): CMView {
-  return new CMView({
+  // AX 显式标注:CM6 已带 role=textbox;补 multiline 与 label,避免 WebKit
+  // 对大 contenteditable 做 AXTitleUIElement 自动推导(mac 分屏 AX 超时相关)
+  const view = new CMView({
     doc: markdown,
     extensions: [
       basicSetup,
@@ -120,4 +123,7 @@ export function createSourceEditor(
     ],
     parent,
   })
+  view.contentDOM.setAttribute('aria-multiline', 'true')
+  view.contentDOM.setAttribute('aria-label', i18nT('toolbar.sourceMode'))
+  return view
 }

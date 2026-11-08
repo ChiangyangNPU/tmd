@@ -926,6 +926,18 @@ async function rebuildSourcePane() {
     cmView = view
     cmEditable = editable
     view.scrollDOM.scrollTop = scrollTop
+    // huge-doc 分屏：源码栏从 AX 树摘除——WebKit 对「双大 contenteditable」
+    // 的 AXTitleUIElement 解析在 30 万字符级超时（mac 补充验证判别矩阵：
+    // 纯 WYSIWYG 3.6s 可用、分屏 8s 必超时、c-v 剪枝无效），分屏下 PM 侧
+    // 提供完整无障碍路径。纯源码模式（Ctrl+E）不摘——那是唯一编辑面。
+    // 已知取舍：隐藏后 VoiceOver 不播报源码栏（鼠标操作不受影响）
+    const srcPane = document.getElementById('src-pane')
+    if (srcPane) {
+      srcPane.setAttribute(
+        'aria-hidden',
+        document.body.classList.contains('huge-doc') && viewMode === 'split' ? 'true' : 'false',
+      )
+    }
   } catch (err) {
     // 嵌入式资产下模块装载近乎不可能失败；兜底只记日志，源码栏保持空白不崩
     console.error('[tmd] 源码编辑器模块加载失败', err)

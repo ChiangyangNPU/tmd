@@ -132,3 +132,28 @@
 **mac 结论**：自动化覆盖 25/25 PASS（2 真缺陷已修），与 Windows 侧 41 项合并后
 **双平台转正验收全部通过**。剩余仅：真实鼠标拖拽/双击最大化（mac 人工 1 分钟）、
 首次发版后的完整升级流验证。
+
+## 11-08 mac 补充验证新问题与修复（待 mac 复测闭环）
+
+| # | 问题 | 修复 | mac 复测 |
+|---|------|------|----------|
+| 1 | 🔴 1MB 文档编辑丢失（打字 → 查找浮层 → Esc → 编辑消失、Cmd+Z 无效） | `98b8759`：流式挂载窗口内的用户编辑保护——用户一编辑即原子补全剩余内容，置脏/恢复副本/撤销回归正常路径 | 重走原复现链，确认编辑保留 |
+| 2 | 🟡 1MB 分屏 AX 遍历 8s 超时（VoiceOver 不可用；AXTitleUIElement 解析挂死，c-v 剪枝对分屏无效） | `01e0f07`（PM 侧 c-v，纯 WYSIWYG 3.6s 可用）+ `98b8759` 后续：CM contentDOM 补 aria-label/multiline + huge-doc 分屏源码栏 aria-hidden 摘除 AX 树 | VoiceOver/Accessibility Inspector 实测分屏遍历 |
+| 3 | （用户报告共三个问题，第三项待补充详情） | — | — |
+
+### 若 AX 仍超时的二分协议（mac devtools console 即可做）
+
+1. `document.body.classList.remove('huge-doc')` —— 若分屏从超时恢复到
+   「慢但可用」，说明 c-v 剪枝有效、卡点在 CM 侧新增子树；若仍超时，
+   c-v 对该 AX 路径无效，需换动态 aria-hidden 显式剪枝方案
+2. `document.getElementById('src-pane').removeAttribute('aria-hidden')` ——
+   恢复源码栏 AX 参与做对照
+3. Accessibility Inspector 指向分屏窗口，逐元素刷新定位挂死元素
+   （重点：分屏容器 / 两个编辑 pane / CM 滚动容器三级）
+
+### 定性
+
+AX 树懒构建，普通用户操作手感不受影响；打击面为 VoiceOver/旁白用户与
+自动化测试。**列入转正已知问题清单，非阻断项**（除非用户画像含辅助
+技术依赖）。huge-doc 分屏源码栏 aria-hidden 的取舍（VO 用户放弃源码栏
+可编辑性，换取不挂死）随 mac 复测结果再评估。
