@@ -856,7 +856,9 @@ fn main() {
             app.state::<ShellState>().rebuild_menu(app.handle());
             let mut builder =
                 tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
-                    .title("TMD (tauri spike)")
+                    // 带版本号：双轨共存期与 Electron 线（0.1.7）窗口可区分；
+                    // 版本随 Cargo 对齐流程自动跟进
+                    .title(format!("TMD {}", app.package_info().version))
                     .min_inner_size(940.0, 600.0)
                     .initialization_script(TMD_API_SHIM);
             if let Some(theme) = restored_theme {
