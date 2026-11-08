@@ -2,7 +2,7 @@
  * 生成 Tauri 更新器元数据 latest.json（发版用，见 docs/打包发布.md §11.3）。
  *
  * 输入：带签名构建（dist:tauri:*:signed）产出的安装包与其 .sig 文件。
- * 输出：releases/latest.json——两个平台条目（windows-x86_64 / darwin-aarch64），
+ * 输出：releases/tauri/latest.json——两个平台条目（windows-x86_64 / darwin-aarch64），
  *       signature 字段为 .sig 文件的**文本内容**（minisign 签名，非 base64 再编码），
  *       url 指向 Gitee Release 附件的绝对地址（与 Electron 元数据同口径：
  *       Tauri 更新器对绝对 URL 原样使用，不做 baseUrl 拼接）。

@@ -1,7 +1,7 @@
 [package]
 name = "tmd"
-version = "0.2.0-spike.1"
-description = "TMD - Type Markdown, Done.（Tauri spike 壳层）"
+version = "0.2.0"
+description = "TMD - Type Markdown, Done."
 authors = ["chiangyang"]
 edition = "2021"
 rust-version = "1.77.2"

@@ -1,7 +1,7 @@
 {
   "name": "tmd",
   "private": true,
-  "version": "0.1.6",
+  "version": "0.2.0",
   "author": "chiangyang",
   "type": "module",
   "main": "electron/main.cjs",
@@ -26,7 +26,7 @@
     "dist:install": "npm run dist:dir && rm -rf /Applications/TMD.app && cp -R release/mac-arm64/TMD.app /Applications/",
     "dist:tauri": "tauri build",
     "dist:tauri:dir": "tauri build --bundles app",
-    "dist:tauri:install": "npm run dist:tauri:dir && rm -rf \"/Applications/TMD-spike.app\" && cp -R src-tauri/target/release/bundle/macos/TMD.app \"/Applications/TMD-spike.app\"",
+    "dist:tauri:install": "npm run dist:tauri:dir && rm -rf \"/Applications/TMD.app\" && cp -R src-tauri/target/release/bundle/macos/TMD.app \"/Applications/TMD.app\"",
     "dist:tauri:win": "tauri build --bundles nsis",
     "dist:tauri:win:dir": "tauri build --no-bundle",
     "dist:tauri:win:open": "start \"\" \"src-tauri\\target\\release\\bundle\\nsis\"",
