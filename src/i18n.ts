@@ -76,6 +76,7 @@ export function t(path: string, params?: Record<string, string | number>): strin
 /** 当前语言的菜单栏文案（发给 Electron 主进程重建菜单） */
 export function menuLabels(): Record<string, string> {
   return {
+    edit: t('menu.edit'),
     file: t('menu.file'),
     open: t('menu.open'),
     openFolder: t('menu.openFolder'),

@@ -116,6 +116,7 @@
     "failed": "編輯器啟動失敗："
   },
   "menu": {
+    "edit": "編輯",
     "file": "檔案",
     "open": "開啟…",
     "openFolder": "開啟資料夾…",

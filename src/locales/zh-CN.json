@@ -116,6 +116,7 @@
     "failed": "编辑器启动失败："
   },
   "menu": {
+    "edit": "编辑",
     "file": "文件",
     "open": "打开…",
     "openFolder": "打开文件夹…",

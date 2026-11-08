@@ -67,6 +67,7 @@ pub(crate) const DEFAULT_MENU_LABELS: &[(&str, &str)] = &[
     ("history", "历史版本"),
     ("settings", "设置…"),
     ("quit", "退出 TMD"),
+    ("edit", "编辑"),
 ];
 
 /// 中文兜底文案表（渲染层语言包缺键时回落）
@@ -388,7 +389,27 @@ pub(crate) fn build_menu(
     )?));
     let format_menu = Submenu::with_items(app, l("format"), true, &item_refs(&format_items))?;
 
-    let menu = Menu::with_items(app, &[&file_menu, &export_menu, &format_menu])?;
+    // ---------- 编辑 ----------
+    // macOS 剪贴板/系统编辑快捷键经主菜单 performKeyEquivalent 路由到
+    // WKWebView 的 paste:/copy: 选择器——缺编辑菜单则 Cmd+C/V/X 全部失效
+    // （ProseMirror 键内绑定的 Cmd+Z/A/B 不受影响，故启动后不易察觉）。
+    // PredefinedMenuItem 的标签传 None 走系统本地化文案。
+    let edit_menu = Submenu::with_items(
+        app,
+        l("edit"),
+        true,
+        &[
+            &PredefinedMenuItem::undo(app, None)?,
+            &PredefinedMenuItem::redo(app, None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::cut(app, None)?,
+            &PredefinedMenuItem::copy(app, None)?,
+            &PredefinedMenuItem::paste(app, None)?,
+            &PredefinedMenuItem::select_all(app, None)?,
+        ],
+    )?;
+
+    let menu = Menu::with_items(app, &[&file_menu, &edit_menu, &export_menu, &format_menu])?;
     Ok(BuiltMenu {
         menu,
         autosave: autosave_item,

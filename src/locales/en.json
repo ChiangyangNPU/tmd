@@ -116,6 +116,7 @@
     "failed": "Editor failed to start: "
   },
   "menu": {
+    "edit": "Edit",
     "file": "File",
     "open": "Open",
     "openFolder": "Open Folder",
