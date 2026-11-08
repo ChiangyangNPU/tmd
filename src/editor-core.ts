@@ -15,7 +15,7 @@ import { mathLazyPlugins } from './math-lazy'
 import { prismLazy } from './prism-lazy'
 import type { EditorView } from '@milkdown/kit/prose/view'
 import { Fragment, Slice } from '@milkdown/kit/prose/model'
-import { Plugin as ProsePlugin, TextSelection } from '@milkdown/kit/prose/state'
+import { Plugin as ProsePlugin, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
 import { $prose } from '@milkdown/kit/utils'
 import type { Node as ProseNode } from '@milkdown/kit/prose/model'
 import { mermaidPlugins } from './mermaid'
@@ -350,9 +350,12 @@ async function createEditor(markdown: string): Promise<Editor> {
         // 文档变更通知拆两路（见 EditorHooks）：置脏同步 O(1)；序列化合并低优调度——
         // markdownUpdated 回调逐键全量 getMarkdown 曾占大文档输入延迟的大头（§26.3）
         ctx.get(listenerCtx).updated((_ctx, doc) => {
-          // 分帧追加期间抑制：批次事务不是用户编辑（不置脏），半截文档也
-          // 不进低优序列化；末批已摘标记，补齐完成那一刻会走一次完整通知
-          if (streamState) return
+          // 流式批次 addToHistory:false，listener 对其不回调——走到这里的
+          // docChanged 都是用户编辑。流式窗口内的编辑必须立即原子补全剩余
+          // 内容（微任务），随后钩子正常走：置脏、恢复副本、低优序列化——
+          // 否则窗口内的编辑无脏标记、无恢复副本，页面级异常会无声丢失
+          // （mac 补充验证的数据丢失即源于此）
+          if (streamActive) queueMicrotask(() => finalizeStreamNow())
           hooks.onDocDirty()
           hooks.onDocUpdate(doc)
           scheduleMarkdownSync()
@@ -420,19 +423,43 @@ const STREAM_THRESHOLD = 200_000
  * 增长，16K 字符在「单帧 DOM 成本」与「批数开销」之间取衡。
  */
 const STREAM_BATCH_CHARS = 16_000
-
 /**
- * 分帧挂载状态。target 是完整目标 markdown——流式期间 currentMarkdown 以它为
- * 权威：自动保存/恢复副本/脏比对在内容尚未追加完时也看到全量目标，不会把
- * 半截文档写进任何持久层。
+ * 流式批次事务的标记。批次一律 addToHistory:false（不进撤销历史），而
+ * milkdown listener 对 addToHistory:false 的事务不回调 updated——批次对
+ * 变更钩子天然静默；该 meta 再用于 finalize 补全事务的自抑（避免
+ * finalize 的 dispatch 递归触发自身）。
  */
-let streamState: { target: string; seq: number } | null = null
+const STREAM_APPEND_META = 'tmd-appending'
+
 let streamSeq = 0
+/** 流式进行中（beginStreamContent → 补齐完成/取消/finalize） */
+let streamActive = false
+/**
+ * 流式目标全文。仅在「解析窗口」（mountEditor 之后、首批落账本之前）作为
+ * currentMarkdown 的权威返回——彼时编辑器为空且无账本可 finalize；首批
+ * 落地后改由 finalizeStreamNow 补全，不再使用。
+ */
+let streamTarget: string | null = null
+/**
+ * 批量插入状态账本。流式期间任何 currentMarkdown 消费都会触发
+ * finalizeStreamNow 据此把剩余原子一次性补全——保证自动保存/切标签/恢复
+ * 副本永远拿到全量文档，不存在「半截文档落盘」的窗口。
+ */
+let streamSession: {
+  atoms: StreamAtom[]
+  index: number
+  cursor: number
+  listEnd: number
+  openList: ProseNode | null
+  pendingFirst: boolean
+} | null = null
 
 /** 取消在途分帧追加（新一轮挂载/重建/销毁/整段替换前调用） */
 function cancelStreamContent(): void {
   streamSeq++
-  streamState = null
+  streamActive = false
+  streamTarget = null
+  streamSession = null
 }
 
 /** 帧间让出：rAF 对齐绘制节奏；不可见时 rAF 停摆，50ms setTimeout 兜底续流 */
@@ -443,16 +470,110 @@ function nextFrame(): Promise<void> {
   })
 }
 
+/** 单批/补全共用的逐原子插入。st 为可变位置账本（cursor/listEnd/openList/
+ *  pendingFirst 随插入推进），由调用方保证其与事务当前文档状态一致。 */
+function insertAtoms(
+  tr: Transaction,
+  atoms: StreamAtom[],
+  st: { cursor: number; listEnd: number; openList: ProseNode | null; pendingFirst: boolean },
+): void {
+  for (const a of atoms) {
+    const replaceMount = st.pendingFirst
+    if (a.parent === null) {
+      const node = a.node
+      if (replaceMount) {
+        // 挂载时空段落被首批替换；若用户已抢先在空文档里打字（解析窗口内），
+        // 保留其内容、改为尾部追加，绝不覆盖用户输入
+        const emptyMount = tr.doc.childCount === 1 && isEmptyTextblock(tr.doc.firstChild)
+        if (emptyMount) tr.replaceWith(0, 1, node)
+        else if (tr.doc.childCount > 0) tr.insert(tr.doc.content.size, node)
+        else tr.replaceWith(0, 0, node)
+        st.cursor = tr.doc.content.size
+        st.pendingFirst = false
+      } else {
+        tr.insert(st.cursor, node)
+        st.cursor += node.nodeSize
+      }
+      st.openList = null
+      st.listEnd = -1
+      continue
+    }
+    if (st.openList === a.parent && st.listEnd >= 0) {
+      // 续写：插到已打开列表内容末尾（闭合边界前）
+      tr.insert(st.listEnd - 1, a.node)
+      st.listEnd += a.node.nodeSize
+      continue
+    }
+    // 打开新列表：插入仅含当前 li 的列表副本（attrs 保自原解析节点，
+    // 后续 li 按位置续进同一列表，序列化结构与全量解析一致）
+    const list = a.parent.type.create(a.parent.attrs, Fragment.fromArray([a.node]))
+    if (replaceMount) {
+      const emptyMount = tr.doc.childCount === 1 && isEmptyTextblock(tr.doc.firstChild)
+      if (emptyMount) tr.replaceWith(0, 1, list)
+      else if (tr.doc.childCount > 0) tr.insert(tr.doc.content.size, list)
+      else tr.replaceWith(0, 0, list)
+      st.pendingFirst = false
+    } else {
+      tr.insert(st.cursor, list)
+    }
+    st.listEnd = st.cursor + list.nodeSize
+    st.cursor = st.listEnd
+    st.openList = a.parent
+  }
+}
+
+/** 挂载空段判定：唯一子节点且为无内容的文本块 */
+function isEmptyTextblock(node: ProseNode | null): boolean {
+  return !!node && node.isTextblock && node.content.size === 0
+}
+
+/**
+ * 用户在流式窗口内编辑（或任何内容消费到来）时调用：取消分帧并把剩余
+ * 原子一次事务原子补全——文档即刻回到全量正常态，此后置脏/恢复副本/
+ * 撤销历史/自动保存全部走正常路径。这是流式窗口内用户编辑的保护基石：
+ * 流式批次对变更钩子天然静默（addToHistory:false 不进 listener），若无
+ * 此补全，窗口内的编辑无脏标记、无恢复副本，页面级异常会无声丢失。
+ */
+function finalizeStreamNow(): void {
+  const s = streamSession
+  if (!s) return
+  const rest = s.atoms.slice(s.index)
+  streamSeq++
+  streamActive = false
+  streamTarget = null
+  streamSession = null
+  const view = pmView
+  if (!view || rest.length === 0) return
+  try {
+    const tr = view.state.tr
+    tr.setMeta(STREAM_APPEND_META, true)
+    tr.setMeta('addToHistory', false)
+    insertAtoms(tr, rest, s)
+    view.dispatch(tr)
+  } catch (err) {
+    // 位置账本被并发编辑打乱（微任务竞态，极罕）：退化为序列化往返整树
+    // 替换——已流式部分与用户编辑都在实时文档里，内容保真；撤销历史与
+    // 光标丢失（记录日志留痕，发生即需排查）
+    console.error('[tmd] 分帧挂载补全失败，退化为整树替换', err)
+    applyMarkdownToPm(pmMarkdown())
+  }
+  // 补全后补一次内容通知（成功路径的补全事务带 meta 不触发 listener；
+  // 恢复副本/字数/大纲此刻落到全量+用户编辑）
+  scheduleMarkdownSync()
+}
+
 /**
  * 大文档分帧挂载入口：全量解析一次（数据层构建，无 DOM），顶层块按批插入。
  * 打开大文档从「主线程卡死 1 秒以上」变为「空编辑器立即可用、内容数百毫秒
  * 内分帧补齐」。
  *
- * 竞态安全：seq 在销毁/新一轮重建/AI 整段替换时递增，在途批次自弃。
+ * 竞态安全：seq 在销毁/新一轮重建/AI 整段替换时递增，在途批次自弃；用户
+ * 编辑经 updated 钩子的 finalizeStreamNow 原子补全（见 createEditor）。
  */
 function beginStreamContent(markdown: string): void {
   const seq = ++streamSeq
-  streamState = { target: markdown, seq }
+  streamActive = true
+  streamTarget = markdown
   // 下一轮宏任务再解析：让 mountEditor 先返回、启动序列与首帧绘制先行，
   // 解析长任务不挡「编辑器已可用」的首屏
   window.setTimeout(() => void streamAppend(markdown, seq), 0)
@@ -485,74 +606,28 @@ async function streamAppend(markdown: string, seq: number): Promise<void> {
       atoms.push({ parent: null, node: top })
     }
   })
-  let i = 0
-  let pendingFirst = true
-  // 文档级插入点（下一顶层块位置；列表打开期间指向其闭合边界之后）
-  let cursor = 0
-  // 打开列表的闭合边界位置与身份：li 续写在 listEnd-1，换父/遇自包含块时闭合
-  let listEnd = -1
-  let openList: ProseNode | null = null
-  while (i < atoms.length) {
-    if (seq !== streamSeq || !editor || !pmView) {
-      return
-    }
-    // 按文本量凑批：DOM 构建成本与文本量近似线性，8K 字符单批可把每次
-    // dispatch 的同步耗时压在帧预算内
+  streamSession = { atoms, index: 0, cursor: 0, listEnd: -1, openList: null, pendingFirst: true }
+  // null 检查必须在循环条件内：await nextFrame() 期间用户编辑可能触发
+  // finalizeStreamNow（session 置空 + seq 递增），恢复点先判空再判 seq
+  while (streamSession && streamSession.index < atoms.length) {
+    if (seq !== streamSeq || !editor || !pmView) return
+    const s = streamSession
+    // 按文本量凑批：DOM 构建成本与文本量近似线性
     let batchChars = 0
     const batch: StreamAtom[] = []
-    while (i < atoms.length && batchChars < STREAM_BATCH_CHARS) {
-      const a = atoms[i++]
+    while (s.index < atoms.length && batchChars < STREAM_BATCH_CHARS) {
+      const a = atoms[s.index++]
       batch.push(a)
       batchChars += a.node.textContent.length + 1
     }
-    const final = i >= atoms.length
-    // 末批先摘流式标记再入队：本次事务的 updated 通知走完整钩子
-    // （大纲/字数/恢复副本在补齐完成那一刻刷新）
-    if (final) cancelStreamContent()
     const view = pmView
     if (!view) return
     const tr = view.state.tr
-    // 分帧不是用户编辑：不进撤销历史（否则 Ctrl+Z 会撤掉最后一批内容）
+    tr.setMeta(STREAM_APPEND_META, true)
+    // 分帧不是用户编辑：不进撤销历史（否则 Ctrl+Z 会撤掉分帧内容）
     tr.setMeta('addToHistory', false)
     try {
-      for (const a of batch) {
-        const replaceMount = pendingFirst
-        if (a.parent === null) {
-          const node = a.node
-          if (replaceMount) {
-            // 挂载时的空段落被首批内容替换（空文档则原位插入）
-            if (view.state.doc.childCount > 0) tr.replaceWith(0, 1, node)
-            else tr.replaceWith(0, 0, node)
-            cursor = node.nodeSize
-            pendingFirst = false
-          } else {
-            tr.insert(cursor, node)
-            cursor += node.nodeSize
-          }
-          openList = null
-          listEnd = -1
-          continue
-        }
-        if (openList === a.parent && listEnd >= 0) {
-          // 续写：插到已打开列表内容末尾（闭合边界前）
-          tr.insert(listEnd - 1, a.node)
-          listEnd += a.node.nodeSize
-          continue
-        }
-        // 打开新列表：插入仅含当前 li 的列表副本（attrs 保自原解析节点，
-        // 后续 li 按位置续进同一列表，序列化结构与全量解析一致）
-        const list = a.parent.type.create(a.parent.attrs, Fragment.fromArray([a.node]))
-        if (replaceMount) {
-          if (view.state.doc.childCount > 0) tr.replaceWith(0, 1, list)
-          else tr.replaceWith(0, 0, list)
-          pendingFirst = false
-        } else {
-          tr.insert(cursor, list)
-        }
-        listEnd = cursor + list.nodeSize
-        cursor = listEnd
-        openList = a.parent
-      }
+      insertAtoms(tr, batch, s)
       view.dispatch(tr)
     } catch (err) {
       // 分帧追加失败不静默：摘标记（currentMarkdown 回到实时文档）并留痕
@@ -562,6 +637,10 @@ async function streamAppend(markdown: string, seq: number): Promise<void> {
     }
     await nextFrame()
   }
+  // 补齐完成：摘流式标记 + 一次完整内容通知（恢复副本/字数/大纲/脏比对
+  // 落到全量；内容与磁盘一致，不会置脏）
+  cancelStreamContent()
+  scheduleMarkdownSync()
 }
 
 /** 创建编辑器并挂载（启动时用） */
@@ -705,10 +784,12 @@ async function doReplaceEditor(markdown: string, options: ReplaceOptions) {
  * ——所见即所得侧此时是只读跟随，存在同步防抖延迟。
  */
 export function currentMarkdown(): string {
-  // 分帧挂载期间以目标全文为权威：自动保存/恢复副本/脏比对看到的是完整
-  // 文档，不会把尚未追加完的半截内容写进任何持久层
-  if (streamState) {
-    return streamState.target
+  // 流式未完成时的内容消费（自动保存/切标签/另存/恢复副本）都需要全量
+  // 文档：有账本先 finalize 同步补全（位置账本新鲜，无并发编辑窗口）；
+  // 解析窗口（账本未建）返回 target 全文。消费方永远看不到半截文档
+  if (streamActive) {
+    if (streamSession) finalizeStreamNow()
+    else return streamTarget ?? ''
   }
   if (cmView && (viewMode === 'source' || (viewMode === 'split' && activePane === 'cm'))) {
     return cmView.state.doc.toString()
