@@ -278,6 +278,11 @@ export function formatWordCount(total: number, selected = 0): string {
 export function updateWordCount(markdown: string, selected = 0) {
   const el = document.getElementById('word-count')
   if (el) el.textContent = formatWordCount(markdown.replace(/\s/g, '').length, selected)
+  // 大文档渲染模式开关（阈值与分帧挂载一致）：视口外的顶层块与列表项跳过
+  // 渲染与无障碍树构建（content-visibility，样式见 06-editor-page.css）——
+  // 治理 macOS AX 全量遍历超时。挂载（target 全文）与编辑（低优合并回调）
+  // 都会经过这里；打印场景由 15-print.css 重置为全量渲染
+  document.body.classList.toggle('huge-doc', markdown.length > STREAM_THRESHOLD)
 }
 
 // ---------------------------------------------------------------------------

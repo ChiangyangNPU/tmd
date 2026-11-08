@@ -62,3 +62,13 @@
     break-inside: avoid;
   }
 }
+
+/* 大文档渲染模式重置：huge-doc 的 content-visibility 会让视口外内容
+   不进打印输出，打印/导出 PDF 必须全量渲染 */
+@media print {
+  body.huge-doc .ProseMirror > *,
+  body.huge-doc .ProseMirror ol > li,
+  body.huge-doc .ProseMirror ul > li {
+    content-visibility: visible;
+  }
+}

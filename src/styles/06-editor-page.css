@@ -277,3 +277,16 @@ dl[data-type='footnote_definition'] dd {
   font-size: 12px;
   user-select: none;
 }
+
+/* ---------------- 大文档渲染模式（huge-doc） ----------------
+   编辑器枢纽对 20 万字符以上的文档挂 body.huge-doc：视口外的顶层块与
+   列表项跳过渲染与无障碍树构建（content-visibility auto）——治理 macOS
+   AX 全量遍历超时（VoiceOver 在超大文档不可用）；滚动条经 contain-
+   intrinsic-size 的 auto 记忆保持稳定。普通文档无此类、零影响。
+   ⚠ 打印场景必须在 15-print.css 重置为 visible，否则视口外内容不输出 */
+body.huge-doc .ProseMirror > *,
+body.huge-doc .ProseMirror ol > li,
+body.huge-doc .ProseMirror ul > li {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 28px;
+}
