@@ -14,7 +14,7 @@
 const path = require('node:path')
 const fs = require('node:fs/promises')
 const fsSync = require('node:fs')
-const { execFile } = require('node:child_process')
+const { execFile, spawn } = require('node:child_process')
 const { createHash } = require('node:crypto')
 const state = require('./app-state.cjs')
 
@@ -423,6 +423,113 @@ function createUpdater({
   }
 
   /**
+   * 安装/退出前处置未保存修改：无脏内容直接放行；有则三选（保存 / 放弃 / 取消）。
+   * 0.1.x 更新与架构迁移下载共用（文案参数化）。
+   * @param {string} message 对话框标题文案
+   * @param {string} cancelDetail 用户取消时的说明
+   * @returns {Promise<boolean>} true = 可以继续（已保存或用户选择放弃）
+   */
+  async function confirmProceedWithUnsaved(message, cancelDetail) {
+    const mainWindow = state.getMainWindow()
+    if (!state.isRendererDirty() || !mainWindow) return true
+    const { response } = await showMessageBoxSafe({
+      type: 'warning',
+      title: 'TMD',
+      message,
+      detail: '有未保存的修改，关闭应用前需要先处理。',
+      buttons: ['保存并继续', '放弃修改并继续', '取消'],
+      // 默认落在「保存并继续」：数据安全优先
+      defaultId: 0,
+      cancelId: 2,
+    })
+    if (response === 2) return false
+    if (response === 1) {
+      // 与关闭确认的「放弃修改并关闭」同语义：清恢复副本，防止被放弃的
+      // 内容以恢复副本"复活"
+      state.setRendererDirty(false)
+      await clearRendererRecoveryCopy()
+      return true
+    }
+    const saved = await requestRendererSave()
+    if (!saved) {
+      showMessageBoxSafe({
+        type: 'info',
+        title: 'TMD',
+        message: '暂不继续',
+        detail: cancelDetail,
+        buttons: ['确定'],
+        defaultId: 0,
+      }).catch(() => {})
+      return false
+    }
+    return true
+  }
+
+  /**
+   * 架构迁移安装包：**应用内下载**（复用 Electron 下载栈，带进度）→
+   * 按平台引导安装。
+   * - macOS：dmg 下到「下载」目录、清隔离标记，弹窗引导「关闭应用并打开
+   *   安装包」（与 0.1.x 更新同一管线，拖入「应用程序」即替换旧版）
+   * - Windows：setup.exe 下到临时目录，弹窗后运行安装器并退出应用
+   *   （退出避免占用安装目标）；安装完成后用户手动卸载旧版 0.1.x
+   * 下载失败给明确弹窗并提示可手动从 Release 页下载，不静默失败。
+   * @param {string} url migration.json 里的平台下载直链
+   */
+  async function downloadMigrationInstaller(url) {
+    const isMac = process.platform === 'darwin'
+    try {
+      sendToRenderer(IPC.updateStatus, { status: 'downloading', percent: 0 })
+      const dest = await downloadToFile(
+        url,
+        isMac ? app.getPath('downloads') : app.getPath('temp'),
+      )
+      if (isMac) {
+        await clearQuarantine(dest)
+        downloadedInstallerPath = dest
+        sendToRenderer(IPC.updateStatus, { status: 'downloaded', path: dest })
+        const { response } = await showMessageBoxSafe({
+          type: 'info',
+          title: 'TMD',
+          message: '新架构安装包已下载',
+          detail: `${dest}\n\n点击「关闭应用并打开安装包」会退出应用并弹出安装窗口，把 TMD 拖入「应用程序」替换旧版即可（不需要手动卸载）。`,
+          buttons: ['关闭应用并打开安装包', '稍后'],
+          defaultId: 0,
+          cancelId: 1,
+        })
+        if (response === 0) void openDownloadedInstallerAndQuit()
+        return
+      }
+      const { response } = await showMessageBoxSafe({
+        type: 'info',
+        title: 'TMD',
+        message: '新架构安装包已下载',
+        detail: '将运行安装程序完成安装。安装完成后请在「设置 → 应用」中卸载旧版 TMD（0.1.x）——两代安装器独立，旧版不会自动移除。',
+        buttons: ['运行安装程序并退出应用', '稍后'],
+        defaultId: 0,
+        cancelId: 1,
+      })
+      if (response !== 0) return
+      const proceed = await confirmProceedWithUnsaved(
+        '准备安装新架构版本',
+        '文档未能保存，应用没有关闭。安装包已下载到临时目录，稍后可手动运行。',
+      )
+      if (!proceed) return
+      spawn(dest, [], { detached: true, stdio: 'ignore' }).unref()
+      app.quit()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      sendToRenderer(IPC.updateStatus, { status: 'error', message: msg })
+      await showMessageBoxSafe({
+        type: 'warning',
+        title: 'TMD',
+        message: '下载失败',
+        detail: `${msg}\n\n可稍后重试，或手动到项目 Release 页面下载新架构安装包。`,
+        buttons: ['确定'],
+      }).catch(() => {})
+    }
+  }
+
+  /**
    * 打开已下载的 dmg 并退出应用（下载完成弹窗与设置面板「打开安装包」共用）。
    * 有未保存修改时先三选处置（保存 / 放弃 / 取消）。顺序上先 openPath 挂载
    * dmg 再退出应用：安装窗口由 Finder 接管，应用退出后依然显示，避免
@@ -707,7 +814,9 @@ function createUpdater({
     }
     saveShellState({ migrationPrompted: version })
     if (response === 0) {
-      await shell.openExternal(url).catch(() => {})
+      // 应用内下载（mac 复用 dmg 管线、win 下载后运行安装器），不再跳浏览器
+      void downloadMigrationInstaller(url)
+      return true
     }
     sendToRenderer(IPC.updateStatus, { status: 'idle' })
     return true
