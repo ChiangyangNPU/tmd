@@ -8,12 +8,22 @@ import { describe, expect, test } from 'vitest'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
-const { compareVersions, shouldPromptMigration, pickMigrationUrl } = require(
-  '../../electron/updater.cjs',
-) as {
+const {
+  compareVersions,
+  shouldPromptMigration,
+  pickMigrationUrl,
+  shouldShowMigrationPrompt,
+  buildMigrationDetail,
+} = require('../../electron/updater.cjs') as {
   compareVersions: (a: string, b: string) => number
   shouldPromptMigration: (current: string, info: unknown) => boolean
   pickMigrationUrl: (info: unknown, platform: string) => string | null
+  shouldShowMigrationPrompt: (
+    current: string,
+    info: unknown,
+    shellState: Record<string, unknown>,
+  ) => boolean
+  buildMigrationDetail: (info: unknown, platform: string) => string
 }
 
 describe('compareVersions', () => {
@@ -61,5 +71,42 @@ describe('pickMigrationUrl', () => {
     expect(pickMigrationUrl({ version: '0.2.0' }, 'darwin')).toBeNull()
     expect(pickMigrationUrl({ downloads: { darwin: 'javascript:alert(1)' } }, 'darwin')).toBeNull()
     expect(pickMigrationUrl({ downloads: { darwin: 'file:///etc/passwd' } }, 'darwin')).toBeNull()
+  })
+})
+
+describe('shouldShowMigrationPrompt（三态选择语义）', () => {
+  const info = { version: '0.2.0' }
+  test('首次命中提示', () => {
+    expect(shouldShowMigrationPrompt('0.1.7', info, {})).toBe(true)
+  })
+  test('选过「稍后」同版本不再提示', () => {
+    expect(shouldShowMigrationPrompt('0.1.7', info, { migrationPrompted: '0.2.0' })).toBe(false)
+    // 新目标版本（下次发版）重新提示
+    expect(
+      shouldShowMigrationPrompt('0.1.7', { version: '0.3.0' }, { migrationPrompted: '0.2.0' }),
+    ).toBe(true)
+  })
+  test('选过「继续使用 0.1.x」永久不提示', () => {
+    expect(shouldShowMigrationPrompt('0.1.7', info, { migrationDeclined: true })).toBe(false)
+  })
+  test('目标不高于当前一律不提示', () => {
+    expect(shouldShowMigrationPrompt('0.2.0', info, {})).toBe(false)
+  })
+})
+
+describe('buildMigrationDetail（平台差异）', () => {
+  test('macOS 说明替换旧版', () => {
+    const d = buildMigrationDetail({ notes: '基础说明' }, 'darwin')
+    expect(d).toContain('基础说明')
+    expect(d).toContain('替换「应用程序」中的旧版')
+  })
+  test('Windows 说明需手动卸载旧版', () => {
+    const d = buildMigrationDetail({ notes: '基础说明' }, 'win32')
+    expect(d).toContain('基础说明')
+    expect(d).toContain('卸载旧版')
+    expect(d).toContain('不会自动移除')
+  })
+  test('缺 notes 用默认说明', () => {
+    expect(buildMigrationDetail({ version: '0.2.0' }, 'darwin')).toContain('6MB')
   })
 })

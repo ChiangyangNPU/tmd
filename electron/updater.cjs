@@ -98,6 +98,48 @@ function pickMigrationUrl(info, platform) {
 }
 
 /**
+ * 是否展示迁移提示：未永久拒绝过、该目标版本未提示过、且目标版本更高。
+ * @param {string} currentVersion
+ * @param {unknown} info migration.json 解析结果
+ * @param {Record<string, unknown>} shellState 壳层持久化状态
+ * @returns {boolean}
+ */
+function shouldShowMigrationPrompt(currentVersion, info, shellState) {
+  if (!shouldPromptMigration(currentVersion, info)) return false
+  const st = shellState || {}
+  // 用户明确选择「继续使用 0.1.x」：永久不再提示
+  if (st.migrationDeclined === true) return false
+  // 同一目标版本提示过一次（选择「稍后」）：等下次发版或用户手动重查再说
+  if (st.migrationPrompted === String(/** @type {{version: unknown}} */ (info).version)) {
+    return false
+  }
+  return true
+}
+
+/**
+ * 迁移提示正文：基础说明 + 平台差异（是否需手动卸载旧版）。
+ * macOS 同名 TMD.app 替换；Windows 两代安装器目录/卸载项各自独立，旧版
+ * 不会自动移除——不卸载会两份并存（快捷方式与文件关联易混淆）。
+ * @param {unknown} info
+ * @param {NodeJS.Platform} platform
+ * @returns {string}
+ */
+function buildMigrationDetail(info, platform) {
+  const rawNotes = info && typeof info === 'object' ? /** @type {{notes?: unknown}} */ (info).notes : undefined
+  const base =
+    typeof rawNotes === 'string' && rawNotes.trim()
+      ? rawNotes
+      : '新架构安装包体积约 6MB（原约 290MB），启动更快、空闲内存更省。' +
+        '跨架构无法自动升级，需手动下载安装一次；文档、历史版本、AI 配置等全部保留。'
+  const tail =
+    platform === 'darwin'
+      ? '安装包会替换「应用程序」中的旧版 TMD，无需手动卸载；主题与快捷键偏好需重新设置一次。'
+      : '安装完成后请在「设置 → 应用 → 已安装的应用」中卸载旧版 TMD（0.1.x）——' +
+        '两代安装器独立，旧版不会自动移除，不卸载会两份并存。'
+  return `${base}\n\n${tail}`
+}
+
+/**
  * 创建自动更新服务。
  * @param {{
  *   autoUpdater: import('electron-updater').AppUpdater,
@@ -641,27 +683,28 @@ function createUpdater({
    */
   async function maybePromptMigration() {
     const info = await fetchMigrationInfo()
-    if (!shouldPromptMigration(app.getVersion(), info)) return false
+    if (!shouldShowMigrationPrompt(app.getVersion(), info, readShellState())) return false
     const url = pickMigrationUrl(info, process.platform)
     if (!url) return false
     const version = String(/** @type {{version: string}} */ (info).version)
-    if (readShellState().migrationPrompted === version) return false
 
-    const notes = /** @type {{notes?: unknown}} */ (info).notes
+    // 三选一：下载新架构 / 稍后 / 明确留在 0.1.x 维护线。
+    // 「稍后」与 Esc 同为 cancelId——只记版本，下次检查再问；
+    // 「继续使用 0.1.x」永久关闭迁移提示，并让调用方继续常规更新检查
+    // （用户仍会收到 0.1.7 维护线的修复更新）。
     const { response } = await showMessageBoxSafe({
       type: 'info',
       title: 'TMD',
       message: `TMD ${version} 已发布（全新 Rust 架构）`,
-      detail:
-        typeof notes === 'string' && notes.trim()
-          ? notes
-          : '新架构安装包体积约 6MB（原约 290MB），启动更快、空闲内存更省。' +
-            '跨架构无法自动升级，需手动下载安装一次；文档、历史版本、AI 配置等全部保留。',
-      buttons: ['前往下载', '稍后'],
+      detail: buildMigrationDetail(info, process.platform),
+      buttons: ['下载 Rust 版', '稍后', '继续使用 0.1.x'],
       defaultId: 0,
       cancelId: 1,
     })
-    // 用户已看到提示：记录目标版本（无论选了下载还是稍后），后续检查不再重复
+    if (response === 2) {
+      saveShellState({ migrationDeclined: true })
+      return false
+    }
     saveShellState({ migrationPrompted: version })
     if (response === 0) {
       await shell.openExternal(url).catch(() => {})
@@ -693,4 +736,11 @@ function createUpdater({
   return { setup, registerIpc, scheduleAutoCheck }
 }
 
-module.exports = { createUpdater, compareVersions, shouldPromptMigration, pickMigrationUrl }
+module.exports = {
+  createUpdater,
+  compareVersions,
+  shouldPromptMigration,
+  pickMigrationUrl,
+  shouldShowMigrationPrompt,
+  buildMigrationDetail,
+}
