@@ -87,7 +87,11 @@ jobs:
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
         # Electron 维护线版本覆写：latest.yml 随之为 0.1.x，老用户停在
-        # Electron 维护线（Rust 转正线走 package.json 的 0.2.0）
+        # Electron 维护线（Rust 转正线走 package.json 的 0.2.0）。
+        # 必须显式 bash：Windows runner 默认 PowerShell 不展开 $VAR，空值会
+        # 让 electron-builder 把 -c.extraMetadata.version= 当配置文件路径读
+        # （ENOENT，v0.2.0 首发实测；mac 默认 bash 故正常）
+        shell: bash
         run: npm run build && npx electron-builder --publish never -c.extraMetadata.version=$ELECTRON_VERSION
       # 仅 mac：dmg 转 ULMO 压缩 + 重算更新元数据（脚本内非 darwin 直接返回，
       # win job 原样通过）
