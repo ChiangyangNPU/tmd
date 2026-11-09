@@ -384,6 +384,14 @@ fn ensure_window(app: &AppHandle) -> Result<WebviewWindow, String> {
             export_native::eval_js(&window, "String(document.readyState) + '|' + location.href")
         {
             if state.starts_with("complete|") && state.contains("export-renderer") {
+                // mac：窗口以 focused(true) 创建是渲染循环的必要条件（focused(false)
+                // 的 WKWebView rAF 非确定性挂死，导出管线会卡）——但渲染循环一旦
+                // 启动便不再依赖焦点：就绪即把焦点还给主窗口，用户导出期间继续
+                // 打字不丢键（此前整段导出期都被离屏窗口占用焦点）
+                #[cfg(target_os = "macos")]
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.set_focus();
+                }
                 return Ok(window);
             }
         }
