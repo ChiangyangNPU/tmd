@@ -36,6 +36,68 @@ const GITHUB_SOURCE = {
 }
 
 /**
+ * 架构迁移元数据端点（migration.json，与 latest.yml / latest.json 同目录）：
+ * Gitee 主源（国内）→ GitHub Release 备用。文件不存在即视为「迁移开关关闭」，
+ * 404 属正常状态而非错误。
+ */
+const MIGRATION_URLS = [
+  'https://gitee.com/chiangyangNPU/tmd/raw/master/releases/migration.json',
+  'https://github.com/ChiangyangNPU/tmd/releases/latest/download/migration.json',
+]
+
+/** 迁移元数据拉取超时（毫秒）：失败静默，绝不阻塞常规更新 */
+const MIGRATION_FETCH_TIMEOUT_MS = 4000
+
+/**
+ * 版本比较（宽松语义版本）：仅比较主/次/修订三段数字。
+ * @param {string} a
+ * @param {string} b
+ * @returns {number} a>b → 1，相等 0，a<b → -1
+ */
+function compareVersions(a, b) {
+  const parse = (/** @type {string} */ v) =>
+    String(v)
+      .split('-')[0]
+      .split('.')
+      .map((/** @type {string} */ n) => parseInt(n, 10) || 0)
+  const pa = parse(a)
+  const pb = parse(b)
+  for (let i = 0; i < 3; i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (d !== 0) return d > 0 ? 1 : -1
+  }
+  return 0
+}
+
+/**
+ * 是否需要提示架构迁移：目标版本严格高于当前版本。导出供单测。
+ * @param {string} currentVersion
+ * @param {unknown} info migration.json 解析结果
+ * @returns {boolean}
+ */
+function shouldPromptMigration(currentVersion, info) {
+  if (!info || typeof info !== 'object') return false
+  const version = /** @type {{ version?: unknown }} */ (info).version
+  if (typeof version !== 'string' || !version.trim()) return false
+  return compareVersions(version, currentVersion) > 0
+}
+
+/**
+ * 按平台取迁移下载地址（https/http 白名单，防元数据被篡改指向危险协议）。
+ * @param {unknown} info
+ * @param {NodeJS.Platform} platform
+ * @returns {string | null}
+ */
+function pickMigrationUrl(info, platform) {
+  if (!info || typeof info !== 'object') return null
+  const downloads = /** @type {{ downloads?: unknown }} */ (info).downloads
+  if (!downloads || typeof downloads !== 'object') return null
+  const key = platform === 'darwin' ? 'darwin' : 'win32'
+  const url = /** @type {Record<string, unknown>} */ (downloads)[key]
+  return typeof url === 'string' && /^https?:\/\//i.test(url) ? url : null
+}
+
+/**
  * 创建自动更新服务。
  * @param {{
  *   autoUpdater: import('electron-updater').AppUpdater,
@@ -47,6 +109,8 @@ const GITHUB_SOURCE = {
  *   sendToRenderer: (channel: string, payload?: unknown) => void,
  *   showMessageBoxSafe: (options: import('electron').MessageBoxOptions) => Promise<import('electron').MessageBoxReturnValue>,
  *   clearRendererRecoveryCopy: () => Promise<void>,
+ *   readShellState: () => Record<string, unknown>,
+ *   saveShellState: (patch: Record<string, unknown>) => void,
  * }} deps
  */
 function createUpdater({
@@ -59,6 +123,8 @@ function createUpdater({
   sendToRenderer,
   showMessageBoxSafe,
   clearRendererRecoveryCopy,
+  readShellState,
+  saveShellState,
 }) {
   // ---------- 更新状态 ----------
   /** @type {'gitee' | 'github'} */
@@ -486,6 +552,13 @@ function createUpdater({
     ipcMain.handle(IPC.updateCheck, async () => {
       updateCheckManual = true
       setUpdateSource('gitee')
+      // 架构迁移优先：命中即引导下载新架构安装包，不再走本架构更新检查
+      // （自动检查不提示迁移——避免启动时被架构切换弹窗打扰）
+      try {
+        if (await maybePromptMigration()) return
+      } catch {
+        // 迁移判定异常不影响常规更新
+      }
       try {
         await autoUpdater.checkForUpdates()
       } catch (err) {
@@ -535,6 +608,69 @@ function createUpdater({
   }
 
   /**
+   * 拉取迁移元数据：Gitee 主源 → GitHub 备用，超时 4 秒，任何失败静默
+   * 返回 null（文件不存在 = 迁移开关关闭，属正常状态）。
+   * @returns {Promise<Record<string, unknown> | null>}
+   */
+  async function fetchMigrationInfo() {
+    for (const url of MIGRATION_URLS) {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), MIGRATION_FETCH_TIMEOUT_MS)
+      try {
+        const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' })
+        if (!res.ok) continue
+        const data = await res.json()
+        if (data && typeof data === 'object' && typeof data.version === 'string') {
+          return data
+        }
+      } catch {
+        // 网络/超时/解析失败：换下一个源；全部失败即视为不可用
+      } finally {
+        clearTimeout(timer)
+      }
+    }
+    return null
+  }
+
+  /**
+   * 手动检查更新时优先判定架构迁移：目标版本高于当前且尚未提示过该版本
+   * → 原生对话框引导前往下载 Rust 版（跨架构无法自动升级，需手动装一次；
+   * 文档与配置全保留）。同一目标版本只提示一次，选择「稍后」不再反复打扰。
+   *
+   * @returns {Promise<boolean>} true = 已接手本次检查（调用方跳过常规更新）
+   */
+  async function maybePromptMigration() {
+    const info = await fetchMigrationInfo()
+    if (!shouldPromptMigration(app.getVersion(), info)) return false
+    const url = pickMigrationUrl(info, process.platform)
+    if (!url) return false
+    const version = String(/** @type {{version: string}} */ (info).version)
+    if (readShellState().migrationPrompted === version) return false
+
+    const notes = /** @type {{notes?: unknown}} */ (info).notes
+    const { response } = await showMessageBoxSafe({
+      type: 'info',
+      title: 'TMD',
+      message: `TMD ${version} 已发布（全新 Rust 架构）`,
+      detail:
+        typeof notes === 'string' && notes.trim()
+          ? notes
+          : '新架构安装包体积约 6MB（原约 290MB），启动更快、空闲内存更省。' +
+            '跨架构无法自动升级，需手动下载安装一次；文档、历史版本、AI 配置等全部保留。',
+      buttons: ['前往下载', '稍后'],
+      defaultId: 0,
+      cancelId: 1,
+    })
+    // 用户已看到提示：记录目标版本（无论选了下载还是稍后），后续检查不再重复
+    saveShellState({ migrationPrompted: version })
+    if (response === 0) {
+      await shell.openExternal(url).catch(() => {})
+    }
+    sendToRenderer(IPC.updateStatus, { status: 'idle' })
+    return true
+  }
+
+  /**
    * 启动后 5 秒自动检查更新：仅当渲染层已同步开关为 true。
    * 渲染层 boot 时（wireSettings 内）会把 localStorage 的开关值发给主进程，
    * 该 IPC 通常在数毫秒内到达，远早于 5 秒延时。
@@ -557,4 +693,4 @@ function createUpdater({
   return { setup, registerIpc, scheduleAutoCheck }
 }
 
-module.exports = { createUpdater }
+module.exports = { createUpdater, compareVersions, shouldPromptMigration, pickMigrationUrl }

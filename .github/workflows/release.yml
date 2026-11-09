@@ -36,6 +36,10 @@ name: Release
 # 开关打开时，Electron 通道转指 Rust 安装包，0.1.x 线随之终止。
 env:
   ELECTRON_VERSION: 0.1.7
+  # 架构迁移开关：填目标版本（如 0.2.0）即生成 migration.json——Electron 老
+  # 用户手动检查更新时弹原生对话框引导下载 Rust 版；留空 = 关闭（不生成，
+  # Electron 端拉取 404 即静默跳过）。跨架构无法自动升级，只做引导。
+  MIGRATION_TARGET: ''
 
 on:
   push:
@@ -216,6 +220,22 @@ jobs:
           mkdir -p releases
           cp release/latest.json releases/latest.json
 
+      # ---------- 架构迁移提示（MIGRATION_TARGET 非空才生成 = 开关打开） ----------
+      - name: Make migration.json
+        if: needs.build-tauri.result == 'success' && env.MIGRATION_TARGET != ''
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          MAC_DMG=$(find release -name '*.dmg' | head -1 || true)
+          WIN_SETUP=$(find release -name '*_x64-setup.exe' | head -1 || true)
+          ARGS=""
+          [ -n "$MAC_DMG" ] && ARGS="$ARGS --mac-dmg $(basename "$MAC_DMG")"
+          [ -n "$WIN_SETUP" ] && ARGS="$ARGS --win-setup $(basename "$WIN_SETUP")"
+          node scripts/make-migration-json.mjs --version "$MIGRATION_TARGET" $ARGS \
+            --out release/migration.json ${TAG:+--tag "$TAG"}
+          mkdir -p releases
+          cp release/migration.json releases/migration.json
+
       # ---------- GitHub Release（直接发布；草稿对 electron-updater 不可见） ----------
       - name: Publish to GitHub Release
         run: |
@@ -229,7 +249,8 @@ jobs:
           # Electron（dmg/exe/blockmap/latest*.yml）+ Tauri（exe.sig/dmg/app.tar.gz
           # 及 .sig/latest.json）同 Release 并存；通配符按实际存在的文件工作
           for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml \
-                   release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json; do
+                   release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json \
+                   release/migration.json; do
             [ -f "$f" ] || continue
             gh release upload "$TAG" "$f" --clobber
           done
@@ -242,7 +263,8 @@ jobs:
             MISSING=1
           fi
           for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml \
-                   release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json; do
+                   release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json \
+                   release/migration.json; do
             [ -f "$f" ] || continue
             name=$(basename "$f")
             if node -e "
@@ -297,6 +319,10 @@ jobs:
           # Tauri 元数据同目录（raw 端点 https://...raw/master/releases/latest.json）
           if [ -f releases/latest.json ]; then
             cp releases/latest.json /tmp/gitee-meta/releases/
+          fi
+          # 架构迁移元数据（Electron 端读取；文件不存在 = 迁移开关关闭）
+          if [ -f releases/migration.json ]; then
+            cp releases/migration.json /tmp/gitee-meta/releases/
           fi
           git -C /tmp/gitee-meta config user.name "github-actions[bot]"
           git -C /tmp/gitee-meta config user.email "github-actions[bot]@users.noreply.github.com"

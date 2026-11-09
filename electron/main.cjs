@@ -250,6 +250,8 @@ const updater = createUpdater({
   sendToRenderer,
   showMessageBoxSafe,
   clearRendererRecoveryCopy,
+  readShellState: () => shellState.readShellState(),
+  saveShellState: (patch) => shellState.saveShellState(patch),
 })
 
 // 注册全部 IPC（与原实现同为模块顶层注册，语义不变）
