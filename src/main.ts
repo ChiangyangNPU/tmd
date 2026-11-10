@@ -353,7 +353,15 @@ async function boot() {
         // 已落盘内容在迟到拍点到达，无脑写副本会让已保存的文档
         // 以恢复副本"复活"（下次启动多出与磁盘相同的 recovered 标签）
         syncDirtyWith(clean)
-        if (activeTab()?.dirty) saveDoc(clean)
+        if (activeTab()?.dirty) {
+          saveDoc(clean)
+        } else {
+          // 不脏：当前内容已落盘（或已被清空）→ 恢复副本失去意义，清掉。
+          // 只写不清会让「删空恢复副本内容」陷入死循环：删空后 dirty=false、
+          // 副本不更新，退出不弹确认，下次启动又恢复旧内容（v0.2.0 实测）。
+          // 与 files.ts 保存成功后 `if (!hasDirty()) clearDoc()` 同语义
+          clearDoc()
+        }
         refreshOutline()
         // 局部图谱面板打开时随编辑节拍刷新（未保存的新出链即时可见）
         notifyLocalGraphDocChanged()
@@ -366,7 +374,16 @@ async function boot() {
 
     const restored = loadDoc()
     const tab = newTab(nextUntitledName(), restored ?? DEMO_DOC)
-    if (restored != null) tab.recovered = true // 恢复副本：不可被"打开文件"原地替换
+    if (restored != null) {
+      // 恢复副本：不可被"打开文件"原地替换，且**视为有未保存内容**——
+      // 副本的存在本身就意味着上次有内容未落盘。dirty 缺省为 false 会让
+      // 用户直接退出时不弹确认、副本永不清除，下次启动又是同一份内容
+      // （死循环）；置脏后：放弃退出即清（confirm_discard_changes 同款语义）、
+      // 保存即清、继续编辑则副本跟进
+      tab.recovered = true
+      tab.dirty = true
+      renderTabs()
+    }
     setActiveTabId(tab.id)
     await mountEditor(tab.markdown)
     updateWordCount(tab.markdown)
