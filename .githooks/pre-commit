@@ -1,0 +1,32 @@
+#!/bin/sh
+# 提交前门禁（与 CI 的 rust / check job 对齐，2026-11-10）：
+# - 有 src-tauri/**/*.rs 改动 → cargo fmt --check（CI rust job 的格式步骤）
+# - 有前端/脚本改动 → tsc --noEmit（CI 的类型检查）
+# 只查暂存区涉及的语言，不做全量；跳过用 git commit --no-verify。
+# 启用：git config core.hooksPath .githooks
+set -e
+
+# cargo 常在 rustup 安装目录而登录 shell 未带：补 PATH 兜底
+if [ -x "$HOME/.cargo/bin/cargo" ]; then
+  PATH="$HOME/.cargo/bin:$PATH"
+fi
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACM)
+
+if printf '%s\n' "$STAGED" | grep -qE '^src-tauri/.*\.rs$'; then
+  echo "[pre-commit] cargo fmt --check"
+  if ! (cd src-tauri && cargo fmt --check); then
+    echo "✖ Rust 格式不符合 rustfmt。修复：cd src-tauri && cargo fmt" >&2
+    exit 1
+  fi
+fi
+
+if printf '%s\n' "$STAGED" | grep -qE '(\.(ts|tsx|mts|cts|mjs|cjs)$)|(^package(-lock)?\.json$)|(^tsconfig.*\.json$)'; then
+  echo "[pre-commit] tsc --noEmit"
+  if ! npx tsc --noEmit; then
+    echo "✖ 类型检查失败（见上方 tsc 输出）" >&2
+    exit 1
+  fi
+fi
+
+echo "[pre-commit] OK"
