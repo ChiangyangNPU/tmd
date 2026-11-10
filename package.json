@@ -6,6 +6,7 @@
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
     "dev:electron": "concurrently -k -s first \"vite\" \"wait-on tcp:127.0.0.1:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
     "tauri": "tauri",
