@@ -1357,14 +1357,26 @@ fn confirm_discard_changes(app: &tauri::AppHandle) -> bool {
     if !app.state::<ShellState>().is_dirty() {
         return true;
     }
-    app.dialog()
+    let discard = app
+        .dialog()
         .message("关闭前会丢失未保存的内容。")
         .title("有未保存的修改")
         .buttons(MessageDialogButtons::OkCancelCustom(
             "放弃修改并关闭".to_string(),
             "取消".to_string(),
         ))
-        .blocking_show()
+        .blocking_show();
+    if discard {
+        // 与 Electron clearRendererRecoveryCopy 同语义：窗口销毁前清渲染层
+        // 恢复副本（localStorage 的 tmd:doc:v1，键名与 store.ts DOC_KEY 同步，
+        // Electron 侧同款硬编码）。不清的话「已放弃」的内容下次启动会以恢复
+        // 副本复活——v0.2.0 实测：脏文档放弃关闭后每次启动都恢复同一份未命名。
+        // 窗口已不存在（极端时序）时跳过，不影响关闭流程。
+        if let Some(w) = app.get_webview_window("main") {
+            let _ = export_native::eval_js(&w, "localStorage.removeItem('tmd:doc:v1'); 'ok'");
+        }
+    }
+    discard
 }
 
 /// macOS「关窗≠退出」：最后一个窗口销毁时阻止事件循环退出，交给 Reopen 重建。
