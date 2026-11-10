@@ -843,105 +843,15 @@ fn main() {
                 .unwrap_or(false);
             app.manage(updater::UpdaterState::new(auto_check));
             app.manage(WinStateTracker::new(shell_file.clone()));
-            let restored_theme = match persisted.get("themeSource").and_then(Value::as_str) {
-                Some("dark") => Some(tauri::Theme::Dark),
-                Some("light") => Some(tauri::Theme::Light),
-                _ => None,
-            };
-            let display_rects = shell::monitor_rects(&app.available_monitors().unwrap_or_default());
-            let restored = shell::restore_win_state(&persisted, &display_rects);
             // 启动即用中文默认文案建菜单；渲染层就绪后经 setLocaleInfo 按语言重建。
             // 仅 macOS：Windows 挂原生菜单会闪菜单栏且偏离 Electron 观感
             // （Electron 版 Win/Linux 是 setMenuBarVisibility(false) 隐藏菜单栏，
             // 快捷键由渲染层 keydown 兜底分发，见 src/main.ts 通用分支）
             #[cfg(target_os = "macos")]
             app.state::<ShellState>().rebuild_menu(app.handle());
-            let mut builder =
-                tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
-                    // 带版本号：双轨共存期与 Electron 线（0.1.7）窗口可区分；
-                    // 版本随 Cargo 对齐流程自动跟进
-                    .title(format!("TMD {}", app.package_info().version))
-                    .min_inner_size(940.0, 600.0)
-                    .initialization_script(TMD_API_SHIM);
-            if let Some(theme) = restored_theme {
-                builder = builder.theme(Some(theme));
-            }
-            // 标题栏对齐 Electron 壳观感（electron/main.cjs:374-376）：
-            // Win/Linux titleBarStyle 'hidden' → decorations(false) 全自绘（拖拽区与
-            // 最大化/关闭由 shim 的拖拽处理 + html.win 自绘按钮承担）；
-            // macOS 'hiddenInset' → Overlay 隐藏标题条 + 红绿灯悬浮工具栏，
-            // 需 tauri.conf.json 开 macOSPrivateApi（内容延伸到标题栏下）。
-            // traffic_light_position 语义与 Electron trafficLightPosition 不同（实测
-            // 校准 2026-10-27）：x 为按钮原点（圆心=x+7），y 直接映射圆心高度
-            // （圆心≈y−2.2）。Electron (16,16) 的圆心在 (23,23)，故此处 (16,25)；
-            // 扩大的虚拟标题栏容器不拦截内容点击（y=40 实测按钮仍可点）
-            #[cfg(target_os = "macos")]
-            {
-                builder = builder
-                    .title_bar_style(tauri::TitleBarStyle::Overlay)
-                    .hidden_title(true)
-                    .traffic_light_position(tauri::LogicalPosition::new(16.0, 25.0));
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                builder = builder.decorations(false);
-            }
-            // 首帧防闪（三平台）：隐藏创建 + 绘制就绪后再上屏，对齐 Electron 版
-            // show:false + ready-to-show 的时序。WKWebView/WebView2 创建后到首帧
-            // 绘制前露出的是默认白底（暗色/自定义主题下必闪）。
-            // - 上屏通道一：Windows/Linux 走页面加载完成（此时 boot.js 同步挂好
-            //   深浅类与预设属性，工具栏已可绘制）
-            // - 上屏通道二：三平台共有——渲染层 ready（boot 末尾，文件主题经 IPC
-            //   异步注入完毕）时经 flush_pending_open_paths 的 show 上屏
-            //   （macOS 只走这条：boot 里的 await 晚于页面加载完成，file 主题在
-            //   Finished 时可能未注入，提前上屏会闪内置配色）
-            // - 兜底：8s 看门狗强制上屏（页面加载失败/渲染层崩溃时窗口不能永久隐藏）
-            builder = builder.visible(false);
-            #[cfg(not(target_os = "macos"))]
-            {
-                builder = builder.on_page_load(|window, payload| {
-                    if payload.event() == tauri::webview::PageLoadEvent::Finished {
-                        let _ = window.show();
-                    }
-                });
-            }
-            // 底色跟随持久化主题（#1e2127 / #ffffff，与 Electron SHELL_BG 同值）：
-            // 兜底「已上屏但首帧未合成」的瞬间——即便露出窗口底色也是主题色而非白
-            let shell_bg = match restored_theme {
-                Some(tauri::Theme::Dark) => tauri::window::Color(30, 33, 39, 255),
-                _ => tauri::window::Color(255, 255, 255, 255),
-            };
-            builder = builder.background_color(shell_bg);
-            match restored {
-                Some(win) => {
-                    builder = builder.inner_size(win.width, win.height);
-                    if let (Some(x), Some(y)) = (win.x, win.y) {
-                        builder = builder.position(x as f64, y as f64);
-                    }
-                }
-                None => {
-                    builder = builder.inner_size(1280.0, 820.0);
-                }
-            }
-            let window = builder.build()?;
-            if restored.is_some_and(|w| w.maximized) {
-                // macOS：先记下正常 frame，用户双击还原时才有几何可回（原生 zoom 不经过 win_anim）
-                #[cfg(target_os = "macos")]
-                win_anim::remember_current_frame(&window);
-                let _ = window.maximize();
-            }
-            // 隐藏创建的上屏兜底（见上方「首帧防闪」）：正常路径是页面加载完成
-            // （Win/Linux）或渲染层 ready（三平台）触发 show；渲染层加载失败时
-            // 不能让窗口永久隐藏——8s 后强制上屏，用户至少能看到错误页
-            {
-                let win = window.clone();
-                std::thread::spawn(move || {
-                    std::thread::sleep(std::time::Duration::from_secs(8));
-                    if !win.is_visible().unwrap_or(true) {
-                        let _ = win.show();
-                    }
-                });
-            }
+            // 主窗口：首次创建与 macOS Reopen 重建共用同一工厂（几何/主题/
+            // 最大化状态在工厂内从 shell-state 现读，重建语义与首次启动一致）
+            create_main_window(app.handle())?;
             // spike 阶段 B 后续：导出窗口形态矩阵自动验证（TMD_SPIKE_MATRIX=1）。
             // 不依赖主窗口内容，5s 后直接跑；须以 `open -a --env TMD_SPIKE_MATRIX=1`
             // 触发——直接后台启动的应用未激活，其窗口不合成（阶段 B 可见性约束）
@@ -1041,6 +951,18 @@ fn main() {
                     }
                 }
                 "recent-empty" => {}
+                // macOS 菜单退出（Cmd+Q）：有未保存修改先确认再退出。
+                // 必须显式 app.exit(0) 带退出码——「最后窗口关闭」触发的
+                // ExitRequested 是 code=None，会被防退出逻辑拦下（见
+                // handle_exit_requested_event）
+                "quit" => {
+                    let app = app.clone();
+                    std::thread::spawn(move || {
+                        if confirm_discard_changes(&app) {
+                            app.exit(0);
+                        }
+                    });
+                }
                 "clear-recent" => {
                     // 清空动作交渲染层执行（localStorage 是唯一权威），口径同 JS 版
                     let _ = app.emit("tmd-menu", "clear-recent".to_string());
@@ -1177,27 +1099,27 @@ fn main() {
                         .app_handle()
                         .state::<WinStateTracker>()
                         .save_now(window.app_handle());
+                    // 渲染层随窗口销毁：复位 ready，避免 macOS 重建窗口期间
+                    // 打开文件的事件 emit 进「尚无监听者」的新 WebView 而丢文档
+                    window
+                        .app_handle()
+                        .state::<PendingOpenPaths>()
+                        .ready
+                        .store(false, Ordering::SeqCst);
+                    // 未保存标记随窗口一起作废：否则「放弃修改并关闭」后经 Dock
+                    // 重建的干净文档，下次关闭仍会弹未保存确认
+                    window.app_handle().state::<ShellState>().set_dirty(false);
                 }
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // 未保存关闭确认：原生对话框拦截（渲染层 window.confirm 不可靠，
                     // Electron 同款原因）。破坏性按钮不做默认，默认落在「取消」。
-                    let shell = window.app_handle().state::<ShellState>();
-                    if !shell.is_dirty() {
+                    if !window.app_handle().state::<ShellState>().is_dirty() {
                         return;
                     }
                     api.prevent_close();
                     let app = window.app_handle().clone();
                     std::thread::spawn(move || {
-                        let abandon = app
-                            .dialog()
-                            .message("关闭前会丢失未保存的内容。")
-                            .title("有未保存的修改")
-                            .buttons(MessageDialogButtons::OkCancelCustom(
-                                "放弃修改并关闭".to_string(),
-                                "取消".to_string(),
-                            ))
-                            .blocking_show();
-                        if abandon {
+                        if confirm_discard_changes(&app) {
                             if let Some(w) = app.get_webview_window("main") {
                                 let _ = w.destroy();
                             }
@@ -1274,6 +1196,14 @@ fn main() {
         // 都经单实例插件的 second-instance argv 转交（上方注册处已处理）。
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         handle_opened_event(_app, &_event);
+        // macOS：关掉主窗口后点 Dock 图标（applicationShouldHandleReopen）
+        // 重建主窗口；Electron 版对应 app 'activate' 分支。
+        // 前提是先拦下「最后窗口销毁即退出」，否则进程已结束、事件不会到达
+        #[cfg(target_os = "macos")]
+        {
+            handle_exit_requested_event(&_event);
+            handle_reopen_event(_app, &_event);
+        }
     });
 }
 
@@ -1313,6 +1243,189 @@ fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
             }
         });
     }
+}
+
+/// 创建主窗口：首次启动（setup）与 macOS Reopen 重建共用同一工厂。
+///
+/// 窗口形态（尺寸/位置/最大化）与主题都从 `shell-state.json` 现读——首次启动
+/// 走 restore_win_state，重建时 `Destroyed` 已把关闭前几何同步落盘，因此两条
+/// 路径恢复语义完全一致，不存在「重建后回到默认 1280×820」的偏差。
+fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    let shell_file = app.state::<WinStateTracker>().path.clone();
+    let persisted = shell::read_shell_state(&shell_file);
+    let restored_theme = match persisted.get("themeSource").and_then(Value::as_str) {
+        Some("dark") => Some(tauri::Theme::Dark),
+        Some("light") => Some(tauri::Theme::Light),
+        _ => None,
+    };
+    let display_rects = shell::monitor_rects(&app.available_monitors().unwrap_or_default());
+    let restored = shell::restore_win_state(&persisted, &display_rects);
+
+    let mut builder =
+        tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+            // 带版本号：双轨共存期与 Electron 线（0.1.7）窗口可区分；
+            // 版本随 Cargo 对齐流程自动跟进
+            .title(format!("TMD {}", app.package_info().version))
+            .min_inner_size(940.0, 600.0)
+            .initialization_script(TMD_API_SHIM);
+    if let Some(theme) = restored_theme {
+        builder = builder.theme(Some(theme));
+    }
+    // 标题栏对齐 Electron 壳观感（electron/main.cjs:374-376）：
+    // Win/Linux titleBarStyle 'hidden' → decorations(false) 全自绘（拖拽区与
+    // 最大化/关闭由 shim 的拖拽处理 + html.win 自绘按钮承担）；
+    // macOS 'hiddenInset' → Overlay 隐藏标题条 + 红绿灯悬浮工具栏，
+    // 需 tauri.conf.json 开 macOSPrivateApi（内容延伸到标题栏下）。
+    // traffic_light_position 语义与 Electron trafficLightPosition 不同（实测
+    // 校准 2026-10-27）：x 为按钮原点（圆心=x+7），y 直接映射圆心高度
+    // （圆心≈y−2.2）。Electron (16,16) 的圆心在 (23,23)，故此处 (16,25)；
+    // 扩大的虚拟标题栏容器不拦截内容点击（y=40 实测按钮仍可点）
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(16.0, 25.0));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.decorations(false);
+    }
+    // 首帧防闪（三平台）：隐藏创建 + 绘制就绪后再上屏，对齐 Electron 版
+    // show:false + ready-to-show 的时序。WKWebView/WebView2 创建后到首帧
+    // 绘制前露出的是默认白底（暗色/自定义主题下必闪）。
+    // - 上屏通道一：Windows/Linux 走页面加载完成（此时 boot.js 同步挂好
+    //   深浅类与预设属性，工具栏已可绘制）
+    // - 上屏通道二：三平台共有——渲染层 ready（boot 末尾，文件主题经 IPC
+    //   异步注入完毕）时经 flush_pending_open_paths 的 show 上屏
+    //   （macOS 只走这条：boot 里的 await 晚于页面加载完成，file 主题在
+    //   Finished 时可能未注入，提前上屏会闪内置配色）
+    // - 兜底：8s 看门狗强制上屏（页面加载失败/渲染层崩溃时窗口不能永久隐藏）
+    builder = builder.visible(false);
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.on_page_load(|window, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                let _ = window.show();
+            }
+        });
+    }
+    // 底色跟随持久化主题（#1e2127 / #ffffff，与 Electron SHELL_BG 同值）：
+    // 兜底「已上屏但首帧未合成」的瞬间——即便露出窗口底色也是主题色而非白
+    let shell_bg = match restored_theme {
+        Some(tauri::Theme::Dark) => tauri::window::Color(30, 33, 39, 255),
+        _ => tauri::window::Color(255, 255, 255, 255),
+    };
+    builder = builder.background_color(shell_bg);
+    match restored {
+        Some(win) => {
+            builder = builder.inner_size(win.width, win.height);
+            if let (Some(x), Some(y)) = (win.x, win.y) {
+                builder = builder.position(x as f64, y as f64);
+            }
+        }
+        None => {
+            builder = builder.inner_size(1280.0, 820.0);
+        }
+    }
+    let window = builder.build()?;
+    if restored.is_some_and(|w| w.maximized) {
+        // macOS：先记下正常 frame，用户双击还原时才有几何可回（原生 zoom 不经过 win_anim）
+        #[cfg(target_os = "macos")]
+        win_anim::remember_current_frame(&window);
+        let _ = window.maximize();
+    }
+    // 隐藏创建的上屏兜底（见上方「首帧防闪」）：正常路径是页面加载完成
+    // （Win/Linux）或渲染层 ready（三平台）触发 show；渲染层加载失败时
+    // 不能让窗口永久隐藏——8s 后强制上屏，用户至少能看到错误页
+    {
+        let win = window.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+            if !win.is_visible().unwrap_or(true) {
+                let _ = win.show();
+            }
+        });
+    }
+    Ok(window)
+}
+
+/// 有未保存修改时弹原生确认框，返回是否允许丢弃修改继续（无修改直接放行）。
+///
+/// 关窗（CloseRequested）与菜单退出（quit）共用，保证两条离开路径口径一致。
+/// 阻塞式弹窗必须在线程里调用，不能占住事件派发线程。
+fn confirm_discard_changes(app: &tauri::AppHandle) -> bool {
+    if !app.state::<ShellState>().is_dirty() {
+        return true;
+    }
+    app.dialog()
+        .message("关闭前会丢失未保存的内容。")
+        .title("有未保存的修改")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "放弃修改并关闭".to_string(),
+            "取消".to_string(),
+        ))
+        .blocking_show()
+}
+
+/// macOS「关窗≠退出」：最后一个窗口销毁时阻止事件循环退出，交给 Reopen 重建。
+///
+/// Tauri 在最后一个窗口 Destroyed 后统一发 `ExitRequested { code: None }`
+/// 并退出循环（不分平台）；macOS 需按平台惯例拦下，否则进程已结束，
+/// Dock 点击永远不会派发 Reopen。显式退出（Cmd+Q / `app.exit`）带退出码，
+/// 必须放行；Windows/Linux 保持关窗即退出，不调用本函数。
+#[cfg(target_os = "macos")]
+fn handle_exit_requested_event(event: &tauri::RunEvent) {
+    if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+        if code.is_none() {
+            api.prevent_exit();
+        }
+    }
+}
+
+/// macOS Reopen（NSApplicationDelegate applicationShouldHandleReopen）：
+/// 关掉主窗口后点 Dock 图标时重建主窗口（Electron 版靠 app 'activate' 同款行为）。
+///
+/// 已有窗口（关窗前先最小化/隐藏的情况）只做前置，不重复创建。
+/// 窗口创建必须离开事件派发主线程——与 handle_opened_event 同因：run 回调
+/// 跑在主线程的事件派发栈内，窗口操作同步回主线程会自等/panic。
+#[cfg(target_os = "macos")]
+fn handle_reopen_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
+    // 变体带 #[non_exhaustive]，外部匹配必须带 ..
+    let tauri::RunEvent::Reopen {
+        has_visible_windows,
+        ..
+    } = event
+    else {
+        return;
+    };
+    let has_visible_windows = *has_visible_windows;
+    if let Some(window) = app.get_webview_window("main") {
+        if !has_visible_windows {
+            let _ = window.show();
+            let _ = window.unminimize();
+        }
+        let _ = window.set_focus();
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        // 连点 Dock 图标可能派发多次 Reopen：线程内二次确认避免建出两个主窗口
+        if app.get_webview_window("main").is_some() {
+            return;
+        }
+        if let Err(err) = create_main_window(&app) {
+            if let Some(logger) = logger::global() {
+                logger.log(
+                    "error",
+                    "main",
+                    &format!("重建主窗口失败: {}", err),
+                    None,
+                    &logger::LogMeta::default(),
+                );
+            }
+        }
+    });
 }
 
 /// 待打开文件队列：渲染层 ready 前入队（文件关联早于渲染层就绪），
