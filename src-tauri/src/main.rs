@@ -133,7 +133,9 @@ const TMD_API_SHIM: &str = r#"
     getAiConfig: function () { return invoke('tmd_ai_get_config') },
     saveAiConfig: function (patch) { return invoke('tmd_ai_save_config', { patch: patch || {} }) },
     testAiConnection: function (overrides) { return invoke('tmd_ai_test', { overrides: overrides || {} }) },
-    chatAi: function (requestId, messages) { return invoke('tmd_ai_chat', { requestId: requestId, messages: messages }) },
+    // Rust 侧命令参数是单个 request 对象（对应 electron ipc-ai.cjs 的 request 入参），
+    // 必须放进 request 键，平铺 requestId/messages 会因缺键被 invoke 直接拒绝
+    chatAi: function (requestId, messages) { return invoke('tmd_ai_chat', { request: { requestId: requestId, messages: messages } }) },
     abortAi: function (requestId) { return invoke('tmd_ai_abort', { requestId: requestId }) },
     embedAiTexts: function (texts) { return invoke('tmd_ai_embed', { texts: texts }) },
     onAiStream: function (cb) { tmdOn('tmd-ai-stream', cb) },
