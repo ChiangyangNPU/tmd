@@ -205,7 +205,9 @@ Mermaid 异步渲染完成前后所致）+ 视觉模型内容描述与地面真�
 
 Electron 离屏导出 = 隐藏窗口 + `backgroundThrottling:false`。WKWebView 无此开关，
 矩阵实验（`src-tauri/src/export_probe.rs`，`open --env TMD_SPIKE_MATRIX=1` 触发，
-加载真实 export-renderer.html + 注入渐变/大字探针）：
+加载真实 export-renderer.html + 注入渐变/大字探针）。该探针属开发期设施：只在
+debug 构建或 `cargo run --features dev-tools` 时编入，发布包与导出菜单里都不含
+（入口见 menu.rs 的 `spike-export-window-matrix` 条件项）：
 
 | 指标 | V1 隐藏窗（visible=false） | V2 屏边探出（60px 探边，余在屏外） |
 |------|--------------------------|-----------------------------------|

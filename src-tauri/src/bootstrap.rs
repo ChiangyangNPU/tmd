@@ -13,6 +13,7 @@ use crate::commands;
 #[cfg(any(target_os = "macos", windows))]
 use crate::export_native;
 #[cfg(target_os = "macos")]
+#[cfg(any(debug_assertions, feature = "dev-tools"))]
 use crate::export_probe;
 use crate::exporter;
 use crate::history;
@@ -397,6 +398,7 @@ pub(crate) fn run() {
             // spike 阶段 B 后续：导出窗口形态矩阵自动验证（TMD_SPIKE_MATRIX=1）。
             // 不依赖主窗口内容，5s 后直接跑；须以 `open -a --env TMD_SPIKE_MATRIX=1`
             // 触发——直接后台启动的应用未激活，其窗口不合成（阶段 B 可见性约束）
+            #[cfg(any(debug_assertions, feature = "dev-tools"))]
             if std::env::var("TMD_SPIKE_MATRIX").as_deref() == Ok("1") {
                 #[cfg(target_os = "macos")]
                 {
@@ -524,6 +526,7 @@ pub(crate) fn run() {
                     }
                 }
                 // spike 阶段 B 原型：Rust 侧直接驱动 WKWebView 原语（不经渲染层）
+                #[cfg(any(debug_assertions, feature = "dev-tools"))]
                 "spike-export-window-matrix" => {
                     // 阶段 B 后续：导出窗口形态判定矩阵（V1 隐藏对照 / V2 屏边探出候选）
                     #[cfg(target_os = "macos")]

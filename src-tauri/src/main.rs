@@ -39,6 +39,8 @@ mod export_native;
 mod export_native_common;
 // 窗口形态矩阵探针为 mac 阶段 B 验证工具，不参与 Windows 编译
 #[cfg(target_os = "macos")]
+// 开发期调试设施：仅 debug 构建或显式 --features dev-tools 时编入发布形态
+#[cfg(any(debug_assertions, feature = "dev-tools"))]
 mod export_probe;
 mod exporter;
 mod fsops;

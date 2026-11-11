@@ -218,7 +218,9 @@ pub(crate) fn build_menu(
     let file_menu = Submenu::with_items(app, l("file"), true, &item_refs(&file_items))?;
 
     // ---------- 导出 ----------
-    let export_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
+    // 末尾的调试项按 cfg 追加；发布构建不追加，故那里的 mut 多余
+    #[cfg_attr(not(any(debug_assertions, feature = "dev-tools")), allow(unused_mut))]
+    let mut export_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
         Box::new(make_item(
             app,
             "export-html",
@@ -257,13 +259,16 @@ pub(crate) fn build_menu(
             "视口截图".to_string(),
             None,
         )?),
-        Box::new(make_item(
-            app,
-            "spike-export-window-matrix",
-            "导窗形态矩阵".to_string(),
-            None,
-        )?),
     ];
+    // 导窗形态矩阵是 spike 期调试入口：只在 debug 构建或 --features dev-tools 时出现，
+    // 与 bootstrap 里同名事件分支的条件保持一致（否则发布包会留下点了没反应的菜单项）
+    #[cfg(any(debug_assertions, feature = "dev-tools"))]
+    export_items.push(Box::new(make_item(
+        app,
+        "spike-export-window-matrix",
+        "导窗形态矩阵".to_string(),
+        None,
+    )?));
     let export_menu = Submenu::with_items(app, l("export"), true, &item_refs(&export_items))?;
 
     // ---------- 格式 ----------

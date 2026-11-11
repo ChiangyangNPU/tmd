@@ -53,6 +53,11 @@ webview2-com = "0.39"
 windows = { version = "0.62", features = ["Win32_System_Com", "Win32_System_Com_StructuredStorage"] }
 png = "0.18"
 
+[features]
+# 开发期调试设施（export_probe 的导出窗口矩阵）：默认关闭，发布包不含；
+# 需要时用 `cargo run --features dev-tools`（debug 构建本就包含，见 cfg 条件）
+dev-tools = []
+
 [profile.dev]
 incremental = true
 
