@@ -416,7 +416,7 @@ pub(crate) fn run() {
                 let app = app.handle().clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_secs(8));
-                    exporter::verify_pipeline(&app);
+                    exporter::verify::verify_pipeline(&app);
                 });
             }
             // Windows 原语三件套自测（视口截帧 / 区域裁剪 / PDF）：
@@ -732,11 +732,11 @@ pub(crate) fn run() {
             commands::system::tmd_read_theme,
             commands::system::tmd_open_themes_dir,
             commands::system::tmd_get_export_assets,
-            exporter::tmd_export_run,
-            exporter::tmd_exporter_done,
-            exporter::tmd_exporter_capture,
-            exporter::tmd_exporter_read_image,
-            exporter::tmd_print,
+            exporter::commands::tmd_export_run,
+            exporter::commands::tmd_exporter_done,
+            exporter::commands::tmd_exporter_capture,
+            exporter::commands::tmd_exporter_read_image,
+            exporter::pdf::tmd_print,
             commands::system::tmd_report_error,
             commands::shell::tmd_ready,
             commands::system::tmd_open_logs_dir,
