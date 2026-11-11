@@ -39,9 +39,9 @@ trash = "5"
 # 仅 macOS 参与编译——Windows 走 exporter_stub.rs（见 main.rs 模块声明）
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-app-kit = { version = "0.3.2", features = ["NSBitmapImageRep", "NSImage"] }
+objc2-app-kit = { version = "0.3.2", features = ["NSBitmapImageRep", "NSDocumentController", "NSImage"] }
 objc2-core-foundation = "0.3"
-objc2-foundation = { version = "0.3.2", features = ["NSData", "NSError", "NSString"] }
+objc2-foundation = { version = "0.3.2", features = ["NSData", "NSError", "NSString", "NSURL"] }
 objc2-web-kit = { version = "0.3.2", features = ["WKPDFConfiguration", "WKSnapshotConfiguration", "block2", "WKWebView"] }
 block2 = "0.6"
 

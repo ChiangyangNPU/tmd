@@ -130,7 +130,7 @@ impl ShellState {
 
     /// 新增/打开：镜像列表去重置顶（限量 8，与 recent.cjs 一致）后重建菜单
     pub fn recent_add(&self, app: &AppHandle, entry: RecentEntry) {
-        {
+        let added = {
             let mut g = self.inner.lock().expect("shell state 中毒");
             let mut normalized = normalize_recent(vec![entry]);
             if normalized.is_empty() {
@@ -146,9 +146,14 @@ impl ShellState {
                 }
             }
             recents.truncate(8);
+            let added = recents[0].path.clone();
             g.recents = recents;
-        }
+            added
+        };
         self.rebuild_menu(app);
+        // 系统最近文档与菜单镜像同步登记（macOS Dock 右键「最近使用」）；
+        // NSDocumentController 只能在主线程调用，故经事件循环调度
+        let _ = app.run_on_main_thread(move || crate::recent::note(&added));
     }
 
     /// 对应 native.ts recentClear：清空镜像列表并重建菜单
@@ -158,15 +163,26 @@ impl ShellState {
             g.recents.clear();
         }
         self.rebuild_menu(app);
+        let _ = app.run_on_main_thread(crate::recent::clear);
     }
 
     /// 对应 native.ts recentRemove：单条移除并重建菜单
+    ///
+    /// 系统 API 没有「删除单条」的接口，只能整体清空后按旧→新重放剩余条目
+    /// （与 recent.cjs 的做法一致：反序回放让最新的那条最后登记、排在最前）
     pub fn recent_remove(&self, app: &AppHandle, path: &str) {
-        {
+        let remaining: Vec<String> = {
             let mut g = self.inner.lock().expect("shell state 中毒");
             g.recents.retain(|r| r.path != path);
-        }
+            g.recents.iter().map(|r| r.path.clone()).collect()
+        };
         self.rebuild_menu(app);
+        let _ = app.run_on_main_thread(move || {
+            crate::recent::clear();
+            for path in remaining.iter().rev() {
+                crate::recent::note(path);
+            }
+        });
     }
 
     /// 设置面板同步自动保存开关（保持菜单勾选状态一致）

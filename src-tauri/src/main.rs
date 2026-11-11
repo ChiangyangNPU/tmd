@@ -40,6 +40,7 @@ mod history;
 mod logger;
 mod menu;
 mod picgo;
+mod recent;
 mod search;
 mod shell;
 mod text_file;
