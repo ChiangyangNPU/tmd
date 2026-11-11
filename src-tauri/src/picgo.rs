@@ -1,15 +1,16 @@
-//! 图床上传（PicGo 兼容子集）：smms / github / aliyun / imgur。
+//! 图床上传（PicGo 兼容）：smms / github / aliyun / tcyun / qiniu / upyun / imgur。
 //!
 //! 迁移背景：Electron 版直接依赖 npm 的 `picgo` 包（纯 Node，无法在 Tauri 侧复用），
 //! 迁移时被整体降级为 no-op（capabilities.picgo=false，UI 置灰）。这里用 Rust
-//! 重写四条通道，配置沿用 Electron 的 `userData/picgo-config.json` 结构
+//! 重写七条通道，配置沿用 Electron 的 `userData/picgo-config.json` 结构
 //! （`{ picBed: { current, [uploader]: {...} } }`），老用户配置可直接复用。
 //!
 //! 与 Electron 版的行为差异（有意）：
 //! - 上传失败不再静默返回 null 无痕，而是把 HTTP 状态与响应体前 200 字写进日志
 //!   （source=picgo），便于用户自查是密钥过期还是仓库权限问题；
-//! - 其余三家的签名算法（腾讯云/七牛/又拍云）留待后续版本，未实现的图床在
-//!   前端下拉中禁用，避免「配置成功但上传必失败」的误导。
+//! - 签名类图床（阿里云 OSS / 腾讯云 COS / 七牛）的签名算法各有两三级 HMAC，
+//!   均拆成独立函数并用 Python hashlib 独立算出的期望值锁进单测，避免换行或
+//!   字段顺序错一位只在线上表现为 403。
 //!
 //! @author chiangyang
 
@@ -153,32 +154,65 @@ async fn upload(picbed: &Value, bytes: &[u8], ext: &str) -> Result<String, Strin
     let filename = unique_name(ext);
     match current.as_str() {
         "smms" => upload_smms(&cfg, bytes, ext).await,
-        "github" => upload_github(&cfg, bytes, ext, &filename).await,
+        "github" => upload_github(&cfg, bytes, &filename).await,
         "aliyun" => upload_aliyun(&cfg, bytes, ext, &filename).await,
+        "tcyun" => upload_tcyun(&cfg, bytes, ext, &filename).await,
+        "qiniu" => upload_qiniu(&cfg, bytes, ext, &filename).await,
+        "upyun" => upload_upyun(&cfg, bytes, ext, &filename).await,
         "imgur" => upload_imgur(&cfg, bytes, ext).await,
         other => Err(format!("图床 {} 暂未支持", other)),
     }
 }
 
-/// SM.MS：multipart 上传，Token 直接放 Authorization 头
+/// 手工拼 multipart/form-data 体。
 ///
-/// multipart 体手工拼接：reqwest 的 multipart feature 会引入额外 crate，
-/// 本机/CI 网络受限时离线构建会失败。此处只有单个文件字段，格式固定可控。
-async fn upload_smms(cfg: &Value, bytes: &[u8], ext: &str) -> Result<String, String> {
-    let token = need(cfg, "token")?;
-    let boundary = format!("----tmd{}", unique_name(""));
-    let mut body = Vec::with_capacity(bytes.len() + 256);
+/// 不用 reqwest 的 multipart feature：它会引入额外 crate，网络受限时离线
+/// 构建会失败。图床场景字段固定（文本字段 + 单个文件），自己拼可控且零依赖。
+fn multipart_body(
+    boundary: &str,
+    text_fields: &[(&str, &str)],
+    file_field: &str,
+    filename: &str,
+    mime: &str,
+    bytes: &[u8],
+) -> Vec<u8> {
+    let mut body = Vec::with_capacity(bytes.len() + 512);
+    for (name, value) in text_fields {
+        body.extend_from_slice(
+            format!(
+                "--{}\r\nContent-Disposition: form-data; name=\"{}\"\r\n\r\n{}\r\n",
+                boundary, name, value
+            )
+            .as_bytes(),
+        );
+    }
     body.extend_from_slice(
         format!(
-            "--{b}\r\nContent-Disposition: form-data; name=\"smfile\"; filename=\"tmd{e}\"\r\nContent-Type: {m}\r\n\r\n",
+            "--{b}\r\nContent-Disposition: form-data; name=\"{n}\"; filename=\"{f}\"\r\nContent-Type: {m}\r\n\r\n",
             b = boundary,
-            e = ext,
-            m = mime_of(ext)
+            n = file_field,
+            f = filename,
+            m = mime
         )
         .as_bytes(),
     );
     body.extend_from_slice(bytes);
     body.extend_from_slice(format!("\r\n--{}--\r\n", boundary).as_bytes());
+    body
+}
+
+/// SM.MS：multipart 上传，Token 直接放 Authorization 头
+async fn upload_smms(cfg: &Value, bytes: &[u8], ext: &str) -> Result<String, String> {
+    let token = need(cfg, "token")?;
+    let boundary = format!("----tmd{}", unique_name(""));
+    let body = multipart_body(
+        &boundary,
+        &[],
+        "smfile",
+        &format!("tmd{}", ext),
+        mime_of(ext),
+        bytes,
+    );
     let resp = reqwest::Client::new()
         .post("https://sm.ms/api/v2/upload")
         .header("Authorization", token)
@@ -211,12 +245,7 @@ async fn upload_smms(cfg: &Value, bytes: &[u8], ext: &str) -> Result<String, Str
 }
 
 /// GitHub Contents API：PUT 提交 base64 内容，优先用 customUrl 拼访问地址
-async fn upload_github(
-    cfg: &Value,
-    bytes: &[u8],
-    ext: &str,
-    filename: &str,
-) -> Result<String, String> {
+async fn upload_github(cfg: &Value, bytes: &[u8], filename: &str) -> Result<String, String> {
     let repo = need(cfg, "repo")?;
     let token = need(cfg, "token")?;
     let branch = field(cfg, "branch");
@@ -336,6 +365,173 @@ fn hmac_sha1(key: &[u8], msg: &[u8]) -> [u8; 20] {
     out
 }
 
+/// 腾讯云 COS：PUT Object + COS v5 签名（两级 HMAC-SHA1）
+async fn upload_tcyun(
+    cfg: &Value,
+    bytes: &[u8],
+    ext: &str,
+    filename: &str,
+) -> Result<String, String> {
+    let secret_id = need(cfg, "secretId")?;
+    let secret_key = need(cfg, "secretKey")?;
+    let bucket = need(cfg, "bucket")?;
+    let app_id = need(cfg, "appId")?;
+    let area = need(cfg, "area")?;
+    let key = object_key(field(cfg, "path"), filename);
+    let host = format!("{}-{}.cos.{}.myqcloud.com", bucket, app_id, area);
+    let now = chrono::Utc::now().timestamp();
+    // 签名有效期 1 小时，与 COS 控制台建议一致
+    let sign_time = format!("{};{}", now, now + 3600);
+    let signature = cos_signature(secret_key, &sign_time, &host, &key);
+    let authorization = format!(
+        "q-sign-algorithm=sha1&q-ak={}&q-sign-time={}&q-key-time={}&q-header-list=host&q-url-param-list=&q-signature={}",
+        secret_id, sign_time, sign_time, signature
+    );
+    let url = format!("https://{}/{}", host, key);
+    let resp = reqwest::Client::new()
+        .put(&url)
+        .header("Authorization", authorization)
+        .header("Content-Type", mime_of(ext))
+        .body(bytes.to_vec())
+        .send()
+        .await
+        .map_err(|e| format!("tcyun 请求失败：{}", e))?;
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "tcyun 上传被拒：HTTP {} {}",
+            status,
+            text.chars().take(200).collect::<String>()
+        ));
+    }
+    Ok(url)
+}
+
+/// COS v5 签名：
+/// `SignKey = hex(HMAC-SHA1(SecretKey, KeyTime))`，
+/// `StringToSign = "sha1\n{KeyTime}\n{sha1(HttpString)}\n"`，
+/// `Signature = hex(HMAC-SHA1(SignKey, StringToSign))`，
+/// 其中 `HttpString = "put\n/{key}\n\nhost={host}\n"`。
+///
+/// 拆出来便于单测：两级 HMAC 与换行位置错一处线上就是 403。
+fn cos_signature(secret_key: &str, key_time: &str, host: &str, key: &str) -> String {
+    let http_string = format!("put\n/{}\n\nhost={}\n", key, host);
+    let string_to_sign = format!("sha1\n{}\n{}\n", key_time, sha1_hex(http_string.as_bytes()));
+    let sign_key = hex_of(&hmac_sha1(secret_key.as_bytes(), key_time.as_bytes()));
+    hex_of(&hmac_sha1(sign_key.as_bytes(), string_to_sign.as_bytes()))
+}
+
+/// 七牛云：表单上传（token + key + file），URL 取用户配置的访问域名
+async fn upload_qiniu(
+    cfg: &Value,
+    bytes: &[u8],
+    ext: &str,
+    filename: &str,
+) -> Result<String, String> {
+    let access_key = need(cfg, "accessKey")?;
+    let secret_key = need(cfg, "secretKey")?;
+    let bucket = need(cfg, "bucket")?;
+    // 七牛配置项没有 path，对象键直接用随机文件名
+    let key = filename.to_string();
+    let deadline = chrono::Utc::now().timestamp() + 3600;
+    let token = qiniu_token(access_key, secret_key, bucket, &key, deadline);
+    let host = qiniu_upload_host(field(cfg, "area"));
+    let boundary = format!("----tmd{}", unique_name(""));
+    let body = multipart_body(
+        &boundary,
+        &[("token", &token), ("key", &key)],
+        "file",
+        &format!("tmd{}", ext),
+        mime_of(ext),
+        bytes,
+    );
+    let resp = reqwest::Client::new()
+        .post(format!("https://{}/", host))
+        .header(
+            "Content-Type",
+            format!("multipart/form-data; boundary={}", boundary),
+        )
+        .body(body)
+        .send()
+        .await
+        .map_err(|e| format!("qiniu 请求失败：{}", e))?;
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "qiniu 上传被拒：HTTP {} {}",
+            status,
+            text.chars().take(200).collect::<String>()
+        ));
+    }
+    let base = need(cfg, "url")?;
+    Ok(format!("{}/{}", base.trim_end_matches('/'), key))
+}
+
+/// 七牛上传凭证：`ak:urlsafe_b64(HMAC-SHA1(sk, policy)):urlsafe_b64(policy)`
+///
+/// policy 用的是最小 JSON，字段顺序固定以便单测锁定；对象键由 unique_name
+/// 生成（仅数字、连字符与扩展名），不含需要转义的字符。
+fn qiniu_token(
+    access_key: &str,
+    secret_key: &str,
+    bucket: &str,
+    key: &str,
+    deadline: i64,
+) -> String {
+    let policy = format!(
+        "{{\"scope\":\"{}:{}\",\"deadline\":{}}}",
+        bucket, key, deadline
+    );
+    let encoded = base64_urlsafe(policy.as_bytes());
+    let sign = base64_urlsafe(&hmac_sha1(secret_key.as_bytes(), encoded.as_bytes()));
+    format!("{}:{}:{}", access_key, sign, encoded)
+}
+
+/// 七牛按存储区域选上传域名，未知区域回落华东（z0）
+fn qiniu_upload_host(area: &str) -> &'static str {
+    match area.trim() {
+        "z1" => "upload-z1.qiniup.com",
+        "z2" => "upload-z2.qiniup.com",
+        "na0" => "upload-na0.qiniup.com",
+        "as0" => "upload-as0.qiniup.com",
+        _ => "upload.qiniup.com",
+    }
+}
+
+/// 又拍云：PUT + Basic Auth（操作员账号:密码），URL 取用户配置的访问域名
+async fn upload_upyun(
+    cfg: &Value,
+    bytes: &[u8],
+    ext: &str,
+    filename: &str,
+) -> Result<String, String> {
+    let bucket = need(cfg, "bucket")?;
+    let operator = need(cfg, "operator")?;
+    let password = need(cfg, "password")?;
+    let key = filename.to_string();
+    let resp = reqwest::Client::new()
+        .put(format!("https://v0.api.upyun.com/{}/{}", bucket, key))
+        .basic_auth(operator, Some(password))
+        .header("Content-Type", mime_of(ext))
+        .body(bytes.to_vec())
+        .send()
+        .await
+        .map_err(|e| format!("upyun 请求失败：{}", e))?;
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let text = resp.text().await.unwrap_or_default();
+        return Err(format!(
+            "upyun 上传被拒：HTTP {} {}",
+            status,
+            text.chars().take(200).collect::<String>()
+        ));
+    }
+    let base = need(cfg, "url")?;
+    Ok(format!("{}/{}", base.trim_end_matches('/'), key))
+}
+
 /// Imgur：form 上传 base64，Client-ID 鉴权
 async fn upload_imgur(cfg: &Value, bytes: &[u8], ext: &str) -> Result<String, String> {
     let client_id = need(cfg, "clientId")?;
@@ -381,6 +577,21 @@ fn normalize_ext(ext: &str) -> &'static str {
         }
     }
     ".png"
+}
+
+/// 字节转小写十六进制（COS 签名要求 hex 而非 base64）
+fn hex_of(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+fn sha1_hex(data: &[u8]) -> String {
+    use sha1::{Digest, Sha1};
+    hex_of(&Sha1::digest(data))
+}
+
+/// URL 安全的 base64 且去掉填充（七牛 upload token 要求）
+fn base64_urlsafe(bytes: &[u8]) -> String {
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
 fn mime_of(ext: &str) -> &'static str {
@@ -477,6 +688,54 @@ mod tests {
             "img/a.png",
         );
         assert_eq!(sig, "RZvEKvKfFL/03OxuWNM7lxX6+RM=");
+    }
+
+    #[test]
+    fn cos_signature_matches_external_reference() {
+        // 期望值由 Python hashlib 对同一 HttpString / StringToSign 独立算出，
+        // 锁定两级 HMAC 与换行位置（错一处线上即 403）
+        let sig = cos_signature(
+            "secret",
+            "1700000000;1700003600",
+            "bucket-1250000000.cos.ap-shanghai.myqcloud.com",
+            "img/a.png",
+        );
+        assert_eq!(sig, "758f266448c6d0c2786fd0822217ded61fc133c3");
+    }
+
+    #[test]
+    fn qiniu_token_matches_external_reference() {
+        // 期望值同样由 Python hmac + urlsafe_b64 独立算出
+        let token = qiniu_token("ak", "sk", "bucket", "abc.png", 1_700_003_600);
+        assert_eq!(
+            token,
+            "ak:1h5LMzSUfc1s7n4VF2b9bxtiq68:eyJzY29wZSI6ImJ1Y2tldDphYmMucG5nIiwiZGVhZGxpbmUiOjE3MDAwMDM2MDB9"
+        );
+    }
+
+    #[test]
+    fn qiniu_region_hosts() {
+        assert_eq!(qiniu_upload_host("z1"), "upload-z1.qiniup.com");
+        assert_eq!(qiniu_upload_host("na0"), "upload-na0.qiniup.com");
+        assert_eq!(qiniu_upload_host(""), "upload.qiniup.com");
+        assert_eq!(qiniu_upload_host("unknown"), "upload.qiniup.com");
+    }
+
+    #[test]
+    fn multipart_body_bounds_fields() {
+        let body = multipart_body(
+            "B",
+            &[("token", "t"), ("key", "k.png")],
+            "file",
+            "k.png",
+            "image/png",
+            b"xx",
+        );
+        let text = String::from_utf8(body).unwrap();
+        assert!(text.contains("name=\"token\"\r\n\r\nt\r\n"), "{}", text);
+        assert!(text.contains("name=\"key\"\r\n\r\nk.png\r\n"), "{}", text);
+        assert!(text.contains("filename=\"k.png\""), "{}", text);
+        assert!(text.ends_with("--B--\r\n"), "结尾边界必须闭合：{}", text);
     }
 
     #[test]
