@@ -299,24 +299,25 @@ pub(crate) fn build_menu(
         )?),
         Box::new(make_item(app, "export-epub", l("exportEpub"), None)?),
         Box::new(make_item(app, "export-latex", l("exportLatex"), None)?),
-        // spike 阶段 B 原型触发项（Rust 侧直接处理，不经渲染层）
+        // 阶段 B 原型触发项（Rust 侧直接处理，不经渲染层）。
+        // 文案去掉 "Spike:" 前缀：菜单面向用户，实现阶段标记不该出现在菜单里
         Box::new(PredefinedMenuItem::separator(app)?),
         Box::new(make_item(
             app,
             "spike-pdf",
-            "Spike: 全文档 PDF 导出".to_string(),
+            "全文档 PDF 导出".to_string(),
             None,
         )?),
         Box::new(make_item(
             app,
             "spike-snapshot",
-            "Spike: 视口截图".to_string(),
+            "视口截图".to_string(),
             None,
         )?),
         Box::new(make_item(
             app,
             "spike-export-window-matrix",
-            "Spike: 导窗形态矩阵".to_string(),
+            "导窗形态矩阵".to_string(),
             None,
         )?),
     ];
