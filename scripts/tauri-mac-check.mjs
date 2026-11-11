@@ -173,10 +173,7 @@ function renderStepFile(steps) {
 }
 
 const STEP_INDEX = new Map()
-const STEP_DEFS = buildSteps('__FIXTURE__').map((step, i) => {
-  STEP_INDEX.set(step.id, i)
-  return step
-})
+buildSteps('__FIXTURE__').forEach((step, i) => STEP_INDEX.set(step.id, i))
 
 /** 按 id 取某步的返回值 */
 const at = (id) => (steps) => steps[STEP_INDEX.get(id)]?.value

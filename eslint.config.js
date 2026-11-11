@@ -98,4 +98,13 @@ export default [
       globals: globals.browser,
     },
   },
+
+  // src-tauri 壳层注入脚本：运行在 WebView 页面里（浏览器环境），
+  // 由 main.rs 经 include_str! 编译期内嵌，不参与前端构建
+  {
+    files: ['src-tauri/src/**/*.js'],
+    languageOptions: {
+      globals: globals.browser,
+    },
+  },
 ]
