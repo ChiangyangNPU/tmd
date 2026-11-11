@@ -86,22 +86,6 @@ pub(crate) fn eval_js(window: &WebviewWindow, script: &str) -> Result<String, St
 
 /// 读取渲染层内容尺寸（scrollWidth/scrollHeight，web page 坐标）
 pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64), String> {
-    // 二分定位 step：先验证 with_wk + objc2 引用与只读访问是否可用
-    let title_probe: Result<String, String> = with_wk(window, move |wk| unsafe {
-        match wk.title() {
-            Some(s) => s.to_string(),
-            None => String::new(),
-        }
-    });
-    eprintln!(
-        "[tmd-spike] title 探针: {:?}",
-        title_probe
-            .as_ref()
-            .map(|s| s.chars().take(40).collect::<String>())
-    );
-    if let Err(err) = title_probe {
-        return Err(format!("title 探针失败（objc2 通路问题）: {}", err));
-    }
     let s = eval_js(window, crate::export_native_common::CONTENT_METRICS_SCRIPT)?;
     crate::export_native_common::parse_content_metrics(&s)
 }
