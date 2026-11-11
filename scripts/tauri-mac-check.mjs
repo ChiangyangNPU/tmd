@@ -115,9 +115,21 @@ function buildSteps(fixturePath) {
     },
     { id: 'read-result', expr: 'window.__tmdCheckRead' },
     {
-      // 准备：插入文本并保持全选（无选区时 toggleBold 只设 storedMarks，不产 strong）
+      // 准备：用编辑器内的 Range 全选 → delete → 插入固定文本。
+      // 必须先 delete：文档持久化（localStorage）不受 TMD_HOME_DIR/TMD_DATA_DIR
+      // 隔离，上一轮成功跑完会把 <p><mark>验收文本</mark></p> 存下来，下一轮
+      // 启动即恢复；只做「全选 + insertText」的话文字换了但 <mark> 外壳仍在，
+      // 随后再按 Cmd+Shift+H 变成「取消高亮」，断言表现为 PASS/FAIL 交替。
       id: 'prepare',
-      expr: `(function(){var pm=${PROSE};pm.focus();document.execCommand('selectAll');document.execCommand('insertText',false,'验收文本');document.execCommand('selectAll');return {text:pm.textContent,overridden:!!localStorage.getItem('tmd:shortcuts')}})()`,
+      expr: `(function(){var pm=${PROSE};pm.focus();var r=document.createRange();r.selectNodeContents(pm);var s=window.getSelection();s.removeAllRanges();s.addRange(r);document.execCommand('delete');document.execCommand('insertText',false,'验收文本');return {text:pm.textContent,overridden:!!localStorage.getItem('tmd:shortcuts')}})()`,
+    },
+    {
+      // 全选必须走 ProseMirror 自己的 Mod+A（baseKeymap 的 selectAll）：它同步
+      // 改写 state.selection。此前用 execCommand('selectAll') 只改 DOM 选区，
+      // 下一步 press() 里的 pm.focus() 会拿尚未同步的旧 state 把 DOM 选区重置，
+      // 命令退化成「只写 storedMarks」，表现为事件被消费但 mark/strong 为 0。
+      id: 'select-all',
+      expr: press('a', 'KeyA'),
     },
     { id: 'send-bold', expr: press('b', 'KeyB') },
     { id: 'bold-on', expr: countOf('strong') },
@@ -132,9 +144,9 @@ function buildSteps(fixturePath) {
     },
     {
       // 标题切换后选区可能收缩为光标，行内标记类命令（高亮）在空选区上只写
-      // storedMarks 不产 mark，顺手重选一次消除这个隐性耦合
+      // storedMarks 不产 mark；同样用 Mod+A 把全选写进 state（见 select-all 注释）
       id: 'reselect',
-      expr: `(function(){var pm=${PROSE};pm.focus();document.execCommand('selectAll');return String(window.getSelection()).length})()`,
+      expr: press('a', 'KeyA'),
     },
     { id: 'send-highlight', expr: press('h', 'KeyH', 'shift') },
     { id: 'highlight-on', expr: countOf('mark') },
