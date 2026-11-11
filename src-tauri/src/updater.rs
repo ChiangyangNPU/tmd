@@ -22,7 +22,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 
-use crate::shell;
+use crate::window_state;
 
 /// 状态事件名（shim 的 onUpdateStatus 订阅）
 pub const STATUS_EVENT: &str = "tmd-update-status";
@@ -110,7 +110,7 @@ pub fn tmd_update_set_auto(app: AppHandle, enabled: bool) {
         state.auto_check.store(enabled, Ordering::SeqCst);
     }
     if let Ok(dir) = app.path().app_data_dir() {
-        shell::save_shell_state(
+        window_state::save_shell_state(
             &dir.join("shell-state.json"),
             json!({ "autoCheckUpdate": enabled }),
         );

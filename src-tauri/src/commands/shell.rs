@@ -6,9 +6,10 @@ use tauri::Manager;
 
 use crate::bootstrap::{flush_pending_open_paths, PendingOpenPaths};
 use crate::menu::RecentEntry;
-use crate::shell::{self, ShellState, WinStateTracker};
+use crate::shell::ShellState;
 #[cfg(target_os = "macos")]
 use crate::win_anim;
+use crate::window_state::{self, WinStateTracker};
 
 // ---------- 应用级状态同步与窗口控制（electron/ipc-app.cjs 的 Rust 对应） ----------
 
@@ -69,7 +70,7 @@ pub(crate) fn tmd_set_theme_source(
         .set_theme(Some(if is_dark { Theme::Dark } else { Theme::Light }))
         .map_err(|e| e.to_string())?;
     // 持久化到 shell-state.json（下次启动首帧即正确主题，对应 saveShellState）
-    shell::save_shell_state(
+    window_state::save_shell_state(
         &window.app_handle().state::<WinStateTracker>().path.clone(),
         serde_json::json!({ "themeSource": if is_dark { "dark" } else { "light" } }),
     );

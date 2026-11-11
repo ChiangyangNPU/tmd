@@ -18,11 +18,12 @@ use crate::exporter;
 use crate::history;
 use crate::logger;
 use crate::picgo;
-use crate::shell::{self, ShellState, WinStateTracker};
+use crate::shell::ShellState;
 use crate::updater;
 use crate::watcher::WatchState;
 #[cfg(target_os = "macos")]
 use crate::win_anim;
+use crate::window_state::{self, WinStateTracker};
 
 /// 注入到每个页面加载前的渲染层 shim：定义与 electron/preload.cjs 同名的
 /// `window.tmdAPI`。已实现通道走 Tauri invoke；其余通道 no-op + 一次性告警。
@@ -77,14 +78,14 @@ pub(crate) fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEven
 /// 路径恢复语义完全一致，不存在「重建后回到默认 1280×820」的偏差。
 pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let shell_file = app.state::<WinStateTracker>().path.clone();
-    let persisted = shell::read_shell_state(&shell_file);
+    let persisted = window_state::read_shell_state(&shell_file);
     let restored_theme = match persisted.get("themeSource").and_then(Value::as_str) {
         Some("dark") => Some(tauri::Theme::Dark),
         Some("light") => Some(tauri::Theme::Light),
         _ => None,
     };
-    let display_rects = shell::monitor_rects(&app.available_monitors().unwrap_or_default());
-    let restored = shell::restore_win_state(&persisted, &display_rects);
+    let display_rects = window_state::monitor_rects(&app.available_monitors().unwrap_or_default());
+    let restored = window_state::restore_win_state(&persisted, &display_rects);
 
     let mut builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
         // 带版本号：双轨共存期与 Electron 线（0.1.7）窗口可区分；
@@ -376,7 +377,7 @@ pub(crate) fn run() {
             app.manage(picgo::PicGoState::new(data_dir.join("picgo-config.json")));
             // 壳层持久化：主题与窗口几何在首帧前恢复（与 Electron createWindow 前恢复同口径）
             let shell_file = data_dir.join("shell-state.json");
-            let persisted = shell::read_shell_state(&shell_file);
+            let persisted = window_state::read_shell_state(&shell_file);
             // 自动更新开关：与主题/窗口几何同存 shell-state.json，启动即恢复
             let auto_check = persisted
                 .get("autoCheckUpdate")

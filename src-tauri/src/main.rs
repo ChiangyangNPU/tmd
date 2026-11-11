@@ -50,6 +50,8 @@ mod themes;
 mod updater;
 mod watcher;
 mod wikilinks;
+// 窗口几何持久化（位置尺寸最大化记录 / 启动恢复 / 多显示器钳制）
+mod window_state;
 // macOS 最大化/还原的自绘逐帧缩放（原生 zoom 过渡期间页面不重排）
 #[cfg(target_os = "macos")]
 mod win_anim;
