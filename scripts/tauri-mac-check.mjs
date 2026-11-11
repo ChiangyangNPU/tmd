@@ -130,6 +130,12 @@ function buildSteps(fixturePath) {
       id: 'body-off',
       expr: `(function(){var pm=${PROSE};return {h1:pm.querySelectorAll('h1').length,h2:pm.querySelectorAll('h2').length}})()`,
     },
+    {
+      // 标题切换后选区可能收缩为光标，行内标记类命令（高亮）在空选区上只写
+      // storedMarks 不产 mark，顺手重选一次消除这个隐性耦合
+      id: 'reselect',
+      expr: `(function(){var pm=${PROSE};pm.focus();document.execCommand('selectAll');return String(window.getSelection()).length})()`,
+    },
     { id: 'send-highlight', expr: press('h', 'KeyH', 'shift') },
     { id: 'highlight-on', expr: countOf('mark') },
     { id: 'send-linkbar', expr: press('k', 'KeyK') },
@@ -172,9 +178,9 @@ const checks = [
   },
   {
     id: 'shell-contract',
-    label: 'tmdAPI 注入成功且能力声明正确（picgo=false）',
+    label: 'tmdAPI 注入成功且能力声明正确（picgo=true）',
     pick: at('shell-contract'),
-    pass: (v) => !!v && v.api === true && v.isNative === true && v.picgo === false,
+    pass: (v) => !!v && v.api === true && v.isNative === true && v.picgo === true,
   },
   {
     id: 'read-file',

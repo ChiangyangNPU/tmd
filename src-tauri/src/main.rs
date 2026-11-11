@@ -39,6 +39,7 @@ mod fsops;
 mod history;
 mod logger;
 mod menu;
+mod picgo;
 mod search;
 mod shell;
 mod text_file;
@@ -79,9 +80,9 @@ const TMD_API_SHIM: &str = r#"
   var invoke = core.invoke
   var impl = {
     isNative: true,
-    // 壳层能力声明：渲染层据此降级 UI。图床整块未实现（PicGo 是纯 Node 库，
-    // 见 docs/spike-tauri.md 缺口清单 A1）；更新已接 tauri-plugin-updater
-    capabilities: { picgo: false, updater: true },
+    // 壳层能力声明：渲染层据此降级 UI。图床已用 Rust 重写四条通道
+    // （smms/github/aliyun/imgur，见 picgo.rs）；更新已接 tauri-plugin-updater
+    capabilities: { picgo: true, updater: true },
     readFile: function (filePath) { return invoke('tmd_read_file', { filePath: filePath }) },
     saveFile: function (filePath, content, meta) {
       return invoke('tmd_save_file', { filePath: filePath, content: content, meta: meta || null })
@@ -99,6 +100,10 @@ const TMD_API_SHIM: &str = r#"
     watchDirs: function (paths) { invoke('tmd_watch_dirs', { paths: paths }) },
     onFileChanged: function (cb) { tmdOn('tmd-file-changed', cb) },
     onDirsChanged: function (cb) { tmdOn('tmd-dirs-changed', cb) },
+    // 图床（Rust 重写，配置兼容 Electron 的 picgo-config.json）
+    uploadImage: function (base64, ext) { return invoke('tmd_picgo_upload', { base64: base64, ext: ext }) },
+    getPicGoConfig: function () { return invoke('tmd_picgo_get_config') },
+    savePicGoConfig: function (config) { return invoke('tmd_picgo_save_config', { config: config }) },
     listHistory: function (filePath) { return invoke('tmd_list_history', { filePath: filePath }) },
     readHistory: function (filePath, id) { return invoke('tmd_read_history', { filePath: filePath, id: id }) },
     setLocaleInfo: function (info) { invoke('tmd_set_locale_info', { labels: (info && info.labels) || {}, locale: (info && info.locale) || '' }) },
@@ -847,6 +852,8 @@ fn main() {
                 _ => app.path().app_data_dir().expect("userData 目录不可用"),
             };
             app.manage(ai::AiState::new(data_dir.join("ai-config.json")));
+            // 图床配置沿用 Electron 版的 picgo-config.json，老用户可直接复用
+            app.manage(picgo::PicGoState::new(data_dir.join("picgo-config.json")));
             // 壳层持久化：主题与窗口几何在首帧前恢复（与 Electron createWindow 前恢复同口径）
             let shell_file = data_dir.join("shell-state.json");
             let persisted = shell::read_shell_state(&shell_file);
@@ -1171,6 +1178,9 @@ fn main() {
             ai::tmd_ai_chat,
             ai::tmd_ai_abort,
             ai::tmd_ai_embed,
+            picgo::tmd_picgo_get_config,
+            picgo::tmd_picgo_save_config,
+            picgo::tmd_picgo_upload,
             tmd_save_image,
             tmd_read_dropped_file,
             tmd_open_external,

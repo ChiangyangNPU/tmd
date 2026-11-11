@@ -493,9 +493,10 @@
             <select id="picgo-uploader" class="settings-select">
               <option value="smms">SM.MS (S.EE)</option>
               <option value="github">GitHub</option>
-              <option value="qiniu">七牛云</option>
-              <option value="upyun">又拍云</option>
-              <option value="tcyun">腾讯云 COS</option>
+              <!-- Rust 侧尚未实现签名类图床，禁用避免「能配置但必上传失败」 -->
+              <option value="qiniu" disabled>七牛云（暂不支持）</option>
+              <option value="upyun" disabled>又拍云（暂不支持）</option>
+              <option value="tcyun" disabled>腾讯云 COS（暂不支持）</option>
               <option value="aliyun">阿里云 OSS</option>
               <option value="imgur">Imgur</option>
             </select>

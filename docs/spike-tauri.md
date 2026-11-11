@@ -356,12 +356,13 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 
 ## 缺口清单（2026-10-28 盘点，A 组当日处置）
 
-> 通道面精确对账：shim 实现 **67 键**，`native.ts` 契约 **69 条**，差集 **4 条**
-> （刷新于 A 组处置后；此前 11 条）：
+> 通道面精确对账：shim 实现 **70 键**，`native.ts` 契约 **69 条**，契约侧仅剩
+> **1 条有意替换**：
 > - `getPathForFile` —— **有意替换**（Tauri 走 `onDropPaths` + `readDroppedFile`，
 >   Electron 的 `webUtils.getPathForFile` 在 WebView2 无对应）
-> - `uploadImage` / `getPicGoConfig` / `savePicGoConfig` —— **有意降级**（PicGo
->   未迁移，壳层声明 `capabilities.picgo=false`，见下表 A1）
+>
+> PicGo 三条（`uploadImage` / `getPicGoConfig` / `savePicGoConfig`）已用 Rust 重写
+> 落地（见下表 A1），`capabilities.picgo` 已翻回 `true`。
 >
 > 未实现通道在 shim 里仍是 no-op + 一次性 console.warn
 > （`[tmd-tauri-spike] 通道未实现（no-op）`），但**渲染层不再依赖这个兜底**：
@@ -371,13 +372,13 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 
 | # | 缺口 | 处置结果 | 剩余动作 |
 |---|------|----------|----------|
-| 1 | **PicGo 图床上传**<br>3 条通道：`uploadImage` / `getPicGoConfig` / `savePicGoConfig` | **已产品降级**：新增壳层能力声明 `tmdAPI.capabilities`（Tauri 置 `picgo:false`）+ 渲染层 `hasNativeFeature()`。设置面板「上传到图床」置灰并改文案「当前版本不支持，图片将保存到本地」，图床配置区整块隐藏，已存的 hosting 策略回落 inline；粘贴走 hosting 时按 assets 落盘（无文档目录再内联）。**顺带修掉一个崩溃**：`getPicGoConfig()` no-op 返回 undefined 曾在打开设置面板时抛 TypeError（实测路径） | Rust 重写（7 家图床取舍）或 sidecar 留到 v0.2.x；届时把 `capabilities.picgo` 翻回 true 即可 |
+| 1 | **PicGo 图床上传**<br>3 条通道：`uploadImage` / `getPicGoConfig` / `savePicGoConfig` | **已用 Rust 重写**：`src-tauri/src/picgo.rs` 实现 smms / github / aliyun / imgur 四条通道，配置文件沿用 Electron 的 `picgo-config.json` 结构（`{ picBed: { current, [uploader]: {...} } }`），老用户配置可直接复用；`capabilities.picgo` 翻回 `true`，设置面板图床配置区恢复。OSS 签名用手写 HMAC-SHA1（省掉 hmac crate，保证离线可构建），正确性由 RFC 2202 标准向量 + Python hashlib 交叉值双重锁定；smms 的 multipart 体手工拼接（同上，避免 multipart feature 引入新 crate）。**腾讯云 COS / 七牛 / 又拍云**签名复杂且缺真实凭据验证，本轮在下拉中禁用（`disabled` + 文案标注），避免「能配置但必上传失败」 | 补 3 家签名类图床；届时解除对应 `<option disabled>` |
 | 2 | **自动更新**<br>7 条通道：`checkForUpdates` / `downloadUpdate` / `installUpdate` / `onUpdateStatus` / `setAutoCheckUpdate` + 保存重启握手 `onSaveRequest` / `reportSaveResult` | **已接入 `tauri-plugin-updater`**：`src-tauri/src/updater.rs`（检查 → 原生对话框询问 → 全量下载安装 → 保存握手 → 重启）+ shim 五条通道 + 握手两条；自动检查开关持久化到 shell-state.json（启动 5s 后触发，公钥未配时跳过）。公钥为空不崩，设置面板提示配置指引 | **配签名密钥与 latest.json 发布链路**（步骤见打包发布.md §11.2/§11.3）：`tauri signer generate` → 填 `plugins.updater.pubkey` → CI 加 `TAURI_SIGNING_PRIVATE_KEY`(+密码) → `bundle.createUpdaterArtifacts: true` |
-| 3 | **E2E 回归方案** | **已落地 WebView2 CDP 冒烟**：`scripts/tauri-gui-check.mjs`（`npm run smoke:tauri`）。用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port` 打开调试端口 + 独立 `WEBVIEW2_USER_DATA_FOLDER`，连 CDP 查 DOM、发真实按键。**Windows release 实测 5/5 通过**：编辑器挂载 / 文本输入 / Ctrl+B 加粗 / 再按取消（双触发回归）/ Ctrl+Shift+8 列表（e.code 键位回归） | macOS 仍无自动化（WKWebView 无 CDP，需 safaridriver/WebDriverAgent）；人工清单保留；后续可把 smoke 接进 CI |
+| 3 | **E2E 回归方案** | **已落地 WebView2 CDP 冒烟**：`scripts/tauri-gui-check.mjs`（`npm run smoke:tauri`）。用 `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port` 打开调试端口 + 独立 `WEBVIEW2_USER_DATA_FOLDER`，连 CDP 查 DOM、发真实按键。**Windows release 实测 5/5 通过**：编辑器挂载 / 文本输入 / Ctrl+B 加粗 / 再按取消（双触发回归）/ Ctrl+Shift+8 列表（e.code 键位回归） | macOS 已补自省通道：`npm run smoke:mac`（`TMD_EVAL_SCRIPT` 门控 → `export_native::eval_js` 逐行执行页面断言），release `.app` 实测 9/9；原生菜单 accelerator 绑定与 NSOpenPanel 仍归人工 |
 
 > 能力声明契约：`native.ts` 新增 `NativeCapabilities { picgo?, updater? }` 与
 > `hasNativeFeature()`——**字段缺省 = 支持**（Electron preload 不声明，行为不变），
-> Tauri shim 显式声明 `{ picgo: false, updater: true }`。
+> Tauri shim 显式声明 `{ picgo: true, updater: true }`。
 
 ### B. 平台差异与降级（功能可用但不完全等价）
 
