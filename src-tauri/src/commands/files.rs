@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 use tauri_plugin_dialog::DialogExt;
 
+use crate::error::CmdError;
 use crate::exporter;
 use crate::fsops;
 use crate::history::{self, FileHistory, HistoryEntry};
@@ -23,7 +24,7 @@ use crate::wikilinks::{self, WikiScanResult};
 
 /// 对应 native.ts readFile → TextFileData（含保存回写所需的编码元信息）。
 #[tauri::command]
-pub(crate) fn tmd_read_file(file_path: String) -> Result<TextFileData, String> {
+pub(crate) fn tmd_read_file(file_path: String) -> Result<TextFileData, CmdError> {
     read_file_at(file_path)
 }
 
@@ -36,13 +37,13 @@ pub(crate) fn tmd_save_file(
     content: String,
     meta: Option<SaveMeta>,
     watch: tauri::State<'_, WatchState>,
-) -> Result<bool, String> {
+) -> Result<bool, CmdError> {
     let (encoding, bom) = meta
         .map(|m| (m.encoding, m.bom))
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
     let bytes = text_file::encode(&content, &encoding, bom);
     history::snapshot_before_write(&history::history_root(), &file_path);
-    fs::write(&file_path, bytes).map_err(|e| format!("{}: {}", file_path, e))?;
+    fs::write(&file_path, bytes).map_err(|e| CmdError::io(format!("{}: {}", file_path, e)))?;
     watch.note_write(&file_path, &content);
     Ok(true)
 }
@@ -70,17 +71,21 @@ pub(crate) struct DirListing {
 pub(crate) fn tmd_read_dir(
     dir_path: String,
     shell_state: tauri::State<'_, ShellState>,
-) -> Result<DirListing, String> {
+) -> Result<DirListing, CmdError> {
     let mut children: Vec<FileEntryRust> = Vec::new();
-    let entries = fs::read_dir(&dir_path).map_err(|e| format!("{}: {}", dir_path, e))?;
+    let entries =
+        fs::read_dir(&dir_path).map_err(|e| CmdError::io(format!("{}: {}", dir_path, e)))?;
     for entry in entries {
-        let entry = entry.map_err(|e| e.to_string())?;
+        let entry = entry.map_err(|e| CmdError::io(e.to_string()))?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if name.starts_with('.') {
             continue;
         }
         let path = entry.path().to_string_lossy().into_owned();
-        let is_dir = entry.file_type().map_err(|e| e.to_string())?.is_dir();
+        let is_dir = entry
+            .file_type()
+            .map_err(|e| CmdError::io(e.to_string()))?
+            .is_dir();
         if is_dir {
             children.push(FileEntryRust {
                 name,
@@ -161,20 +166,20 @@ pub(crate) fn tmd_read_history(file_path: String, id: String) -> Option<HistoryE
 /// 对应 native.ts saveImage：粘贴图片落盘到文档同目录 assets/（base64 解码）。
 /// 入参白名单：name 必须是非隐藏裸文件名（拒绝路径分隔与 .. 穿越）。
 #[tauri::command]
-pub(crate) fn tmd_save_image(dir: String, name: String, base64: String) -> Result<Value, String> {
+pub(crate) fn tmd_save_image(dir: String, name: String, base64: String) -> Result<Value, CmdError> {
     let bare = Path::new(&name)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .is_some_and(|n| n == name);
     if dir.is_empty() || name.is_empty() || base64.is_empty() || !bare || name.starts_with('.') {
-        return Err("saveImage: 非法入参".into());
+        return Err(CmdError::invalid("saveImage: 非法入参"));
     }
     let bytes = STANDARD
         .decode(&base64)
-        .map_err(|_| "saveImage: base64 解码失败".to_string())?;
+        .map_err(|_| CmdError::invalid("saveImage: base64 解码失败"))?;
     let assets_dir = Path::new(&dir).join("assets");
-    fs::create_dir_all(&assets_dir).map_err(|e| e.to_string())?;
-    fs::write(assets_dir.join(&name), bytes).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&assets_dir).map_err(|e| CmdError::io(e.to_string()))?;
+    fs::write(assets_dir.join(&name), bytes).map_err(|e| CmdError::io(e.to_string()))?;
     Ok(serde_json::json!({ "name": name }))
 }
 
@@ -191,7 +196,7 @@ pub(crate) fn tmd_open_external(url: String) -> bool {
 /// 供渲染层构造 File 对象复用粘贴图片插入链。白名单扩展名 + 32MB 上限
 /// （与导出图片本地化 read_image_as_data_uri 同口径），非法/超限返回 null。
 #[tauri::command]
-pub(crate) fn tmd_read_dropped_file(file_path: String) -> Result<Option<Value>, String> {
+pub(crate) fn tmd_read_dropped_file(file_path: String) -> Result<Option<Value>, CmdError> {
     let Some(mime) = exporter::image_mime_of(&file_path) else {
         return Ok(None);
     };
@@ -244,33 +249,35 @@ pub(crate) fn tmd_delete_path(target_path: String) -> bool {
 
 /// 对应 native.ts createFile：目录下新建 Markdown 文件（自动补 .md，wx 不覆盖）。
 #[tauri::command]
-pub(crate) fn tmd_create_file(dir_path: String, name: String) -> Result<Value, String> {
+pub(crate) fn tmd_create_file(dir_path: String, name: String) -> Result<Value, CmdError> {
     let is_win = cfg!(target_os = "windows");
-    let safe = fsops::sanitize_file_name(&name, is_win).ok_or("invalid file name")?;
+    let safe =
+        fsops::sanitize_file_name(&name, is_win).ok_or(CmdError::invalid("invalid file name"))?;
     let target = fsops::child_path(&dir_path, &fsops::ensure_markdown_ext(&safe), is_win)
-        .ok_or("invalid file name")?;
+        .ok_or(CmdError::invalid("invalid file name"))?;
     fs::OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(&target)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| CmdError::io(e.to_string()))?;
     Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
 }
 
 /// 对应 native.ts createDir：目录下新建文件夹（已存在时报错）。
 #[tauri::command]
-pub(crate) fn tmd_create_dir(dir_path: String, name: String) -> Result<Value, String> {
+pub(crate) fn tmd_create_dir(dir_path: String, name: String) -> Result<Value, CmdError> {
     let is_win = cfg!(target_os = "windows");
-    let target = fsops::child_path(&dir_path, &name, is_win).ok_or("invalid folder name")?;
-    fs::create_dir(&target).map_err(|e| e.to_string())?;
+    let target = fsops::child_path(&dir_path, &name, is_win)
+        .ok_or(CmdError::invalid("invalid folder name"))?;
+    fs::create_dir(&target).map_err(|e| CmdError::io(e.to_string()))?;
     Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
 }
 
 /// 对应 native.ts renamePath：同目录内重命名（重名/非法名 reject）。
 #[tauri::command]
-pub(crate) fn tmd_rename_path(old_path: String, name: String) -> Result<Value, String> {
+pub(crate) fn tmd_rename_path(old_path: String, name: String) -> Result<Value, CmdError> {
     if old_path.is_empty() {
-        return Err("invalid path".into());
+        return Err(CmdError::invalid("invalid path"));
     }
     let is_win = cfg!(target_os = "windows");
     let target = fsops::child_path(
@@ -281,11 +288,11 @@ pub(crate) fn tmd_rename_path(old_path: String, name: String) -> Result<Value, S
         &name,
         is_win,
     )
-    .ok_or("invalid rename target")?;
+    .ok_or(CmdError::invalid("invalid rename target"))?;
     if target == old_path {
-        return Err("invalid rename target".into());
+        return Err(CmdError::invalid("invalid rename target"));
     }
-    fs::rename(&old_path, &target).map_err(|e| e.to_string())?;
+    fs::rename(&old_path, &target).map_err(|e| CmdError::io(e.to_string()))?;
     Ok(serde_json::json!({ "path": target, "name": file_name_of(&target) }))
 }
 
@@ -311,7 +318,7 @@ pub(crate) fn dialog_path_string(p: tauri_plugin_dialog::FilePath) -> Option<Str
 
 /// 对应 native.ts openFile：文件对话框 → 读取（编码元信息齐全）。
 #[tauri::command]
-pub(crate) async fn tmd_open_file(app: tauri::AppHandle) -> Result<Option<TextFileData>, String> {
+pub(crate) async fn tmd_open_file(app: tauri::AppHandle) -> Result<Option<TextFileData>, CmdError> {
     let picked = app
         .dialog()
         .file()
@@ -328,7 +335,7 @@ pub(crate) async fn tmd_open_file(app: tauri::AppHandle) -> Result<Option<TextFi
 
 /// 对应 native.ts openFolder：文件夹对话框 → 绝对路径。
 #[tauri::command]
-pub(crate) async fn tmd_open_folder(app: tauri::AppHandle) -> Result<Option<String>, String> {
+pub(crate) async fn tmd_open_folder(app: tauri::AppHandle) -> Result<Option<String>, CmdError> {
     let picked = app.dialog().file().blocking_pick_folder();
     Ok(picked.and_then(dialog_path_string))
 }
@@ -341,7 +348,7 @@ pub(crate) async fn tmd_save_file_as(
     default_name: Option<String>,
     meta: Option<SaveMeta>,
     watch: tauri::State<'_, WatchState>,
-) -> Result<Option<SaveAsResult>, String> {
+) -> Result<Option<SaveAsResult>, CmdError> {
     let mut dialog = app.dialog().file();
     if let Some(name) = default_name {
         dialog = dialog.set_file_name(name);
@@ -358,7 +365,7 @@ pub(crate) async fn tmd_save_file_as(
         .unwrap_or_else(|| (default_encoding_str().to_string(), false));
     let bytes = text_file::encode(&content, &encoding, bom);
     history::snapshot_before_write(&history::history_root(), &path);
-    fs::write(&path, bytes).map_err(|e| format!("{}: {}", path, e))?;
+    fs::write(&path, bytes).map_err(|e| CmdError::io(format!("{}: {}", path, e)))?;
     watch.note_write(&path, &content);
     Ok(Some(save_as_result_of(path)))
 }

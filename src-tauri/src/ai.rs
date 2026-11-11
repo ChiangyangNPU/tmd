@@ -14,6 +14,7 @@ use tauri::{Emitter, Manager};
 
 use crate::ai_client::{self, AiClientState, StreamEvent};
 use crate::ai_config::{AiConfigState, ClientConfig};
+use crate::error::CmdError;
 
 #[derive(Serialize)]
 pub(crate) struct AiErrorBody {
@@ -65,7 +66,7 @@ pub(crate) fn tmd_ai_save_config(state: tauri::State<'_, AiState>, patch: Value)
 pub(crate) async fn tmd_ai_test(
     state: tauri::State<'_, AiState>,
     overrides: Value,
-) -> Result<Value, ()> {
+) -> Result<Value, CmdError> {
     let cfg: ClientConfig = state.config.get_client_config(&overrides);
     Ok(state.client.test_connection(&cfg).await)
 }
@@ -174,7 +175,7 @@ pub(crate) fn tmd_ai_abort(state: tauri::State<'_, AiState>, request_id: String)
 pub(crate) async fn tmd_ai_embed(
     state: tauri::State<'_, AiState>,
     texts: Value,
-) -> Result<Value, ()> {
+) -> Result<Value, CmdError> {
     let (settings, _) = state.config.read();
     if !settings.enabled {
         return Ok(serde_json::json!({

@@ -24,6 +24,7 @@ mod ai_client;
 mod ai_config;
 mod bootstrap;
 mod commands;
+mod error;
 mod export_assets;
 // 导出链平台原语：同名模块按平台选实现，exporter.rs 的编排层零分叉
 // - macOS：objc2 直调 WKWebView（export_native.rs）

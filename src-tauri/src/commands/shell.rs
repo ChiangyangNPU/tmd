@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 use tauri::Manager;
 
 use crate::bootstrap::{flush_pending_open_paths, PendingOpenPaths};
+use crate::error::CmdError;
 use crate::menu::RecentEntry;
 use crate::shell::ShellState;
 #[cfg(target_os = "macos")]
@@ -64,7 +65,7 @@ pub(crate) fn tmd_set_dirty(shell: tauri::State<'_, ShellState>, dirty: bool) {
 pub(crate) fn tmd_set_theme_source(
     window: tauri::WebviewWindow,
     is_dark: bool,
-) -> Result<(), String> {
+) -> Result<(), CmdError> {
     use tauri::Theme;
     window
         .set_theme(Some(if is_dark { Theme::Dark } else { Theme::Light }))

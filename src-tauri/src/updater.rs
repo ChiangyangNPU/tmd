@@ -22,6 +22,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_updater::UpdaterExt;
 
+use crate::error::CmdError;
 use crate::window_state;
 
 /// 状态事件名（shim 的 onUpdateStatus 订阅）
@@ -81,20 +82,20 @@ const NO_PUBKEY_HINT: &str =
 
 /// 手动检查：检查 → 有新版本则弹原生对话框询问 → 同意后下载安装
 #[tauri::command]
-pub async fn tmd_update_check(app: AppHandle) -> Result<(), String> {
-    run_check(app).await
+pub async fn tmd_update_check(app: AppHandle) -> Result<(), CmdError> {
+    run_check(app).await.map_err(CmdError::from)
 }
 
 /// 直接下载（不经过对话框；供 UI 上「立即更新」类入口使用）
 #[tauri::command]
-pub async fn tmd_update_download(app: AppHandle) -> Result<(), String> {
+pub async fn tmd_update_download(app: AppHandle) -> Result<(), CmdError> {
     let state = app.state::<UpdaterState>();
     if state.busy.swap(true, Ordering::SeqCst) {
-        return Err("更新任务进行中".into());
+        return Err(CmdError::internal("更新任务进行中"));
     }
     let result = download_and_install(app.clone()).await;
     state.busy.store(false, Ordering::SeqCst);
-    result
+    result.map_err(CmdError::from)
 }
 
 /// 安装已下载的更新：本实现里安装与下载合并完成，此命令语义为「重启以生效」

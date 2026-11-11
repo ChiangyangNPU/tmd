@@ -18,6 +18,7 @@
 //!
 //! @author chiangyang
 
+use crate::error::CmdError;
 use crate::export_native;
 use base64::{engine::general_purpose::STANDARD, Engine as _};
 use std::sync::{mpsc, Arc, Mutex};
@@ -423,39 +424,42 @@ pub(crate) async fn tmd_export_run(
     app: AppHandle,
     state: tauri::State<'_, ExporterState>,
     options: ExportRunOptions,
-) -> Result<Option<crate::commands::files::SaveAsResult>, String> {
+) -> Result<Option<crate::commands::files::SaveAsResult>, CmdError> {
     let app = app.clone();
     let tx = state.tx.clone();
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut dialog = app
-            .dialog()
-            .file()
-            .set_file_name(options.default_name.clone());
-        for filter in &options.filters {
-            let exts: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
-            dialog = dialog.add_filter(&filter.name, &exts);
-        }
-        let picked = dialog
-            .blocking_save_file()
-            .and_then(crate::commands::files::dialog_path_string);
-        let Some(path) = picked else {
-            return Ok(None);
-        };
-        // 队列串行执行（窗口生命周期由 worker 掌管），等待结果字节
-        let (reply_tx, reply_rx) = mpsc::channel();
-        tx.send(Job {
-            task: options.task,
-            reply: reply_tx,
-        })
-        .map_err(|_| "导出服务已停止".to_string())?;
-        let bytes = reply_rx
-            .recv_timeout(TASK_TIMEOUT + Duration::from_secs(30))
-            .map_err(|_| "导出排队超时".to_string())??;
-        std::fs::write(&path, &bytes).map_err(|e| format!("{}: {}", path, e))?;
-        Ok(Some(crate::commands::files::save_as_result_of(path)))
-    })
+    let result = tauri::async_runtime::spawn_blocking(
+        move || -> Result<Option<crate::commands::files::SaveAsResult>, String> {
+            let mut dialog = app
+                .dialog()
+                .file()
+                .set_file_name(options.default_name.clone());
+            for filter in &options.filters {
+                let exts: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
+                dialog = dialog.add_filter(&filter.name, &exts);
+            }
+            let picked = dialog
+                .blocking_save_file()
+                .and_then(crate::commands::files::dialog_path_string);
+            let Some(path) = picked else {
+                return Ok(None);
+            };
+            // 队列串行执行（窗口生命周期由 worker 掌管），等待结果字节
+            let (reply_tx, reply_rx) = mpsc::channel();
+            tx.send(Job {
+                task: options.task,
+                reply: reply_tx,
+            })
+            .map_err(|_| "导出服务已停止".to_string())?;
+            let bytes = reply_rx
+                .recv_timeout(TASK_TIMEOUT + Duration::from_secs(30))
+                .map_err(|_| "导出排队超时".to_string())??;
+            std::fs::write(&path, &bytes).map_err(|e| format!("{}: {}", path, e))?;
+            Ok(Some(crate::commands::files::save_as_result_of(path)))
+        },
+    )
     .await
-    .map_err(|e| format!("导出任务异常: {}", e))?
+    .map_err(|e| CmdError::internal(format!("导出任务异常: {}", e)))?;
+    result.map_err(CmdError::from)
 }
 
 /// 离屏页结果回传（只接受导出窗口自身：其他调用方拿不到回执通道）
@@ -464,7 +468,7 @@ pub(crate) fn tmd_exporter_done(
     window: WebviewWindow,
     state: tauri::State<'_, PendingSlotHandle>,
     payload: DonePayload,
-) -> Result<(), String> {
+) -> Result<(), CmdError> {
     if window.label() != EXPORTER_LABEL {
         return Ok(());
     }
@@ -502,13 +506,14 @@ pub(crate) fn tmd_exporter_done(
 pub(crate) async fn tmd_exporter_capture(
     window: WebviewWindow,
     req: CaptureRequest,
-) -> Result<Option<CaptureResult>, String> {
+) -> Result<Option<CaptureResult>, CmdError> {
     // 必须异步 + spawn_blocking：同步命令跑在主线程，而 eval_js/takeSnapshot
     // 经 with_webview 向主线程派发闭包并阻塞等回传——主线程自等即死锁
     // （症状：恰好 evaluate 10s 超时）。窗口句柄 Send，直接搬进阻塞线程。
-    tauri::async_runtime::spawn_blocking(move || capture_impl(window, req))
+    let result = tauri::async_runtime::spawn_blocking(move || capture_impl(window, req))
         .await
-        .map_err(|e| format!("截图任务异常: {}", e))?
+        .map_err(|e| CmdError::internal(format!("截图任务异常: {}", e)))?;
+    result.map_err(CmdError::from)
 }
 
 /// capture 实主体（阻塞线程执行；两种模式见 export-bridge.ts CaptureRequest）
@@ -593,7 +598,7 @@ fn capture_impl(
 pub(crate) fn tmd_exporter_read_image(
     window: WebviewWindow,
     file_url: String,
-) -> Result<Option<String>, String> {
+) -> Result<Option<String>, CmdError> {
     if window.label() != EXPORTER_LABEL {
         return Ok(None);
     }
@@ -615,14 +620,16 @@ pub(crate) async fn tmd_print(
     window: WebviewWindow,
     name: Option<String>,
     options: Option<serde_json::Value>,
-) -> Result<bool, String> {
+) -> Result<bool, CmdError> {
     if window.label() != "main" {
         return Ok(false);
     }
     let app = app.clone();
-    tauri::async_runtime::spawn_blocking(move || run_print(&app, name.as_deref(), options))
-        .await
-        .map_err(|e| format!("PDF 导出异常: {}", e))?
+    let result =
+        tauri::async_runtime::spawn_blocking(move || run_print(&app, name.as_deref(), options))
+            .await
+            .map_err(|e| CmdError::internal(format!("PDF 导出异常: {}", e)))?;
+    result.map_err(CmdError::from)
 }
 
 /// print 实主体（阻塞线程执行）：测量 → 保存框 → 平台 PDF 原语 → 落盘。

@@ -7,6 +7,7 @@ use std::fs;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::commands::files::{dialog_path_string, save_as_result_of, SaveAsResult};
+use crate::error::CmdError;
 
 /// native.ts exportAs 的入参 { content, defaultName, filters }
 #[derive(Deserialize)]
@@ -30,7 +31,7 @@ pub(crate) struct ExportAsOptions {
 pub(crate) async fn tmd_export_as(
     app: tauri::AppHandle,
     options: ExportAsOptions,
-) -> Result<Option<SaveAsResult>, String> {
+) -> Result<Option<SaveAsResult>, CmdError> {
     let mut dialog = app.dialog().file().set_file_name(options.default_name);
     for filter in &options.filters {
         let exts: Vec<&str> = filter.extensions.iter().map(String::as_str).collect();
@@ -43,6 +44,6 @@ pub(crate) async fn tmd_export_as(
     let Some(path) = dialog_path_string(picked) else {
         return Ok(None);
     };
-    fs::write(&path, options.content).map_err(|e| format!("{}: {}", path, e))?;
+    fs::write(&path, options.content).map_err(|e| CmdError::io(format!("{}: {}", path, e)))?;
     Ok(Some(save_as_result_of(path)))
 }

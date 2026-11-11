@@ -11,6 +11,8 @@
 //! @author chiangyang
 
 use serde::{Deserialize, Serialize};
+
+use crate::error::CmdError;
 use std::fs;
 use std::path::Path;
 
@@ -102,10 +104,22 @@ pub(crate) fn file_name_of(p: &str) -> String {
 }
 
 /// 读取并解码文本文件 → TextFileData（含保存回写所需元信息）。
-pub(crate) fn read_file_at(file_path: String) -> Result<TextFileData, String> {
-    let bytes = fs::read(&file_path).map_err(|e| format!("{}: {}", file_path, e))?;
+///
+/// 错误按前端可判别的 code 分类：文件不存在 → not_found、非普通文件 →
+/// invalid、其余 IO 失败 → io（文案沿用原有格式，不变）。
+pub(crate) fn read_file_at(file_path: String) -> Result<TextFileData, CmdError> {
+    let bytes = match fs::read(&file_path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(CmdError::not_found(format!("{}: {}", file_path, e)))
+        }
+        Err(e) => return Err(CmdError::io(format!("{}: {}", file_path, e))),
+    };
     if !Path::new(&file_path).is_file() {
-        return Err(format!("not a regular file: {}", file_path));
+        return Err(CmdError::invalid(format!(
+            "not a regular file: {}",
+            file_path
+        )));
     }
     let (encoding, bom, content) = decode(&bytes);
     let line_ending = if content.contains("\r\n") {
