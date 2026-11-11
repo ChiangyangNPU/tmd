@@ -16,6 +16,9 @@
 //!
 //! @author chiangyang
 
+// 验收模式 JS 驱动：复用 export_native::eval_js，故与导出原语同平台集合（mac/Win）
+#[cfg(any(target_os = "macos", windows))]
+mod acceptance;
 mod ai;
 mod ai_client;
 mod ai_config;
@@ -387,6 +390,9 @@ fn tmd_set_autosave_enabled(shell: tauri::State<'_, ShellState>, enabled: bool) 
 fn tmd_ready(app: tauri::AppHandle, pending: tauri::State<'_, PendingOpenPaths>) {
     pending.ready.store(true, Ordering::SeqCst);
     flush_pending_open_paths(&app);
+    // 验收模式（TMD_EVAL_SCRIPT 门控）：渲染层与壳层都就位后跑页面内断言
+    #[cfg(any(target_os = "macos", windows))]
+    acceptance::maybe_start(&app);
 }
 
 /// 对应 native.ts setDirty：渲染层同步未保存状态（关闭确认用）。

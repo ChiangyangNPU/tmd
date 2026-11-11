@@ -34,6 +34,7 @@
     "dist:tauri:win:signed": "node scripts/tauri-build-signed.mjs -- --bundles nsis",
     "dist:tauri:mac:signed": "node scripts/tauri-build-signed.mjs -- --bundles app,dmg",
     "smoke:tauri": "node scripts/tauri-gui-check.mjs",
+    "smoke:mac": "node scripts/tauri-mac-check.mjs",
     "release:gitee": "node scripts/prepare-gitee-release.mjs"
   },
   "devDependencies": {
