@@ -80,6 +80,11 @@ pub(crate) const DEFAULT_MENU_LABELS: &[(&str, &str)] = &[
     ("appHide", "隐藏 TMD"),
     ("appHideOthers", "隐藏其他"),
     ("appShowAll", "显示全部"),
+    // 视图菜单
+    ("view", "视图"),
+    ("viewReload", "重新载入"),
+    ("viewFullscreen", "全屏"),
+    ("viewDevtools", "开发者工具"),
 ];
 
 /// 中文兜底文案表（渲染层语言包缺键时回落）
@@ -436,12 +441,39 @@ pub(crate) fn build_menu(
         ],
     )?;
 
+    // ---------- 视图 ----------
+    // 对齐 menu.cjs 的 viewMenu role：重新载入 + 全屏；开发者工具只在 debug
+    // 构建暴露（release 不编译 open_devtools，wipe 掉入口避免点了没反应）。
+    // 不做「实际大小」：浏览器语义的 100% 缩放与本应用的字体缩放是两套东西，
+    // Cmd+0 也已归「正文」格式化命令，不重复占用。
+    let mut view_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
+        Box::new(make_item(
+            app,
+            "view-reload",
+            l("viewReload"),
+            Some("CmdOrCtrl+R".into()),
+        )?),
+        Box::new(PredefinedMenuItem::fullscreen(
+            app,
+            Some(&l("viewFullscreen")),
+        )?),
+    ];
+    #[cfg(debug_assertions)]
+    view_items.push(Box::new(make_item(
+        app,
+        "view-devtools",
+        l("viewDevtools"),
+        Some("CmdOrCtrl+Alt+I".into()),
+    )?));
+    let view_menu = Submenu::with_items(app, l("view"), true, &item_refs(&view_items))?;
+
     let menu = Menu::with_items(
         app,
         &[
             &app_menu,
             &file_menu,
             &edit_menu,
+            &view_menu,
             &export_menu,
             &format_menu,
         ],

@@ -841,6 +841,20 @@ fn main() {
                     // 清空动作交渲染层执行（localStorage 是唯一权威），口径同 JS 版
                     let _ = app.emit("tmd-menu", "clear-recent".to_string());
                 }
+                // 视图：重新载入与 Electron viewMenu 的 reload 同语义——不弹未保存
+                // 确认（文档恢复副本在 localStorage，重载即按原样恢复现场）
+                "view-reload" => {
+                    if let Some(w) = app.get_webview_window("main") {
+                        let _ = w.eval("location.reload()");
+                    }
+                }
+                // 开发者工具只在 debug 构建挂菜单项，处理分支保持同门控
+                #[cfg(debug_assertions)]
+                "view-devtools" => {
+                    if let Some(w) = app.get_webview_window("main") {
+                        w.open_devtools();
+                    }
+                }
                 // spike 阶段 B 原型：Rust 侧直接驱动 WKWebView 原语（不经渲染层）
                 "spike-export-window-matrix" => {
                     // 阶段 B 后续：导出窗口形态判定矩阵（V1 隐藏对照 / V2 屏边探出候选）
