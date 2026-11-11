@@ -836,8 +836,16 @@ fn main() {
                 queue: std::sync::Mutex::new(Vec::new()),
                 ready: AtomicBool::new(false),
             });
-            // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）
-            let data_dir = app.path().app_data_dir().expect("userData 目录不可用");
+            // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）；
+            // TMD_DATA_DIR 供验收/多实例调试做数据隔离，避免污染真实 userData
+            let data_dir = match std::env::var("TMD_DATA_DIR") {
+                Ok(dir) if !dir.is_empty() => {
+                    let path = std::path::PathBuf::from(dir);
+                    let _ = std::fs::create_dir_all(&path);
+                    path
+                }
+                _ => app.path().app_data_dir().expect("userData 目录不可用"),
+            };
             app.manage(ai::AiState::new(data_dir.join("ai-config.json")));
             // 壳层持久化：主题与窗口几何在首帧前恢复（与 Electron createWindow 前恢复同口径）
             let shell_file = data_dir.join("shell-state.json");

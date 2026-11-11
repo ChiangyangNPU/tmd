@@ -18,6 +18,10 @@
  *   TMD_APP_PATH=/Applications/TMD.app node scripts/tauri-mac-check.mjs
  *   TMD_APP_BIN=src-tauri/target/debug/tmd node scripts/tauri-mac-check.mjs  # 开发构建
  *
+ * mac 注意：release 必须用 .app 形态（open --env 启动）；裸 release 二进制缺少
+ * bundle 上下文，页面不会 ready，脚本会直接拒绝而不是干等超时。debug 构建走
+ * devUrl，需同时起 vite。
+ *
  * @author chiangyang
  */
 import { execFileSync, spawn } from 'node:child_process'
@@ -35,6 +39,11 @@ const STEP_DELAY_MS = Number(process.env.TMD_EVAL_STEP_DELAY_MS ?? 500)
 const RESULT_PATH = process.env.TMD_EVAL_OUT ?? path.join(tmpdir(), 'tmd-eval-result.json')
 const STEPS_PATH = path.join(tmpdir(), `tmd-eval-steps-${process.pid}.js`)
 const FIXTURE_PATH = path.join(tmpdir(), `tmd-acceptance-fixture-${process.pid}.md`)
+// 数据隔离：history/logs 走 TMD_HOME_DIR，shell-state/ai-config 走 TMD_DATA_DIR，
+// 避免验收实例读写用户真实档案。注意 localStorage/WebKit 缓存由 identifier 决定，
+// 仍与正式版共享——断言里不要写 localStorage。
+const SANDBOX_HOME = path.join(tmpdir(), `tmd-acceptance-home-${process.pid}`)
+const SANDBOX_DATA = path.join(tmpdir(), `tmd-acceptance-data-${process.pid}`)
 const FIXTURE_TEXT = '你好 TMD acceptance\n'
 
 /** 应用是否已在运行：单实例锁会把新进程转交给它，env 注入等于白做 */
@@ -49,8 +58,17 @@ function assertNotRunning() {
   }
 }
 
+/** 清掉本次运行的全部临时产物（失败路径同样调用，避免在 tmp 里堆垃圾） */
+function cleanup() {
+  rmSync(STEPS_PATH, { force: true })
+  rmSync(FIXTURE_PATH, { force: true })
+  rmSync(SANDBOX_HOME, { recursive: true, force: true })
+  rmSync(SANDBOX_DATA, { recursive: true, force: true })
+}
+
 function fail(msg) {
   console.error(`[tauri-mac-check] ${msg}`)
+  cleanup()
   process.exit(1)
 }
 
@@ -104,6 +122,14 @@ const checks = [
 function launch(env) {
   if (APP_BIN) {
     if (!existsSync(APP_BIN)) fail(`TMD_APP_BIN 不存在：${APP_BIN}`)
+    // 实测结论：mac 上裸 release 二进制缺少 bundle 上下文，应用能起但页面不 ready，
+    // 只会白等 90s 超时。release 验收必须走 .app + TMD_APP_PATH。
+    if (IS_MAC && APP_BIN.includes(`${path.sep}release${path.sep}`))
+      fail(
+        `mac 上不支持裸 release 二进制：${APP_BIN}\n` +
+          '  请用 TMD_APP_PATH 指向 .app（tauri build --bundles app）；\n' +
+          '  TMD_APP_BIN 仅用于 debug 构建（需配合 vite dev server，走 devUrl）。',
+      )
     spawn(APP_BIN, [], { detached: true, stdio: 'ignore', env: { ...process.env, ...env } }).unref()
     return
   }
@@ -152,6 +178,8 @@ function main() {
     TMD_EVAL_STEP_DELAY_MS: String(STEP_DELAY_MS),
     // 验收实例跑完即退，不留在桌面打扰用户（drivers 侧 std::process::exit）
     TMD_EVAL_EXIT: '1',
+    TMD_HOME_DIR: SANDBOX_HOME,
+    TMD_DATA_DIR: SANDBOX_DATA,
   })
 
   const report = waitForResult()
@@ -190,8 +218,7 @@ function main() {
   console.log(
     `[tauri-mac-check] 结果 ${summary}${failed ? `，${failed} 项失败` : ''}（原始输出 ${RESULT_PATH}）`,
   )
-  rmSync(STEPS_PATH, { force: true })
-  rmSync(FIXTURE_PATH, { force: true })
+  cleanup()
   process.exit(failed === 0 ? 0 : 1)
 }
 
