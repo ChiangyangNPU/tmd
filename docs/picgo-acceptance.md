@@ -76,6 +76,19 @@ Rust 侧七条上传通道已实现，签名算法由 RFC 2202 向量与 Python 
   `https://cdn.jsdelivr.net/gh/owner/repo@main`，否则可能拿到旧缓存或 404。
 - 常见失败：401 Token 失效/权限不足；404 仓库名错或无权限；422 分支不存在 / 同路径同内容无变更。
 
+**实测记录（2026-11-11，通过）**
+
+| 项 | 结果 |
+| --- | --- |
+| 配置 | `repo=ChiangyangNPU/tmd`、`branch=main`、`path=images/`、`customUrl` 留空 |
+| 链路 | 页面 `window.tmdAPI.uploadImage(base64,'.png')` → shim → `tmd_picgo_upload` → `PUT /repos/{repo}/contents/{key}` |
+| 返回 | `https://raw.githubusercontent.com/ChiangyangNPU/tmd/main/images/1794403929825-825-0.png` |
+| 仓库内文件 | 70 字节；API 取回 base64 解码后与上传内容**逐字节一致** |
+| 日志 | 无 `source=picgo` 的 error 记录 |
+| 未覆盖 | 直链可访问性（本机 shell 网络受限，`curl` 返回 000，需浏览器确认）；设置面板保存路径；重复上传；错误凭据的可读日志 |
+
+> 测试图已在验证后通过 API 删除（commit `26c73c1`），`images/` 目录当前不存在。
+
 ### 2.3 阿里云 OSS
 
 | 配置项 | 示例 | 说明 |
@@ -150,7 +163,7 @@ Rust 侧七条上传通道已实现，签名算法由 RFC 2202 向量与 Python 
 | 图床 | 配置保存 | 上传成功 | URL 可直接打开 | 重复上传不失败 | 错误字段有可读日志 | 备注 |
 | --- | --- | --- | --- | --- | --- | --- |
 | sm.ms / S.EE | ☐ | ☐ | ☐ | ☐ | ☐ | 端点存疑，优先 |
-| GitHub | ☐ | ☐ | ☐ | ☐ | ☐ | |
+| GitHub | ☐ | ☑ | ☐ | ☐ | ☐ | 2026-11-11 端到端上传通过；配置直写文件、非设置面板 |
 | 阿里云 OSS | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | 腾讯云 COS | ☐ | ☐ | ☐ | ☐ | ☐ | |
 | 七牛云 | ☐ | ☐ | ☐ | ☐ | ☐ | |
