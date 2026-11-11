@@ -72,50 +72,161 @@ function fail(msg) {
   process.exit(1)
 }
 
+const PROSE = `document.querySelector('.ProseMirror')`
+
 /**
- * 生成步骤文件。约束来自 export_native::eval_js 的契约：
+ * 派发键盘事件到编辑器元素：需落在 .ProseMirror 上并 bubbles，
+ * 才能同时触达 tiptap/prosemirror keymap 与 window 上的全局快捷键处理器
+ * （派发到 window 只会命中后者，格式化类快捷键必然失效——已实测）。
+ */
+function press(key, code, extra = '') {
+  const mod = IS_MAC ? 'metaKey' : 'ctrlKey'
+  const mods = extra.includes('shift') ? `${mod}:true,shiftKey:true` : `${mod}:true`
+  return `(function(){var pm=${PROSE};pm.focus();pm.dispatchEvent(new KeyboardEvent('keydown',{key:${JSON.stringify(key)},code:${JSON.stringify(code)},${mods},bubbles:true,cancelable:true}));return 'sent'})()`
+}
+
+function countOf(selector) {
+  return `(function(){var pm=${PROSE};return {n:pm?pm.querySelectorAll(${JSON.stringify(selector)}).length:-1}})()`
+}
+
+/**
+ * 步骤定义。约束来自 export_native::eval_js 的契约：
  * 每行一个**同步**表达式且返回可 JSON 序列化的值，Promise 不会被等待
  * ——异步链路一律拆成「发起」+「下一拍读全局变量」两步。
+ *
+ * id 用于断言定位，避免手工维护步骤下标（扩容后极易错位）。
  */
 function buildSteps(fixturePath) {
   const readPath = JSON.stringify(fixturePath)
+  const overlayOpen = (id) =>
+    `(function(){var el=document.getElementById(${JSON.stringify(id)});return {visible:!!el&&!el.hasAttribute('hidden')}})()`
   return [
-    '// 1) 编辑器挂载 + 工具栏渲染',
-    `(function(){var p=document.querySelector('.ProseMirror');return {prose:!!p,toolbar:document.querySelectorAll('.toolbar button').length}})()`,
-    '// 2) 壳层注入契约（tmdAPI 门面 + 能力声明）',
-    `(function(){var a=window.tmdAPI;return {api:!!a,isNative:!!(a&&a.isNative),picgo:a&&a.capabilities?a.capabilities.picgo:null}})()`,
-    '// 3) 发起 readFile（异步：结果挂到 window.__tmdCheckRead）',
-    `(window.__tmdCheckRead='pending',window.tmdAPI.readFile(${readPath}).then(function(r){window.__tmdCheckRead={ok:true,encoding:r&&r.encoding,content:r&&r.content}}).catch(function(e){window.__tmdCheckRead={ok:false,err:String(e)}}),'dispatched')`,
-    '// 4) 读回第 3 步的结果（JS → invoke → Rust → 磁盘 全链路）',
-    'window.__tmdCheckRead',
-    '',
-  ].join('\n')
+    {
+      id: 'editor-mounted',
+      expr: `(function(){var p=${PROSE};return {prose:!!p,toolbar:document.querySelectorAll('.toolbar button').length}})()`,
+    },
+    {
+      id: 'shell-contract',
+      expr: `(function(){var a=window.tmdAPI;return {api:!!a,isNative:!!(a&&a.isNative),picgo:a&&a.capabilities?a.capabilities.picgo:null}})()`,
+    },
+    {
+      id: 'read-dispatch',
+      expr: `(window.__tmdCheckRead='pending',window.tmdAPI.readFile(${readPath}).then(function(r){window.__tmdCheckRead={ok:true,encoding:r&&r.encoding,content:r&&r.content}}).catch(function(e){window.__tmdCheckRead={ok:false,err:String(e)}}),'dispatched')`,
+    },
+    { id: 'read-result', expr: 'window.__tmdCheckRead' },
+    {
+      // 准备：插入文本并保持全选（无选区时 toggleBold 只设 storedMarks，不产 strong）
+      id: 'prepare',
+      expr: `(function(){var pm=${PROSE};pm.focus();document.execCommand('selectAll');document.execCommand('insertText',false,'验收文本');document.execCommand('selectAll');return {text:pm.textContent,overridden:!!localStorage.getItem('tmd:shortcuts')}})()`,
+    },
+    { id: 'send-bold', expr: press('b', 'KeyB') },
+    { id: 'bold-on', expr: countOf('strong') },
+    { id: 'send-bold-off', expr: press('b', 'KeyB') },
+    { id: 'bold-off', expr: countOf('strong') },
+    { id: 'send-h1', expr: press('1', 'Digit1') },
+    { id: 'h1-on', expr: countOf('h1') },
+    { id: 'send-body', expr: press('0', 'Digit0') },
+    {
+      id: 'body-off',
+      expr: `(function(){var pm=${PROSE};return {h1:pm.querySelectorAll('h1').length,h2:pm.querySelectorAll('h2').length}})()`,
+    },
+    { id: 'send-highlight', expr: press('h', 'KeyH', 'shift') },
+    { id: 'highlight-on', expr: countOf('mark') },
+    { id: 'send-linkbar', expr: press('k', 'KeyK') },
+    { id: 'linkbar-open', expr: overlayOpen('link-bar') },
+    { id: 'send-escape-linkbar', expr: press('Escape', 'Escape') },
+    { id: 'linkbar-closed', expr: overlayOpen('link-bar') },
+    { id: 'send-settings', expr: press(',', 'Comma') },
+    { id: 'settings-open', expr: overlayOpen('settings-overlay') },
+    { id: 'send-escape-settings', expr: press('Escape', 'Escape') },
+    { id: 'settings-closed', expr: overlayOpen('settings-overlay') },
+  ]
 }
+
+/** 生成步骤文件：每步前写一行注释标识 id，Rust 侧会跳过 // 行 */
+function renderStepFile(steps) {
+  const lines = []
+  for (const step of steps) {
+    lines.push(`// ${step.id}`)
+    lines.push(step.expr)
+  }
+  lines.push('')
+  return lines.join('\n')
+}
+
+const STEP_INDEX = new Map()
+const STEP_DEFS = buildSteps('__FIXTURE__').map((step, i) => {
+  STEP_INDEX.set(step.id, i)
+  return step
+})
+
+/** 按 id 取某步的返回值 */
+const at = (id) => (steps) => steps[STEP_INDEX.get(id)]?.value
 
 const checks = [
   {
     id: 'editor-mounted',
     label: '编辑器挂载 + 工具栏按钮存在',
-    // 步骤索引对应 buildSteps 里去掉注释/空行后的表达式顺序
-    pick: (steps) => steps[0]?.value,
+    pick: at('editor-mounted'),
     pass: (v) => !!v && v.prose === true && Number(v.toolbar) > 0,
   },
   {
     id: 'shell-contract',
     label: 'tmdAPI 注入成功且能力声明正确（picgo=false）',
-    pick: (steps) => steps[1]?.value,
+    pick: at('shell-contract'),
     pass: (v) => !!v && v.api === true && v.isNative === true && v.picgo === false,
   },
   {
     id: 'read-file',
     label: 'readFile 通道端到端（UTF-8 内容回读一致）',
-    // 第 3 步只负责发起（返回 'dispatched'），异步结果挂全局变量由第 4 步读回
-    pick: (steps) => steps[3]?.value,
+    pick: at('read-result'),
     pass: (v) =>
       !!v &&
       v.ok === true &&
       typeof v.content === 'string' &&
       v.content.replace(/\r\n/g, '\n') === FIXTURE_TEXT,
+  },
+  {
+    id: 'fmt-bold',
+    label: 'Cmd/Ctrl+B 加粗且再按取消（双触发回归）',
+    pick: (steps) => ({ on: at('bold-on')(steps), off: at('bold-off')(steps) }),
+    pass: (v) => Number(v.on?.n) >= 1 && Number(v.off?.n) === 0,
+    detail: (v) => `on=${v.on?.n} off=${v.off?.n}`,
+  },
+  {
+    id: 'fmt-h1',
+    label: 'Cmd/Ctrl+1 → H1',
+    pick: at('h1-on'),
+    pass: (v) => Number(v?.n) >= 1,
+  },
+  {
+    id: 'fmt-body',
+    label: 'Cmd/Ctrl+0 → 正文（标题样式清零）',
+    pick: at('body-off'),
+    pass: (v) => !!v && v.h1 === 0 && v.h2 === 0,
+  },
+  {
+    id: 'fmt-highlight',
+    label: 'Cmd/Ctrl+Shift+H → 高亮',
+    pick: at('highlight-on'),
+    pass: (v) => Number(v?.n) >= 1,
+  },
+  {
+    id: 'linkbar',
+    label: 'Cmd/Ctrl+K 打开链接条，Esc 关闭',
+    pick: (steps) => ({ open: at('linkbar-open')(steps), closed: at('linkbar-closed')(steps) }),
+    pass: (v) => v.open?.visible === true && v.closed?.visible === false,
+    detail: (v) => `open=${v.open?.visible} closed=${v.closed?.visible}`,
+  },
+  {
+    id: 'settings',
+    label: 'Cmd/Ctrl+, 打开设置面板，Esc 关闭',
+    pick: (steps) => ({
+      open: at('settings-open')(steps),
+      closed: at('settings-closed')(steps),
+    }),
+    pass: (v) => v.open?.visible === true && v.closed?.visible === false,
+    detail: (v) => `open=${v.open?.visible} closed=${v.closed?.visible}`,
   },
 ]
 
@@ -169,7 +280,7 @@ function main() {
   assertNotRunning()
   rmSync(RESULT_PATH, { force: true })
   writeFileSync(FIXTURE_PATH, FIXTURE_TEXT, 'utf8')
-  writeFileSync(STEPS_PATH, buildSteps(FIXTURE_PATH), 'utf8')
+  writeFileSync(STEPS_PATH, renderStepFile(buildSteps(FIXTURE_PATH)), 'utf8')
 
   console.log(`[tauri-mac-check] 步骤文件 ${STEPS_PATH}`)
   launch({
@@ -200,11 +311,21 @@ function main() {
     const ok = check.pass(value)
     if (ok) passed += 1
     else failed += 1
-    const detail = ok ? '' : `\n    实际值: ${JSON.stringify(value)}`
+    const detail = ok
+      ? ''
+      : check.detail
+        ? `（${check.detail(value)}）`
+        : `\n    实际值: ${JSON.stringify(value)}`
     console.log(
       `[tauri-mac-check] ${ok ? 'PASS' : 'FAIL'} ${check.id.padEnd(16)} ${check.label}${detail}`,
     )
   })
+
+  // localStorage 未做隔离（由 identifier 决定，env 覆盖不到）：
+  // 用户自定义过快捷键时，格式化类断言仍按默认键位派发，结果可能失真
+  if (at('prepare')(report.steps)?.overridden) {
+    console.log('[tauri-mac-check] WARN 检测到自定义快捷键（tmd:shortcuts），格式化类断言可能失真')
+  }
 
   // 步骤自身求值异常（表达式抛错 / 未返回）也视为失败，避免静默漏检
   report.steps.forEach((step) => {
