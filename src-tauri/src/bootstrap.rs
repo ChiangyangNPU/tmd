@@ -1,0 +1,310 @@
+//! 应用引导与生命周期：单实例/打开事件/主窗口工厂/关闭确认/待打开队列。
+//!
+//! @author chiangyang
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use serde_json::Value;
+use tauri::{Emitter, Manager};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+
+use crate::logger;
+use crate::shell::{self, ShellState, WinStateTracker};
+#[cfg(target_os = "macos")]
+use crate::win_anim;
+
+/// 注入到每个页面加载前的渲染层 shim：定义与 electron/preload.cjs 同名的
+/// `window.tmdAPI`。已实现通道走 Tauri invoke；其余通道 no-op + 一次性告警。
+///
+/// 脚本正文独立在 `tmd-api-shim.js`（include_str! 编译期内嵌，不涉及运行时
+/// 路径）：此前嵌在 main.rs 的 raw string 里，改一行通道要在大段 Rust 里找
+/// 位置，且与渲染层契约（src/native.ts）对照时缺少独立文件的定位便利。
+const TMD_API_SHIM: &str = include_str!("tmd-api-shim.js");
+
+/// macOS open-file / iOS 打开事件：路径入待打开队列
+/// （Windows 不派发此事件，编译期排除，见 run 回调注释）。
+///
+/// **必须整体挪出 Apple Event 派发线程**：本回调在主线程的 odoc 事件派发
+/// 栈内同步执行；若渲染层已 ready，queue_open_path 会当场冲刷并调用
+/// unminimize/show/set_focus——从主线程向主线程派发窗口操作并阻塞等待，
+/// panic/unwind 穿越 ObjC 帧直接 terminate（SIGABRT，odoc 晚于 ready
+/// 到达时必现；早到则入队、由 ready 命令线程冲刷而幸免——竞态由此而来）。
+/// 挪到专职线程后：入队与冲刷都在非主线程，窗口操作经 Tauri 正常派发。
+#[cfg(any(target_os = "macos", target_os = "ios"))]
+pub(crate) fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
+    if let tauri::RunEvent::Opened { urls } = event {
+        let paths: Vec<String> = urls
+            .iter()
+            .map(|url| {
+                url.to_file_path()
+                    .map(|p| p.to_string_lossy().into_owned())
+                    .unwrap_or_else(|_| url.to_string())
+            })
+            .collect();
+        let app = app.clone();
+        std::thread::spawn(move || {
+            // Opened 可能早于 setup 完成（PendingOpenPaths 尚未 manage）：
+            // 轮询等待而非 state() panic（原崩溃根因：早到事件在 AE 派发栈
+            // 内同步 panic → abort；线程内 panic 则静默丢文档）
+            for _ in 0..300 {
+                if app.try_state::<PendingOpenPaths>().is_some() {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            for path in paths {
+                queue_open_path(&app, path);
+            }
+        });
+    }
+}
+
+/// 创建主窗口：首次启动（setup）与 macOS Reopen 重建共用同一工厂。
+///
+/// 窗口形态（尺寸/位置/最大化）与主题都从 `shell-state.json` 现读——首次启动
+/// 走 restore_win_state，重建时 `Destroyed` 已把关闭前几何同步落盘，因此两条
+/// 路径恢复语义完全一致，不存在「重建后回到默认 1280×820」的偏差。
+pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    let shell_file = app.state::<WinStateTracker>().path.clone();
+    let persisted = shell::read_shell_state(&shell_file);
+    let restored_theme = match persisted.get("themeSource").and_then(Value::as_str) {
+        Some("dark") => Some(tauri::Theme::Dark),
+        Some("light") => Some(tauri::Theme::Light),
+        _ => None,
+    };
+    let display_rects = shell::monitor_rects(&app.available_monitors().unwrap_or_default());
+    let restored = shell::restore_win_state(&persisted, &display_rects);
+
+    let mut builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
+        // 带版本号：双轨共存期与 Electron 线（0.1.7）窗口可区分；
+        // 版本随 Cargo 对齐流程自动跟进
+        .title(format!("TMD {}", app.package_info().version))
+        .min_inner_size(940.0, 600.0)
+        .initialization_script(TMD_API_SHIM);
+    if let Some(theme) = restored_theme {
+        builder = builder.theme(Some(theme));
+    }
+    // 标题栏对齐 Electron 壳观感（electron/main.cjs:374-376）：
+    // Win/Linux titleBarStyle 'hidden' → decorations(false) 全自绘（拖拽区与
+    // 最大化/关闭由 shim 的拖拽处理 + html.win 自绘按钮承担）；
+    // macOS 'hiddenInset' → Overlay 隐藏标题条 + 红绿灯悬浮工具栏，
+    // 需 tauri.conf.json 开 macOSPrivateApi（内容延伸到标题栏下）。
+    // traffic_light_position 语义与 Electron trafficLightPosition 不同（实测
+    // 校准 2026-10-27）：x 为按钮原点（圆心=x+7），y 直接映射圆心高度
+    // （圆心≈y−2.2）。Electron (16,16) 的圆心在 (23,23)，故此处 (16,25)；
+    // 扩大的虚拟标题栏容器不拦截内容点击（y=40 实测按钮仍可点）
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(16.0, 25.0));
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.decorations(false);
+    }
+    // 首帧防闪（三平台）：隐藏创建 + 绘制就绪后再上屏，对齐 Electron 版
+    // show:false + ready-to-show 的时序。WKWebView/WebView2 创建后到首帧
+    // 绘制前露出的是默认白底（暗色/自定义主题下必闪）。
+    // - 上屏通道一：Windows/Linux 走页面加载完成（此时 boot.js 同步挂好
+    //   深浅类与预设属性，工具栏已可绘制）
+    // - 上屏通道二：三平台共有——渲染层 ready（boot 末尾，文件主题经 IPC
+    //   异步注入完毕）时经 flush_pending_open_paths 的 show 上屏
+    //   （macOS 只走这条：boot 里的 await 晚于页面加载完成，file 主题在
+    //   Finished 时可能未注入，提前上屏会闪内置配色）
+    // - 兜底：8s 看门狗强制上屏（页面加载失败/渲染层崩溃时窗口不能永久隐藏）
+    builder = builder.visible(false);
+    #[cfg(not(target_os = "macos"))]
+    {
+        builder = builder.on_page_load(|window, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Finished {
+                let _ = window.show();
+            }
+        });
+    }
+    // 底色跟随持久化主题（#1e2127 / #ffffff，与 Electron SHELL_BG 同值）：
+    // 兜底「已上屏但首帧未合成」的瞬间——即便露出窗口底色也是主题色而非白
+    let shell_bg = match restored_theme {
+        Some(tauri::Theme::Dark) => tauri::window::Color(30, 33, 39, 255),
+        _ => tauri::window::Color(255, 255, 255, 255),
+    };
+    builder = builder.background_color(shell_bg);
+    match restored {
+        Some(win) => {
+            builder = builder.inner_size(win.width, win.height);
+            if let (Some(x), Some(y)) = (win.x, win.y) {
+                builder = builder.position(x as f64, y as f64);
+            }
+        }
+        None => {
+            builder = builder.inner_size(1280.0, 820.0);
+        }
+    }
+    let window = builder.build()?;
+    if restored.is_some_and(|w| w.maximized) {
+        // macOS：先记下正常 frame，用户双击还原时才有几何可回（原生 zoom 不经过 win_anim）
+        #[cfg(target_os = "macos")]
+        win_anim::remember_current_frame(&window);
+        let _ = window.maximize();
+    }
+    // 隐藏创建的上屏兜底（见上方「首帧防闪」）：正常路径是页面加载完成
+    // （Win/Linux）或渲染层 ready（三平台）触发 show；渲染层加载失败时
+    // 不能让窗口永久隐藏——8s 后强制上屏，用户至少能看到错误页
+    {
+        let win = window.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(8));
+            if !win.is_visible().unwrap_or(true) {
+                let _ = win.show();
+            }
+        });
+    }
+    Ok(window)
+}
+
+/// 有未保存修改时弹原生确认框，返回是否允许丢弃修改继续（无修改直接放行）。
+///
+/// 关窗（CloseRequested）与菜单退出（quit）共用，保证两条离开路径口径一致。
+/// 阻塞式弹窗必须在线程里调用，不能占住事件派发线程。
+pub(crate) fn confirm_discard_changes(app: &tauri::AppHandle) -> bool {
+    if !app.state::<ShellState>().is_dirty() {
+        return true;
+    }
+    let discard = app
+        .dialog()
+        .message("关闭前会丢失未保存的内容。")
+        .title("有未保存的修改")
+        .buttons(MessageDialogButtons::OkCancelCustom(
+            "放弃修改并关闭".to_string(),
+            "取消".to_string(),
+        ))
+        .blocking_show();
+    if discard {
+        // 与 Electron clearRendererRecoveryCopy 同语义：窗口销毁前清渲染层
+        // 恢复副本（localStorage 的 tmd:doc:v1，键名与 store.ts DOC_KEY 同步，
+        // Electron 侧同款硬编码）。不清的话「已放弃」的内容下次启动会以恢复
+        // 副本复活——v0.2.0 实测：脏文档放弃关闭后每次启动都恢复同一份未命名。
+        // 窗口已不存在（极端时序）时跳过，不影响关闭流程。
+        if let Some(w) = app.get_webview_window("main") {
+            let _ =
+                crate::export_native::eval_js(&w, "localStorage.removeItem('tmd:doc:v1'); 'ok'");
+        }
+    }
+    discard
+}
+
+/// macOS「关窗≠退出」：最后一个窗口销毁时阻止事件循环退出，交给 Reopen 重建。
+///
+/// Tauri 在最后一个窗口 Destroyed 后统一发 `ExitRequested { code: None }`
+/// 并退出循环（不分平台）；macOS 需按平台惯例拦下，否则进程已结束，
+/// Dock 点击永远不会派发 Reopen。显式退出（Cmd+Q / `app.exit`）带退出码，
+/// 必须放行；Windows/Linux 保持关窗即退出，不调用本函数。
+#[cfg(target_os = "macos")]
+pub(crate) fn handle_exit_requested_event(event: &tauri::RunEvent) {
+    if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+        if code.is_none() {
+            api.prevent_exit();
+        }
+    }
+}
+
+/// macOS Reopen（NSApplicationDelegate applicationShouldHandleReopen）：
+/// 关掉主窗口后点 Dock 图标时重建主窗口（Electron 版靠 app 'activate' 同款行为）。
+///
+/// 已有窗口（关窗前先最小化/隐藏的情况）只做前置，不重复创建。
+/// 窗口创建必须离开事件派发主线程——与 handle_opened_event 同因：run 回调
+/// 跑在主线程的事件派发栈内，窗口操作同步回主线程会自等/panic。
+#[cfg(target_os = "macos")]
+pub(crate) fn handle_reopen_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
+    // 变体带 #[non_exhaustive]，外部匹配必须带 ..
+    let tauri::RunEvent::Reopen {
+        has_visible_windows,
+        ..
+    } = event
+    else {
+        return;
+    };
+    let has_visible_windows = *has_visible_windows;
+    if let Some(window) = app.get_webview_window("main") {
+        if !has_visible_windows {
+            let _ = window.show();
+            let _ = window.unminimize();
+        }
+        let _ = window.set_focus();
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        // 连点 Dock 图标可能派发多次 Reopen：线程内二次确认避免建出两个主窗口
+        if app.get_webview_window("main").is_some() {
+            return;
+        }
+        if let Err(err) = create_main_window(&app) {
+            if let Some(logger) = logger::global() {
+                logger.log(
+                    "error",
+                    "main",
+                    &format!("重建主窗口失败: {}", err),
+                    None,
+                    &logger::LogMeta::default(),
+                );
+            }
+        }
+    });
+}
+
+/// 待打开文件队列：渲染层 ready 前入队（文件关联早于渲染层就绪），
+/// ready 命令或二次启动转交时冲刷（对应 main.cjs 的 pendingOpenPaths）。
+/// ready 标志防止「渲染层监听注册前 emit 进真空」——Electron 版
+/// queueOpenPath 的 `if (!app.isReady()) return` 同款语义。
+#[derive(Default)]
+pub(crate) struct PendingOpenPaths {
+    pub(crate) queue: std::sync::Mutex<Vec<String>>,
+    pub(crate) ready: AtomicBool,
+}
+
+/// 可打开扩展名（与渲染层白名单同口径）
+fn is_openable_path(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".md") || lower.ends_with(".markdown") || lower.ends_with(".txt")
+}
+
+/// 入队；仅当渲染层已 ready 才冲刷，否则等 ready 命令补发
+pub(crate) fn queue_open_path(app: &tauri::AppHandle, path: String) {
+    if !is_openable_path(&path) {
+        return;
+    }
+    {
+        let pending = app.state::<PendingOpenPaths>();
+        pending
+            .queue
+            .lock()
+            .expect("pending open 锁中毒")
+            .push(path);
+        if !pending.ready.load(Ordering::SeqCst) {
+            return; // 渲染层未就绪：留在队列，等 ready 冲刷
+        }
+    }
+    flush_pending_open_paths(app);
+}
+
+/// 把排队中的待打开文件发给渲染层，并把窗口带到前台
+pub(crate) fn flush_pending_open_paths(app: &tauri::AppHandle) {
+    let paths = {
+        let pending = app.state::<PendingOpenPaths>();
+        let mut g = pending.queue.lock().expect("pending open 锁中毒");
+        std::mem::take(&mut *g)
+    };
+    for path in paths {
+        let _ = app.emit("tmd-open-path", &path);
+    }
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+/// 最大化状态去重标记（Resized 事件高频，只在状态翻转时推送）
+pub(crate) struct MaximizedFlag(pub(crate) AtomicBool);

@@ -423,7 +423,7 @@ pub(crate) async fn tmd_export_run(
     app: AppHandle,
     state: tauri::State<'_, ExporterState>,
     options: ExportRunOptions,
-) -> Result<Option<crate::SaveAsResult>, String> {
+) -> Result<Option<crate::commands::files::SaveAsResult>, String> {
     let app = app.clone();
     let tx = state.tx.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -437,7 +437,7 @@ pub(crate) async fn tmd_export_run(
         }
         let picked = dialog
             .blocking_save_file()
-            .and_then(crate::dialog_path_string);
+            .and_then(crate::commands::files::dialog_path_string);
         let Some(path) = picked else {
             return Ok(None);
         };
@@ -452,7 +452,7 @@ pub(crate) async fn tmd_export_run(
             .recv_timeout(TASK_TIMEOUT + Duration::from_secs(30))
             .map_err(|_| "导出排队超时".to_string())??;
         std::fs::write(&path, &bytes).map_err(|e| format!("{}: {}", path, e))?;
-        Ok(Some(crate::save_as_result_of(path)))
+        Ok(Some(crate::commands::files::save_as_result_of(path)))
     })
     .await
     .map_err(|e| format!("导出任务异常: {}", e))?
@@ -686,7 +686,7 @@ fn run_print(
         dialog = dialog.set_title("导出 PDF");
         let picked = dialog
             .blocking_save_file()
-            .and_then(crate::dialog_path_string);
+            .and_then(crate::commands::files::dialog_path_string);
         let Some(path) = picked else {
             return Ok(()); // 用户取消：不算失败
         };
