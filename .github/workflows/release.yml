@@ -147,6 +147,16 @@ jobs:
             npm run dist:tauri:mac:signed
           fi
         shell: bash
+      - name: GUI smoke (macOS)
+        # 用真实产物跑页面断言（scripts/tauri-mac-check.mjs）：覆盖 DOM、壳层注入、
+        # 文件通道与格式化快捷键。首轮先以 continue-on-error 观察 CI 的 GUI 会话
+        # 能否 open 启动，稳定后删掉该行改为发布门禁。
+        if: matrix.platform == 'mac'
+        continue-on-error: true
+        shell: bash
+        run: |
+          pkill -f "TMD.app/Contents/MacOS" || true
+          TMD_APP_PATH="$PWD/src-tauri/target/release/bundle/macos/TMD.app" npm run smoke:mac
       - name: Collect artifacts
         shell: bash
         run: |

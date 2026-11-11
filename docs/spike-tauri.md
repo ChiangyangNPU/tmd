@@ -420,8 +420,9 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 - **E2E**：Windows 侧已有可执行的 CDP 冒烟（`npm run smoke:tauri`，release
   实测 5/5），并顺手把快捷键修复固化为回归用例；macOS 补上了自省通道
   （`npm run smoke:mac`，TMD_EVAL_SCRIPT 门控 → export_native::eval_js 逐行执行
-  页面断言，实测 3/3），覆盖 DOM 状态、壳层注入契约与 JS→invoke→Rust→磁盘链路；
-  真实 OS 级按键与原生面板（NSOpenPanel）仍归人工
+  页面断言，实测 9/9），覆盖 DOM 状态、壳层注入契约、JS→invoke→Rust→磁盘链路，
+  以及格式化/面板类快捷键（派发到编辑器元素，命中 keymap 与全局处理器）；
+  原生菜单 accelerator 绑定、真实 OS 级按键与 NSOpenPanel 仍归人工
 
 **结论：转正（v0.2.0）的代码阻塞项已清零。** 剩余工作是 C 组收尾
 （identifier 转正、electron/ 归档、版本对齐、发布流水线按 Tauri 重写）与
