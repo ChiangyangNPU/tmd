@@ -118,6 +118,11 @@
   "menu": {
     "edit": "Edit",
     "file": "File",
+    "appAbout": "About TMD",
+    "appServices": "Services",
+    "appHide": "Hide TMD",
+    "appHideOthers": "Hide Others",
+    "appShowAll": "Show All",
     "open": "Open",
     "openFolder": "Open Folder",
     "openRecent": "Open Recent",

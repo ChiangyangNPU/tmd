@@ -4,10 +4,15 @@
 //! accelerator 优先用户自定义（syncShortcuts）回落内置默认、最近文件子菜单
 //! （空列表为禁用占位项）、自动保存为 checkbox。
 //!
+//! macOS 应用菜单（appMenu）：系统规定菜单栏第一项按应用名渲染，缺了它
+//! 「文件」会被顶到应用名位置（用户看不到「文件」标题），且没有关于/服务/
+//! 隐藏入口——故第一项固定为 app 子菜单（about/services/hide）+ 自定义退出项
+//! （退出仍走 "quit" 事件，保留未保存修改的确认逻辑）。
+//!
 //! spike 已知缺口（对齐 menu.cjs 的 role 项，后续补齐）：
-//! - macOS appMenu（about/services/hide）与编辑/视图 role 子菜单未建
-//!   （webview 原生响应 Cmd+C/V 等编辑快捷键，功能不受损，菜单 UI 缺失）
-//! - 退出项固定用默认中文文案「退出 TMD」（labels 无 quit 键）
+//! - 视图 role 子菜单未建：重新载入 / 开发者工具没有对应的 PredefinedMenuItem，
+//!   需自建菜单项 + 事件分发（全屏、最小化等窗口项同理）
+//! - 退出项文案取 labels 的 quit 键（语言包缺键时回落中文「退出 TMD」）
 //!
 //! 平台差异：菜单仅 macOS 实挂（系统菜单栏，见 shell.rs rebuild_menu 注释）；
 //! Windows 挂原生菜单会闪菜单栏且偏离 Electron 观感（Electron 版隐藏菜单栏、
@@ -68,6 +73,13 @@ pub(crate) const DEFAULT_MENU_LABELS: &[(&str, &str)] = &[
     ("settings", "设置…"),
     ("quit", "退出 TMD"),
     ("edit", "编辑"),
+    // macOS 应用菜单（appAbout/appServices/appHide/appHideOthers/appShowAll）：
+    // 预定义项默认取系统英文文案，这里给中文兜底，渲染层语言包会覆盖
+    ("appAbout", "关于 TMD"),
+    ("appServices", "服务"),
+    ("appHide", "隐藏 TMD"),
+    ("appHideOthers", "隐藏其他"),
+    ("appShowAll", "显示全部"),
 ];
 
 /// 中文兜底文案表（渲染层语言包缺键时回落）
@@ -186,6 +198,27 @@ pub(crate) fn build_menu(
         None::<&str>,
     )?;
 
+    // ---------- 应用菜单（macOS 恒定第一项） ----------
+    // 标题由系统按应用名显示，这里传 productName 兜底；about/services/hide
+    // 用预定义项（系统本地化文案），退出保留自定义项以复用未保存确认逻辑。
+    let quit_item = make_item(app, "quit", l("quit"), Some("CmdOrCtrl+Q".into()))?;
+    let app_menu = Submenu::with_items(
+        app,
+        "TMD",
+        true,
+        &[
+            &PredefinedMenuItem::about(app, Some(&l("appAbout")), None)?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::services(app, Some(&l("appServices")))?,
+            &PredefinedMenuItem::separator(app)?,
+            &PredefinedMenuItem::hide(app, Some(&l("appHide")))?,
+            &PredefinedMenuItem::hide_others(app, Some(&l("appHideOthers")))?,
+            &PredefinedMenuItem::show_all(app, Some(&l("appShowAll")))?,
+            &PredefinedMenuItem::separator(app)?,
+            &quit_item,
+        ],
+    )?;
+
     // ---------- 文件 ----------
     let file_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
         Box::new(make_item(
@@ -237,13 +270,6 @@ pub(crate) fn build_menu(
             "open-settings",
             l("settings"),
             Some("CmdOrCtrl+,".into()),
-        )?),
-        Box::new(PredefinedMenuItem::separator(app)?),
-        Box::new(make_item(
-            app,
-            "quit",
-            l("quit"),
-            Some("CmdOrCtrl+Q".into()),
         )?),
     ];
     let file_menu = Submenu::with_items(app, l("file"), true, &item_refs(&file_items))?;
@@ -409,7 +435,16 @@ pub(crate) fn build_menu(
         ],
     )?;
 
-    let menu = Menu::with_items(app, &[&file_menu, &edit_menu, &export_menu, &format_menu])?;
+    let menu = Menu::with_items(
+        app,
+        &[
+            &app_menu,
+            &file_menu,
+            &edit_menu,
+            &export_menu,
+            &format_menu,
+        ],
+    )?;
     Ok(BuiltMenu {
         menu,
         autosave: autosave_item,

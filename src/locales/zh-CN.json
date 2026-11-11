@@ -118,6 +118,11 @@
   "menu": {
     "edit": "编辑",
     "file": "文件",
+    "appAbout": "关于 TMD",
+    "appServices": "服务",
+    "appHide": "隐藏 TMD",
+    "appHideOthers": "隐藏其他",
+    "appShowAll": "显示全部",
     "open": "打开…",
     "openFolder": "打开文件夹…",
     "openRecent": "打开最近文件",

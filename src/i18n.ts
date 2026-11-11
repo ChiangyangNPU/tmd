@@ -78,6 +78,13 @@ export function menuLabels(): Record<string, string> {
   return {
     edit: t('menu.edit'),
     file: t('menu.file'),
+    // macOS 应用菜单（about/services/hide）——预定义菜单项默认走系统英文文案，
+    // 这里传语言包文案，保证与菜单栏其余项语言一致
+    appAbout: t('menu.appAbout'),
+    appServices: t('menu.appServices'),
+    appHide: t('menu.appHide'),
+    appHideOthers: t('menu.appHideOthers'),
+    appShowAll: t('menu.appShowAll'),
     open: t('menu.open'),
     openFolder: t('menu.openFolder'),
     openRecent: t('menu.openRecent'),
