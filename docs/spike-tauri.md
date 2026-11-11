@@ -102,8 +102,8 @@ npm run dist:tauri:install    # 打包并覆盖安装到 /Applications/TMD-spike
 - 单实例锁（tauri-plugin-single-instance）+ RunEvent::Opened 文件关联已接；
   CJK 排序：zh-CN 用 pinyin crate 全拼近似（zh-TW 的 ICU 注音/笔画序不可达，
   **降级为拼音序**——已知差异）；文件树与主题列表排序跟随界面语言
-- spike 已知缺口：macOS appMenu 与编辑/视图 role 子菜单、系统最近文档注册
-  （Jump List / Dock）、zh-TW 注音/笔画序（降级拼音）、原生 crashReporter
+- spike 已知缺口（2026-11 已补齐 appMenu / 编辑 / 视图子菜单与系统最近文档；
+  见下表 §5）：zh-TW 注音/笔画序（降级拼音）、原生 crashReporter
   minidump 生成（仅保留线索扫描）
 - Rust 单测 66 例（文件核心 23 + 菜单 4 + AI 14 + fsops 4 + 主题 8 + 导出资源 3
   + 日志 6（轮转/截断/白名单/归一化/去重窗口/崩溃扫描）+ 持久化与排序 4）
@@ -386,9 +386,9 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 |---|----|------------|---------------|------|
 | 1 | **Windows 原生菜单** | **未实挂**——菜单仅 macOS 构建；Windows 靠渲染层 keydown 兜底分发（5653129） | 全平台原生菜单 | 修复目标是不闪首帧；代价是 Windows 无菜单栏（⋯ 按钮 + 快捷键代替）。是否补原生菜单待产品决策 |
 | 2 | **macOS PDF 选项** | createPDF 连续版式，页尺寸/边距/页眉页脚/大纲**不生效** | printToPDF 全选项 | Windows 侧 PrintToPdf 全生效，仅大纲无对应 |
-| 3 | **macOS 菜单结构** | muda 把「文件」子菜单当应用菜单显示为「TMD」，无编辑/视图 role 菜单 | 标准 macOS 菜单栏 | 功能不受损（webview 原生响应编辑快捷键） |
+| 3 | **macOS 菜单结构** | 已修复：补齐应用菜单（关于/服务/隐藏/退出）与视图菜单（重新载入/全屏），菜单栏为 应用/文件/编辑/视图/导出/格式 | 标准 macOS 菜单栏 | 文件菜单不再被顶成应用名；开发者工具仅 debug 构建出现 |
 | 4 | **zh-TW 排序** | pinyin crate 全拼近似，注音/笔画序**不可达**（降级拼音序） | ICU 完整排序 | zh-CN 拼音序正确 |
-| 5 | **系统最近文档** | 未注册（Jump List / Dock 最近项） | `app.addRecentDocument` | 应用内最近列表正常；系统级集成缺失 |
+| 5 | **系统最近文档** | 已实现：macOS `NSDocumentController`（Dock 右键实测可见）、Windows `SHAddToRecentDocs`（CI 编译通过） | `app.addRecentDocument` | 应用内列表与系统列表并行维护，移除单条按「清空 + 反序重放」对齐 |
 | 6 | **原生 crashReporter** | 无 minidump 生成，仅 panic hook 写日志 + 崩溃线索扫描（`.seen-dumps`） | crashReporter 上传 | 崩溃可定位但无堆栈转储 |
 | 7 | **导出期间抢焦点** | 探边窗 `focused(true)` 才稳定（export_probe 矩阵结论）；导出瞬间短暂抢焦点 | 隐藏窗无感 | UX polish 项，非阻塞 |
 | 8 | **`getPathForFile` 通道** | 无（有意替换） | `webUtils.getPathForFile` | Tauri 走 `onDropPaths` + `readDroppedFile`，语义等价 |
@@ -413,8 +413,10 @@ Electron 版用 `show:false` + `ready-to-show` + `backgroundColor` 三件套消�
 
 双平台壳、导出链、A 组三条缺口的主体都已完成：
 
-- **PicGo**：按推荐方案产品降级（UI 置灰 + 文案说明 + 能力声明），顺手修掉
-  `getPicGoConfig` no-op 导致的设置面板崩溃；Rust/sidecar 重写留 v0.2.x
+- **PicGo**：已重写为 Rust 原生实现，覆盖 7 家图床（sm.ms / GitHub / 阿里云
+  OSS / 腾讯云 COS / 七牛 / 又拍云 / Imgur），零新增依赖（HMAC-SHA1 与
+  multipart 手写），GitHub 已用真实 PAT 端到端实测通过，其余六家待按
+  [picgo-acceptance.md](picgo-acceptance.md) 用真实凭据补测
 - **自动更新**：`tauri-plugin-updater` 全量方案已接通（含保存握手与自动检查）；
   **唯一剩余动作是配置签名密钥与 latest.json 发布**（打包发布.md §11.2/§11.3），
   这属于发布基础设施，不是代码缺口

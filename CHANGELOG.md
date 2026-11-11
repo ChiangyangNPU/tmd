@@ -2,6 +2,19 @@
 
 本文件记录 TMD 的版本发布历史，格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/)。
 
+## [Unreleased]
+
+### 新增
+
+- **图床功能恢复（Rust 原生实现）**：不再依赖 PicGo-Core，重写 sm.ms / GitHub / 阿里云 OSS / 腾讯云 COS / 七牛 / 又拍云 / Imgur 共 7 家，签名算法（OSS V1、COS v5、七牛 upload token、又拍云 Basic Auth）经标准向量与独立实现交叉验证；零新增三方依赖。GitHub 已用真实 PAT 端到端实测通过，其余六家待按 `docs/picgo-acceptance.md` 补测
+- **macOS 应用菜单与视图菜单**：补齐「关于 / 服务 / 隐藏 / 退出」应用菜单与「重新载入 / 全屏」视图菜单（此前文件菜单被系统顶成应用名、无应用菜单）；开发者工具仅 debug 构建出现
+- **系统「最近文档」登记**：macOS 经 `NSDocumentController`、Windows 经 `SHAddToRecentDocs`，与 Electron 的 `app.addRecentDocument` 对齐——Dock 右键、跳转列表与资源管理器「最近使用的文件」可见
+
+### 变更
+
+- 导出菜单去掉三项内部阶段标记前缀（「全文档 PDF 导出 / 视口截图 / 导窗形态矩阵」保留，仅去掉 `Spike:` 字样）
+- `src-tauri/src/main.rs` 中 148 行注入脚本抽离为 `tmd-api-shim.js`（`include_str!` 引入），行为与字节完全一致
+
 ## [0.2.0] - 2026-11-09
 
 > **架构里程碑**：桌面壳层从 Electron 全面迁移至 **Rust + Tauri**。编辑器与全部文档功能保持一致，双轨发布——**推荐下载 Rust 架构安装包（0.2.0）**；Electron 架构以维护线 **0.1.7** 继续提供（老用户检查更新即得），供稳定过渡。

@@ -78,7 +78,7 @@
 | 历史快照 | saveFile 写盘**前**全量快照到 `~/.tmd/history/<sha1前16>/`，sha1 去重、50 条/200MB 双层剪枝、失败静默（`history.cjs`） | 与保存是同一事务：应做成单个原子 Rust command（snapshot→write→指纹登记三步有序），拆散到前端编排会引入竞态 |
 | AI 模块 | Node fetch + 手写 SSE 解析 + AbortController per-requestId；Key 经 safeStorage 加密落 `userData/ai-config.json`（`ai-client.cjs` / `ai-config.cjs`） | 镜像现有架构：Rust reqwest + event 复刻 `aiStream` 协议 + `keyring` crate 替代 safeStorage。**不建议**挪到前端 fetch（明文 Key 进渲染层 + CSP 需放开 connect-src） |
 | 回收站删除 | `shell.trashItem` | `trash` crate 自定义命令 |
-| 系统最近文档 | `app.addRecentDocument / clearRecentDocuments`（Jump List / Dock） | 无第一方 API，需平台代码（Win `SHAddToRecentDocs` / mac `NSDocumentController`）或放弃该层 |
+| 系统最近文档 | `app.addRecentDocument / clearRecentDocuments`（Jump List / Dock） | 无第一方 API，需平台代码（Win `SHAddToRecentDocs` / mac `NSDocumentController`）或放弃该层；**已按平台代码落地**（`src-tauri/src/recent.rs`） |
 | 日志 | JSONL 按天滚动 + 7 天/10 个清理 + 去重 | `plugin-log` 无按天策略，自写或简化 |
 
 ### 3.3 硬缺口（高风险，需产品决策）

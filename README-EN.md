@@ -13,12 +13,14 @@ For the scope of requirements, see [docs/需求说明.md](docs/需求说明.md) 
 ```bash
 npm install   # Install dependencies first (see note below if the Electron binary download fails)
 npm run dev            # Browser mode: http://localhost:5173
-npm run dev:electron   # Desktop mode: starts vite and the Electron window together
+npm run tauri dev      # Desktop mode (Tauri shell, primary)
+npm run dev:electron   # Desktop mode (Electron shell, 0.1.x maintenance line)
 npm run build          # Type check + production build
-npm run test:desktop   # Desktop end-to-end check (run build first; real Electron + real menus; runs the main-flow and export-flow suites in sequence)
+npm run test:desktop   # Electron-shell end-to-end check (run build first; real Electron + real menus)
+npm run smoke:mac      # Tauri-shell smoke test (9 page assertions against the release .app on macOS)
 npm run bench          # Large-document performance benchmark (run build first; MB-scale text / dozens of Mermaid charts / mixed, with regression gates)
-npm run dist:dir       # Package as a local directory app (no installer generated)
-npm run dist           # Build installer (mac: dmg / win: nsis)
+npm run dist:tauri     # Build Tauri installers (mac: dmg / win: nsis)
+npm run dist           # Build Electron installers (maintenance line)
 ```
 
 > If the Electron binary fails to download on first install (direct GitHub connection issues), use a mirror instead:
@@ -63,7 +65,7 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Safe block-level raw HTML**: standalone HTML blocks such as `<details>` / `<div>` / `<table>` render through a whitelist sanitizer — script/iframe/svg, event handlers, style/class/id are removed and links/images use protocol allowlists. Source Markdown is preserved and editable in source mode. Inline HTML tag pairs remain source text; HTML/Word/long-image/ePub exports sanitize and render the same way
 - Right-click context menu in the editor: cut/copy/paste plus selection-aware format items (including remove link)
 - Link following: Ctrl/Cmd+click opens external URLs in the browser; relative-path links resolve against the document directory and open with the system app (hold Mod while hovering for a pointer hint)
-- Triple paste-image strategy: inline data URL / save to `assets/` next to the document / upload to an image host (built-in PicGo-Core supporting SM.MS, GitHub, Qiniu, Upyun, Tencent COS, Aliyun OSS and Imgur — 7 providers; falls back to inline on failure; images >5MB ignored)
+- Triple paste-image strategy: inline data URL / save to `assets/` next to the document / upload to an image host (native Rust implementation, no PicGo-Core dependency, supporting SM.MS, GitHub, Qiniu, Upyun, Tencent COS, Aliyun OSS and Imgur — 7 providers; falls back to inline on failure; images >5MB ignored)
 - HTML paste conversion: rich text copied from web pages / Word is converted to Markdown automatically (whitelist sanitizing + protocol filtering; headings / lists / tables / code blocks preserved)
 - **TSV paste to table**: plain text copied from Excel/spreadsheet apps (tab-separated, ≥2 rows × 2 columns, aligned columns) pastes as a real table (first row becomes the header, an empty paragraph follows the table for the cursor); rich-text clipboard still goes through the HTML conversion pipeline first, and a single tab inside a sentence never triggers it
 - Relative-path images resolved against the document directory for display (document data keeps relative paths)
@@ -85,18 +87,23 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **External change detection & reload**: files opened in the editor are watched on disk (content fingerprinting in `electron/filewatcher.cjs`, own writes filtered out) — clean tabs reload silently; dirty tabs are never overwritten silently and get a prompt bar to choose "Reload" (take disk content, clear dirty) or "Keep mine" (prompts again on further changes); externally deleted files show a notice and keep the editor content
 - **Split view**: source and WYSIWYG side by side (the ⋯ menu → "Split" / `Ctrl/Cmd+Shift+E`) — one pane is editable, the other follows along read-only; click a pane to make it the editable one (two-way live sync is intentionally not offered: Markdown round-tripping would rewrite your hand-written source). Scrolling is approximately synced, the divider is draggable and its width is remembered
 - **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / external-change detection (auto reload & dirty-state prompt) / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 49 assertions in total
-- **Electron desktop shell** (`electron/`):
-  - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS; theme switches change frame synchronously
+- **Tauri desktop shell** (`src-tauri/`, the primary shell since 0.2.x):
+  - ~6MB installer (Windows NSIS) / macOS dmg, faster startup and lower idle memory
+  - Native menus: full macOS menu bar (App / File / Edit / View / Export / Format); on Windows everything is reachable via the in-window "⋯" menu, context menus and shortcuts
   - Native open / save / save-as dialogs; File menu shortcuts Cmd/Ctrl+O / S / Shift+S
-  - File association (double-click a .md file to open) + single-instance lock (running instance receives the file)
-  - Crash recovery (every content change is written to a localStorage recovery copy; native minidumps and logs land in `~/.tmd/`, fully local with zero telemetry)
-  - The renderer keeps pure web logic; Node capabilities are exposed in a controlled way via preload (contextIsolation)
+  - File association (double-click a .md file to open) + single-instance lock
+  - System "recent documents": macOS Dock menu / recent items, Windows Jump List and File Explorer recents
+  - Image hosting, export (PDF / Word / long image / ePub / LaTeX), version history and full-text search are implemented in Rust; the renderer reaches system capabilities through a controlled shim (no Node privileges)
+  - Auto-update via tauri-plugin-updater (Gitee primary / GitHub fallback) with minisign signature verification
   - Automatic degradation in browser mode: file picking uses `<input type=file>`, saving becomes a download
+- **Electron desktop shell** (`electron/`, 0.1.x maintenance line, kept as fallback):
+  - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS
+  - The renderer keeps pure web logic; Node capabilities are exposed in a controlled way via preload (contextIsolation)
   - Slim installers: an afterPack hook trims Electron's non-Chinese/English locale packs and WebGL/Vulkan rendering components; the Windows installer is about 93MB
 
 ## Tech Stack
 
-Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it (with footnote / mark / sub / sup plugins) + PicGo-Core + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate.
+Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it (with footnote / mark / sub / sup plugins) + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate; the fallback maintenance line keeps the Electron shell and PicGo-Core.
 
 ## Directory Structure
 
@@ -106,7 +113,17 @@ Electron + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 +
 ├─ public/
 │  └─ boot.js                    First-frame bootstrap script (theme / platform classes, prevents white flash)
 │
-├─ electron/                     Electron desktop shell (main process + preload)
+├─ src-tauri/                    Rust + Tauri desktop shell (primary since 0.2.x)
+│  ├─ src/main.rs                Entry: windows / single instance / file association / commands / menu events
+│  ├─ src/menu.rs                Native menu assembly (App / File / Edit / View / Export / Format)
+│  ├─ src/shell.rs               Shell state (recent list mirror, window geometry, autosave flag)
+│  ├─ src/recent.rs              System recent documents (NSDocumentController / SHAddToRecentDocs)
+│  ├─ src/picgo.rs               Image hosting (7 providers, hand-written signing, zero extra deps)
+│  ├─ src/exporter.rs            Export orchestration + export_native*.rs platform primitives
+│  ├─ src/updater.rs             Auto-update (tauri-plugin-updater + minisign verification)
+│  └─ src/tmd-api-shim.js        Injected controlled API (window.tmdAPI, replaces preload)
+│
+├─ electron/                     Electron desktop shell (0.1.x maintenance line, fallback)
 │  ├─ main.cjs                   Main process entry (window / menu lifecycle, file association, module wiring)
 │  ├─ app-state.cjs              Cross-module shared-state store (main window / dirty flag / menu labels / theme source, unit-testable)
 │  ├─ updater.cjs                Auto-update (Gitee / GitHub dual source, self-downloaded macOS dmg)

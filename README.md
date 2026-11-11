@@ -13,12 +13,15 @@
 ```bash
 npm install   # 首次安装依赖（国内网络 Electron 二进制下载失败时见下方说明）
 npm run dev            # 浏览器模式：http://localhost:5173
-npm run dev:electron   # 桌面模式：同时启动 vite 和 Electron 窗口
+npm run tauri dev      # 桌面模式（Tauri 壳，当前主壳）
+npm run dev:electron   # 桌面模式（Electron 壳，0.1.x 维护线兜底）
 npm run build          # 类型检查 + 生产构建
-npm run test:desktop   # 桌面端端到端验证（需先 build；真实 Electron + 真实菜单，串行覆盖主链路与导出链路）
+npm run test:desktop   # Electron 壳端到端验证（需先 build；真实 Electron + 真实菜单，串行覆盖主链路与导出链路）
+npm run smoke:mac      # Tauri 壳冒烟（macOS 下对 release .app 跑 9 项页面断言）
 npm run bench          # 大文档性能基准（需先 build；MB 级纯文本 / 数十 Mermaid 图 / 图文混排，带回归门禁）
-npm run dist:dir       # 打包为本地目录应用（不生成安装包）
-npm run dist           # 打包安装包（mac: dmg / win: nsis）
+npm run dist:tauri     # 打包 Tauri 安装包（mac: dmg / win: nsis）
+npm run dist:dir       # 打包 Electron 目录应用（维护线，不生成安装包）
+npm run dist           # 打包 Electron 安装包（维护线，mac: dmg / win: nsis）
 ```
 
 > Electron 二进制首次下载失败（GitHub 直连问题）时，改用镜像：
@@ -64,7 +67,7 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - **原生 HTML（块级）安全渲染**：Markdown 中独立成块的 `<details>` / `<div>` / `<table>` 等 HTML 按白名单清洗后渲染——剔除 script/iframe/svg、事件处理器、style/class/id，链接与图片走协议白名单；源码原样保留并可在源码模式编辑。行内 HTML 标签对保持源码文本；HTML/Word/长图/ePub 导出同步清洗渲染
 - 编辑区右键上下文菜单：剪切/复制/粘贴 + 按选区显隐的格式化项（含移除链接）
 - 链接点击跳转：Ctrl/Cmd+点击外部链接跳浏览器、相对路径链接按文档目录解析后用系统应用打开（悬停按住 Mod 键提示可点）
-- 粘贴图片三策略：内联 data URL / 文档同目录 `assets/` 落盘 / 上传到图床（内建 PicGo-Core，支持 SM.MS、GitHub、七牛云、又拍云、腾讯云 COS、阿里云 OSS、Imgur 共 7 种；落盘或上传失败自动降级内联，>5MB 忽略）
+- 粘贴图片三策略：内联 data URL / 文档同目录 `assets/` 落盘 / 上传到图床（Rust 原生实现，不依赖 PicGo-Core，支持 SM.MS、GitHub、七牛云、又拍云、腾讯云 COS、阿里云 OSS、Imgur 共 7 种；落盘或上传失败自动降级内联，>5MB 忽略）
 - HTML 粘贴转换：从网页/Word 复制的富文本自动转 Markdown（白名单清洗 + 协议过滤，标题/列表/表格/代码块等结构保留）
 - **TSV 粘贴转表格**：从 Excel/表格软件复制的纯文本（制表符分隔、至少 2 行 × 2 列、列数对齐）粘贴即生成真实表格（首行作表头）；富文本剪贴板仍优先走 HTML 转换管线，普通句子里的单个制表符不会误触
 - 相对路径图片按文档所在目录解析显示（文档数据保持相对路径）
@@ -81,23 +84,28 @@ npm run dist           # 打包安装包（mac: dmg / win: nsis）
 - **窗口记忆**：窗口尺寸 / 位置 / 最大化状态持久化，重启原样恢复（显示器拔插时自动回落默认摆放）
 - 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 15 个第三方组件的许可证声明与直达链接（默认折叠，点开展开）
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
-- **本地崩溃捕获与日志（零遥传）**：crashReporter 只把崩溃转储写入 `~/.tmd/crash-dumps`（不上传、无服务端、无崩溃弹窗）；主/渲染进程 JS 异常与渲染器崩溃统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
+- **本地崩溃捕获与日志（零遥传）**：主/渲染进程 JS 异常统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；Electron 维护线额外把崩溃转储写入 `~/.tmd/crash-dumps`（Tauri 线暂不生成 minidump，仅保留崩溃线索扫描）。设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
 - **本地历史版本**：每次保存前自动留存被覆盖的旧内容到 `~/.tmd/history`（内容未变不重复留档，每文件 50 条 + 全局 200MB 自动清理）；主菜单「文件 → 历史版本…」可列出快照、预览并恢复到编辑器——恢复只改编辑器内容并置脏，是否覆盖磁盘由你显式保存决定
 - **外部修改检测与重载**：打开的文件在磁盘上被其他程序（编辑器 / git / 网盘）修改时自动感知——干净标签静默重载（内容未变不弹提示）；脏标签绝不静默覆盖，顶部提示条二选一：「重新加载」（采用磁盘内容并清脏）或「保留我的版本」（磁盘再变会再次提示）；文件被外部删除时提示且编辑器内容保留。内容指纹（sha1）过滤自身写入，不会误报；关闭标签即撤监视
 - **左右分屏**：源码与所见即所得并排（悬浮菜单（⋯）里的「分屏」/ `Ctrl/Cmd+Shift+E`），一侧编辑、另一侧只读跟随——点哪一侧即可编辑那一侧（双向实时同步会让 Markdown 往返转换改写你手写的源码，故不做）；两侧滚动近似同步，中间分隔条可拖拽调宽，宽度会记住
 - **主链路端到端测试**：真实构建产物 + Chrome DevTools 协议驱动（无额外测试框架），覆盖打开/编辑/脏标记/保存/另存为/外部修改检测（自动重载与脏态二选一）/历史版本/分屏双向跟随/未保存关闭拦截/异常落盘/渲染器与主进程崩溃恢复，共 49 项断言
-- **Electron 桌面壳**（`electron/`）：
-  - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
+- **Tauri 桌面壳**（`src-tauri/`，0.2.x 起的主壳）：
+  - 安装包约 6MB（Windows NSIS）/ macOS dmg，启动更快、空闲内存更低
+  - 原生菜单：macOS 完整菜单栏（应用 / 文件 / 编辑 / 视图 / 导出 / 格式），Windows 走窗口内「⋯」菜单 + 右键菜单 + 快捷键
   - 原生打开/保存/另存为对话框，文件菜单快捷键 Cmd/Ctrl+O / S / Shift+S
   - 文件关联（双击 .md 直接打开）+ 单实例锁（已运行时转交现有窗口）
-  - 崩溃恢复（文档内容每次变更即写 localStorage 恢复副本；原生崩溃转储与日志落盘 `~/.tmd/`，纯本地零遥传）
-  - 渲染层保持纯网页逻辑，Node 能力经 preload 受控暴露（contextIsolation）
+  - 系统「最近文档」登记：macOS Dock 右键与应用最近使用、Windows 跳转列表与资源管理器「最近使用的文件」
+  - 图床上传、导出（PDF / Word / 长图 / ePub / LaTeX）、历史版本、全文搜索等能力在 Rust 侧实现，渲染层经受控 shim 访问系统能力（无 Node 权限）
+  - 自动更新：tauri-plugin-updater，Gitee（主）/ GitHub（备）双源，minisign 签名校验
   - 浏览器模式自动降级：文件选择用 `<input type=file>`，保存为下载
+- **Electron 桌面壳**（`electron/`，0.1.x 维护线，双轨兜底）：
+  - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
+  - 渲染层保持纯网页逻辑，Node 能力经 preload 受控暴露（contextIsolation）
   - 安装包瘦身：打包时经 afterPack 钩子裁剪 Electron 的非中英文语言包与 WebGL/Vulkan 渲染组件，Windows 安装包约 93MB
 
 ## 技术栈
 
-Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + PicGo-Core + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate + sanitize-html + iconv-lite。
+Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate + sanitize-html + iconv-lite；双轨维护线仍保留 Electron 壳与 PicGo-Core。
 
 ## 目录结构
 
@@ -107,7 +115,20 @@ Electron + TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 
 ├─ public/
 │  └─ boot.js                    首帧引导脚本（主题 / 平台类，防启动白闪）
 │
-├─ electron/                     Electron 桌面壳（主进程 + preload）
+├─ src-tauri/                    Rust + Tauri 桌面壳（0.2.x 起的主壳）
+│  ├─ src/main.rs                入口：窗口 / 单实例 / 文件关联 / 命令注册 / 菜单事件分发
+│  ├─ src/menu.rs                原生菜单装配（应用 / 文件 / 编辑 / 视图 / 导出 / 格式）
+│  ├─ src/shell.rs               壳层状态（最近列表镜像、窗口几何、自动保存开关）
+│  ├─ src/recent.rs              系统最近文档（macOS NSDocumentController / Windows SHAddToRecentDocs）
+│  ├─ src/picgo.rs               图床上传（7 家图床，手写签名算法，零额外依赖）
+│  ├─ src/exporter.rs            导出编排 + export_native*.rs 平台原语（WKWebView / WebView2）
+│  ├─ src/fsops.rs / search.rs / history.rs / themes.rs / logger.rs / wikilinks.rs
+│  │                             文件操作 / 全文搜索 / 历史版本 / 主题 / 日志 / 双链索引
+│  ├─ src/updater.rs             自动更新（tauri-plugin-updater + minisign 校验）
+│  ├─ src/tmd-api-shim.js        注入渲染层的受控 API（window.tmdAPI，替代 preload）
+│  └─ tauri.conf.json            窗口 / 打包 / 更新器配置
+│
+├─ electron/                     Electron 桌面壳（0.1.x 维护线，双轨兜底）
 │  ├─ main.cjs                   主进程入口（窗口 / 菜单生命周期、文件关联、各领域模块装配）
 │  ├─ app-state.cjs              跨模块共享状态 store（主窗口 / 脏标记 / 菜单文案 / 主题来源，纯 JS 可单测）
 │  ├─ updater.cjs                自动更新（Gitee / GitHub 双源、macOS dmg 自行下载安装）
