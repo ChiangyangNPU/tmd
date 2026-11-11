@@ -389,7 +389,7 @@ pub(crate) fn build_menu(
     // 构建暴露（release 不编译 open_devtools，wipe 掉入口避免点了没反应）。
     // 不做「实际大小」：浏览器语义的 100% 缩放与本应用的字体缩放是两套东西，
     // Cmd+0 也已归「正文」格式化命令，不重复占用。
-    let mut view_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
+    let view_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
         Box::new(make_item(
             app,
             "view-reload",
