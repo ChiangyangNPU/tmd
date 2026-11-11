@@ -9,10 +9,10 @@
 //! 隐藏入口——故第一项固定为 app 子菜单（about/services/hide）+ 自定义退出项
 //! （退出仍走 "quit" 事件，保留未保存修改的确认逻辑）。
 //!
-//! spike 已知缺口（对齐 menu.cjs 的 role 项，后续补齐）：
-//! - 视图 role 子菜单未建：重新载入 / 开发者工具没有对应的 PredefinedMenuItem，
-//!   需自建菜单项 + 事件分发（全屏、最小化等窗口项同理）
-//! - 退出项文案取 labels 的 quit 键（语言包缺键时回落中文「退出 TMD」）
+//! 已知缺口（对齐 menu.cjs 的 role 项）：
+//! - 视图菜单只建了「重新载入 / 全屏」与 debug 构建的开发者工具；实际大小、
+//!   缩放等 role 项未建（Cmd+0 已归「正文」格式化命令）
+//! - 退出项文案取 labels 的 quit 键（单源在渲染层，缺键时显示 key 本身）
 //!
 //! 平台差异：菜单仅 macOS 实挂（系统菜单栏，见 shell.rs rebuild_menu 注释）；
 //! Windows 挂原生菜单会闪菜单栏且偏离 Electron 观感（Electron 版隐藏菜单栏、
@@ -28,72 +28,10 @@ use std::collections::HashMap;
 use tauri::menu::{CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::{AppHandle, Wry};
 
-/// 菜单文案默认值（中文兜底）：与 menu.cjs 的 DEFAULT_MENU_LABELS 逐键一致，
-/// 另增 spike 专用的 quit 键。
-pub(crate) const DEFAULT_MENU_LABELS: &[(&str, &str)] = &[
-    ("file", "文件"),
-    ("open", "打开"),
-    ("openFolder", "打开文件夹"),
-    ("openRecent", "打开最近文件"),
-    ("recentEmpty", "（无最近文件）"),
-    ("clearRecent", "清空最近文件"),
-    ("save", "保存"),
-    ("saveAs", "另存为"),
-    ("newTab", "新标签页"),
-    ("closeTab", "关闭标签页"),
-    ("autosave", "自动保存到文件"),
-    ("export", "导出"),
-    ("exportHtml", "导出 HTML"),
-    ("exportPdf", "打印 / 导出 PDF"),
-    ("exportWord", "导出 Word"),
-    ("exportLongimage", "导出长图"),
-    ("exportEpub", "导出 ePub"),
-    ("exportLatex", "导出 LaTeX"),
-    ("format", "格式"),
-    ("bold", "加粗"),
-    ("italic", "斜体"),
-    ("strike", "删除线"),
-    ("inlineCode", "行内代码"),
-    ("highlight", "高亮"),
-    ("superscript", "上标"),
-    ("subscript", "下标"),
-    ("link", "链接…"),
-    ("h1", "一级标题"),
-    ("h2", "二级标题"),
-    ("h3", "三级标题"),
-    ("h4", "四级标题"),
-    ("h5", "五级标题"),
-    ("h6", "六级标题"),
-    ("paragraph", "正文"),
-    ("quote", "引用"),
-    ("codeBlock", "代码块"),
-    ("bulletList", "无序列表"),
-    ("orderedList", "有序列表"),
-    ("history", "历史版本"),
-    ("settings", "设置…"),
-    ("quit", "退出 TMD"),
-    ("edit", "编辑"),
-    // macOS 应用菜单（appAbout/appServices/appHide/appHideOthers/appShowAll）：
-    // 预定义项默认取系统英文文案，这里给中文兜底，渲染层语言包会覆盖
-    ("appAbout", "关于 TMD"),
-    ("appServices", "服务"),
-    ("appHide", "隐藏 TMD"),
-    ("appHideOthers", "隐藏其他"),
-    ("appShowAll", "显示全部"),
-    // 视图菜单
-    ("view", "视图"),
-    ("viewReload", "重新载入"),
-    ("viewFullscreen", "全屏"),
-    ("viewDevtools", "开发者工具"),
-];
-
-/// 中文兜底文案表（渲染层语言包缺键时回落）
-pub(crate) fn default_labels() -> HashMap<String, String> {
-    DEFAULT_MENU_LABELS
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect()
-}
+// 菜单文案单源在渲染层：本模块不内置任何语言的文案表，全部经 set_locale_info
+// 由渲染层的 menuLabels() 传入（src/i18n.ts → src/locales/*.json）。
+// 覆盖性由 src/__tests__/menu-labels.test.ts 校验：它扫描本文件的文案取值
+// 调用，断言每个 key 都能在 menuLabels 里找到——新增菜单项若忘加文案会直接挂测试。
 
 /// 菜单项 accelerator：优先用户自定义，否则默认值（与 accOf 一致）。
 pub(crate) fn acc_of(shortcuts: &HashMap<String, String>, action: &str, fallback: &str) -> String {
@@ -512,13 +450,5 @@ mod tests {
         assert!(!is_safe_external_url("file:///etc/passwd"));
         assert!(!is_safe_external_url("javascript:alert(1)"));
         assert!(!is_safe_external_url("not a url"));
-    }
-
-    #[test]
-    fn default_labels_cover_menu_keys() {
-        let labels = default_labels();
-        for key in ["file", "export", "format", "autosave", "settings", "quit"] {
-            assert!(labels.contains_key(key), "缺键: {}", key);
-        }
     }
 }

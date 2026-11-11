@@ -19,7 +19,7 @@
 // build_menu 仅 macOS 实挂菜单时使用（Windows 不挂原生菜单，见 rebuild_menu）
 #[cfg(target_os = "macos")]
 use crate::menu::build_menu;
-use crate::menu::{collation_locale, default_labels, RecentEntry};
+use crate::menu::{collation_locale, RecentEntry};
 use pinyin::ToPinyin;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -45,7 +45,7 @@ impl ShellState {
     pub fn new() -> Self {
         ShellState {
             inner: Mutex::new(ShellInner {
-                labels: default_labels(),
+                labels: HashMap::new(),
                 shortcuts: HashMap::new(),
                 recents: Vec::new(),
                 autosave_enabled: false,
@@ -96,11 +96,10 @@ impl ShellState {
     ) -> String {
         let mapped = {
             let mut g = self.inner.lock().expect("shell state 中毒");
-            let mut merged = default_labels();
-            for (k, v) in labels {
-                merged.insert(k, v);
-            }
-            g.labels = merged;
+            // 文案单源在渲染层：直接采用传入的整表，不再本地兜底合并——
+            // 覆盖性由 src/__tests__/menu-labels.test.ts 对 menu.rs 的 l("key")
+            // 扫描保证；缺键时菜单显示 key 本身，属于显性失败而非静默中文
+            g.labels = labels;
             if !locale.is_empty() {
                 g.sort_locale = collation_locale(&locale);
             }

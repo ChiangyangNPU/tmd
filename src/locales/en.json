@@ -147,6 +147,7 @@
     "exportLongimage": "Export Long Image",
     "exportEpub": "Export ePub",
     "exportLatex": "Export LaTeX",
+    "quit": "Quit TMD",
     "failed": "Export failed, please retry",
     "format": "Format",
     "bold": "Bold",
