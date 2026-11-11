@@ -82,14 +82,8 @@ fn decode_script_result(raw: &str) -> String {
 /// 读取渲染层内容尺寸（scrollWidth/scrollHeight，web page 坐标）
 #[allow(dead_code)] // 与 mac 模块保持同签名；正式导出链当前走 .ProseMirror 测量
 pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64), String> {
-    let s = eval_js(
-        window,
-        "JSON.stringify({w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight})",
-    )?;
-    serde_json::from_str::<serde_json::Value>(&s)
-        .ok()
-        .and_then(|v| Some((v["w"].as_f64()?, v["h"].as_f64()?)))
-        .ok_or_else(|| "内容尺寸解析失败".to_string())
+    let s = eval_js(window, crate::export_native_common::CONTENT_METRICS_SCRIPT)?;
+    crate::export_native_common::parse_content_metrics(&s)
 }
 
 /// 视口截图（对应 Electron capturePage 无参形态）：返回 PNG 字节

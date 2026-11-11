@@ -102,14 +102,8 @@ pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64),
     if let Err(err) = title_probe {
         return Err(format!("title 探针失败（objc2 通路问题）: {}", err));
     }
-    let s = eval_js(
-        window,
-        "JSON.stringify({w: document.documentElement.scrollWidth, h: document.documentElement.scrollHeight})",
-    )?;
-    serde_json::from_str::<serde_json::Value>(&s)
-        .ok()
-        .and_then(|v| Some((v["w"].as_f64()?, v["h"].as_f64()?)))
-        .ok_or_else(|| "内容尺寸解析失败".to_string())
+    let s = eval_js(window, crate::export_native_common::CONTENT_METRICS_SCRIPT)?;
+    crate::export_native_common::parse_content_metrics(&s)
 }
 
 /// 全文档 PDF：rect 设 web page 坐标全尺寸，一次调用生成整页多段 PDF
