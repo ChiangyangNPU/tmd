@@ -389,7 +389,9 @@ pub(crate) fn build_menu(
     // 构建暴露（release 不编译 open_devtools，wipe 掉入口避免点了没反应）。
     // 不做「实际大小」：浏览器语义的 100% 缩放与本应用的字体缩放是两套东西，
     // Cmd+0 也已归「正文」格式化命令，不重复占用。
-    let view_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
+    // debug 项按 cfg 追加：发布构建不追加，mut 多余——与 export_items 同款宽限
+    #[cfg_attr(not(any(debug_assertions, feature = "dev-tools")), allow(unused_mut))]
+    let mut view_items: Vec<Box<dyn IsMenuItem<Wry>>> = vec![
         Box::new(make_item(
             app,
             "view-reload",
