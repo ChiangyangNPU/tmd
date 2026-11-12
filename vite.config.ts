@@ -31,6 +31,12 @@ export default defineConfig({
   base: './',
   plugins: [themeFirstPaint()],
   build: {
+    // 超过 500 kB 默认警戒线的 chunk 均为按需加载，桌面应用本地磁盘读取，
+    // 无网络级拆包收益，故提线降噪：
+    // - cynefin-*：mermaid 图表运行时动态拉取的共享块（仅渲染该图才加载）
+    // - export-renderer-*：离屏导出窗口入口（导出时才建隐藏窗口加载）
+    // 主窗口 index 入口仍在 500 kB 量级，膨胀仍会被 1024 线捕获
+    chunkSizeWarningLimit: 1024,
     rollupOptions: {
       // 多入口：
       // - index.html：主窗口
