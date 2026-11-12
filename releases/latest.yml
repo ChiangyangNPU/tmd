@@ -1,10 +1,10 @@
 version: 0.1.8
 files:
   - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD-0.1.8-x64-Setup.exe
-    sha512: Qp1vcOnQGC7EJ46bN7dccia+bPcAwG6knYNH4628j3XEzxAQZ4pKWTWuulwiF8xpXpjKD2NtrsT3aSWreUT5Sw==
+    sha512: I8duBcGk9ePbpgyBHLHjFO3iycAalx/TQQcPOx3hucfCHgeIovu4jVcZmTjkVFmzMIKo7e1EIt996EWWD3XVig==
     size: 97293594
 path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD-0.1.8-x64-Setup.exe
-sha512: Qp1vcOnQGC7EJ46bN7dccia+bPcAwG6knYNH4628j3XEzxAQZ4pKWTWuulwiF8xpXpjKD2NtrsT3aSWreUT5Sw==
+sha512: I8duBcGk9ePbpgyBHLHjFO3iycAalx/TQQcPOx3hucfCHgeIovu4jVcZmTjkVFmzMIKo7e1EIt996EWWD3XVig==
 releaseNotes: |
   ## [0.2.1] - 2026-11-12
 
@@ -22,4 +22,4 @@ releaseNotes: |
   - `src-tauri/src/main.rs` 中 148 行注入脚本抽离为 `tmd-api-shim.js`（`include_str!` 引入），行为与字节完全一致
   - **Rust 壳层三大模块目录化重构**（纯移动零语义变化，函数集合 / cfg 平台门控 / 字符串字面量逐一比对一致）：`exporter.rs` 925 行 → `exporter/` 8 文件、`bootstrap.rs` 770 行 → `bootstrap/` 4 文件（`run()` 444 行内联闭包全部提为具名函数）、设置面板 `settings.ts` 1171 行 → `settings/` 7 文件；`editor-core.ts` / `files.ts` 评估后保持原状——单域高内聚、状态密集，拆分需引入状态桥接层，收益不抵风险
   - Vite chunk 大小警戒线 500 kB → 1024 kB：超限 chunk 均为按需加载（mermaid 图表运行时共享块 / 离屏导出窗口入口），桌面应用本地磁盘读取无网络级拆包收益，降噪保留真实膨胀捕获
-releaseDate: '2026-11-12T15:31:50.758Z'
+releaseDate: '2026-11-12T23:32:04.777Z'
