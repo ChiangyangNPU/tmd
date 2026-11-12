@@ -7,9 +7,12 @@ use crate::export_native;
 #[cfg(target_os = "macos")]
 #[cfg(any(debug_assertions, feature = "dev-tools"))]
 use crate::export_probe;
+// Manager（get_webview_window）与 logger 仅 macOS 专属块使用
+#[cfg(target_os = "macos")]
 use tauri::Manager;
 
 use crate::exporter;
+#[cfg(target_os = "macos")]
 use crate::logger;
 
 /// setup 末尾启动的环境变量探针（原 setup 闭包内四块，顺序保持）。
@@ -102,6 +105,7 @@ pub(crate) fn spawn_env_probes(app: &tauri::AppHandle) {
 
 /// 菜单「导窗形态矩阵」（debug/dev-tools 构建才有菜单项）：直接跑矩阵。
 #[cfg(any(debug_assertions, feature = "dev-tools"))]
+#[allow(unused_variables)] // 仅 macOS 有矩阵实现，其余平台参数整体闲置
 pub(crate) fn run_export_window_matrix(app: &tauri::AppHandle) {
     #[cfg(target_os = "macos")]
     {

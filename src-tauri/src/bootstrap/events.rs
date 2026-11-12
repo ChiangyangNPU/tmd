@@ -12,7 +12,10 @@ use crate::shell::ShellState;
 
 use crate::window_state::WinStateTracker;
 
-use super::window::{confirm_discard_changes, create_main_window};
+use super::window::confirm_discard_changes;
+// create_main_window 仅 handle_reopen_event（macOS 专属）使用
+#[cfg(target_os = "macos")]
+use super::window::create_main_window;
 use super::{MaximizedFlag, PendingOpenPaths};
 
 /// macOS open-file / iOS 打开事件：路径入待打开队列
