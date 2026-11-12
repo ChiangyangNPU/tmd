@@ -1,6 +1,6 @@
 [package]
 name = "tmd"
-version = "0.2.0"
+version = "0.2.1"
 description = "TMD - Type Markdown, Done."
 authors = ["chiangyang"]
 edition = "2021"

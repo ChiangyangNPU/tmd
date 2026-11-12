@@ -35,11 +35,11 @@ name: Release
 # （老用户 0.1.x）用 ELECTRON_VERSION 覆写 electron-builder 的版本号——迁移
 # 开关打开时，Electron 通道转指 Rust 安装包，0.1.x 线随之终止。
 env:
-  ELECTRON_VERSION: 0.1.7
+  ELECTRON_VERSION: 0.1.8
   # 架构迁移开关：填目标版本（如 0.2.0）即生成 migration.json——Electron 老
   # 用户手动检查更新时弹原生对话框引导下载 Rust 版；留空 = 关闭（不生成，
   # Electron 端拉取 404 即静默跳过）。跨架构无法自动升级，只做引导。
-  MIGRATION_TARGET: ''
+  MIGRATION_TARGET: 0.2.1
 
 on:
   push:
