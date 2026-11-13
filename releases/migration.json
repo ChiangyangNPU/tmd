@@ -2,7 +2,7 @@
   "version": "0.2.1",
   "notes": "新架构安装包体积约 6MB（原约 290MB），启动更快、空闲内存更省。跨架构无法自动升级，需手动下载安装一次；文档、历史版本、AI 配置等全部保留。",
   "downloads": {
-    "darwin": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD-0.1.8-arm64.dmg",
+    "darwin": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD_0.2.1_aarch64.dmg",
     "win32": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD_0.2.1_x64-setup.exe"
   }
 }
