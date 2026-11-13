@@ -331,7 +331,22 @@ jobs:
           #    API 写操作返回 405，git 协议可用；分支必须 master——仓库默认分支）
           #    注意：这会往 Gitee master 加一个提交，本地下次 pushall 需先
           #    `git pull gitee master --no-rebase` 合并（详见 docs/打包发布.md §9）
-          git clone --depth 1 "https://oauth2:${GITEE_TOKEN}@gitee.com/$GITEE_OWNER/$GITEE_REPO.git" /tmp/gitee-meta
+          #    跨国链路偶发不可达（v0.2.1 实测 git exit 128，5 分钟后放弃）：
+          #    克隆与推送各重试 3 次、退避递增
+          clone_ok=0
+          for attempt in 1 2 3; do
+            rm -rf /tmp/gitee-meta
+            if git clone --depth 1 "https://oauth2:${GITEE_TOKEN}@gitee.com/$GITEE_OWNER/$GITEE_REPO.git" /tmp/gitee-meta; then
+              clone_ok=1
+              break
+            fi
+            echo "::warning::Gitee 仓库克隆失败（第 $attempt 次），$((attempt * 20))s 后重试"
+            sleep $((attempt * 20))
+          done
+          if [ "$clone_ok" != 1 ]; then
+            echo "::error::Gitee 仓库克隆失败（3 次重试均未成功，检查 GITEE_TOKEN 与链路）"
+            exit 1
+          fi
           mkdir -p /tmp/gitee-meta/releases
           cp releases/*.yml /tmp/gitee-meta/releases/
           # Tauri 元数据同目录（raw 端点 https://...raw/master/releases/latest.json）
@@ -349,7 +364,19 @@ jobs:
             echo "元数据无变化，跳过推送"
           else
             git -C /tmp/gitee-meta commit -m "chore: update release metadata for $TAG"
-            git -C /tmp/gitee-meta push origin master
+            push_ok=0
+            for attempt in 1 2 3; do
+              if git -C /tmp/gitee-meta push origin master; then
+                push_ok=1
+                break
+              fi
+              echo "::warning::Gitee 元数据推送失败（第 $attempt 次），$((attempt * 20))s 后重试"
+              sleep $((attempt * 20))
+            done
+            if [ "$push_ok" != 1 ]; then
+              echo "::error::Gitee 元数据推送失败（3 次重试均未成功）"
+              exit 1
+            fi
             echo "元数据已推送 Gitee releases/"
           fi
 
@@ -361,14 +388,22 @@ jobs:
             echo "复用已存在的 Gitee Release ID: $RELEASE_ID"
           else
             RELEASE_BODY=$(cat .release-notes.md 2>/dev/null || echo "See GitHub Release for details")
-            RELEASE_RESP=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -X POST \
-              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
-              -F "access_token=$GITEE_TOKEN" \
-              -F "tag_name=$TAG" \
-              -F "name=$TAG" \
-              --form-string "body=$RELEASE_BODY" \
-              -F "target_commitish=master")
-            RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
+            # 创建请求同样重试：跨国链路偶发超时/空响应（v0.2.1 实测 clone 已挂过）
+            for attempt in 1 2 3; do
+              RELEASE_RESP=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" -X POST \
+                "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases" \
+                -F "access_token=$GITEE_TOKEN" \
+                -F "tag_name=$TAG" \
+                -F "name=$TAG" \
+                --form-string "body=$RELEASE_BODY" \
+                -F "target_commitish=master")
+              RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
+              if [ -n "$RELEASE_ID" ]; then
+                break
+              fi
+              echo "::warning::创建 Gitee Release 失败（第 $attempt 次），$((attempt * 20))s 后重试；响应: $RELEASE_RESP"
+              sleep $((attempt * 20))
+            done
             if [ -z "$RELEASE_ID" ]; then
               echo "::error::创建 Gitee Release 失败，响应: $RELEASE_RESP"
               exit 1
