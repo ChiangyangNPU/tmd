@@ -518,17 +518,39 @@ jobs:
           #    附件已落库——v0.1.1 实测 dmg 上传「成功」但附件不存在，而元数据
           #    已指向它（macOS 下载与更新全 404）。缺失即失败退出：宁可 step
           #    红灯，不可静默发出残缺版本
-          REMOTE_ASSETS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
-            "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID" \
-            | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const r=JSON.parse(d);console.log((r.assets||[]).map(a=>a.name).join('\\n'))}catch{console.log('')}})")
+          #    注意：上传阶段的重试/并发会触发 Gitee API 限流（403 非 JSON），
+          #    解析成空列表会把已上传的附件全判缺失（v0.2.1 实测 9 个全在却
+          #    报全缺）。列表获取重试 3 次；仍不可用则退回下载端点探测。
+          REMOTE_ASSETS=""
+          for attempt in 1 2 3; do
+            REMOTE_ASSETS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+              "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID" \
+              | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const r=JSON.parse(d);console.log((r.assets||[]).map(a=>a.name).join('\\n'))}catch{console.log('')}})")
+            [ -n "$REMOTE_ASSETS" ] && break
+            echo "::warning::Gitee 附件列表获取失败（第 $attempt 次，疑似限流），20s 后重试"
+            sleep 20
+          done
           MISSING=0
           for f in release/*.dmg release/*.exe release/*.blockmap release/*.sig \
                    release/*.app.tar.gz release/latest.json; do
             [ -f "$f" ] || continue
             case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
-            if ! printf '%s\\n' "$REMOTE_ASSETS" | grep -qx "$name"; then
-              echo "::error::Gitee 附件缺失: $name（上传后 API 校验未命中）"
+            present=0
+            if printf '%s\\n' "$REMOTE_ASSETS" | grep -qx "$name"; then
+              present=1
+            else
+              # API 列表不可用或未命中：用下载端点核对（200 = 附件已落库）。
+              # 端点不走 API 限流，且与用户实际下载路径一致，是最权威的存在性判据
+              code=$(curl -s -o /dev/null -w "%{http_code}" -I -L --max-time 30 \
+                "https://gitee.com/$GITEE_OWNER/$GITEE_REPO/releases/download/$TAG/$name" || true)
+              if [ "$code" = "200" ]; then
+                present=1
+                echo "::warning::$name 不在 API 列表中，但下载端点 200，按已上传处理"
+              fi
+            fi
+            if [ "$present" != 1 ]; then
+              echo "::error::Gitee 附件缺失: $name（API 校验与下载端点均未命中）"
               MISSING=1
             fi
           done

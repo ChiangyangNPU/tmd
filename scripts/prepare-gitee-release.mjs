@@ -167,8 +167,11 @@ async function main() {
 
   if (localMode) return // CI 模式：无需打印手动上传指引
 
-  // 待上传清单：安装包与差量索引（元数据走 git 提交，不作为 Release 附件）
-  const uploads = assets.filter((a) => /\.(dmg|exe|blockmap)$/.test(a.name))
+  // 待上传清单：与 CI 的附件校验集合对齐（元数据 yml 走 git 提交，不作为附件）。
+  // 双轨打包后需覆盖：Electron 线 dmg/exe/blockmap，Tauri 线 dmg/exe 与
+  // app.tar.gz（mac 自动更新件）、.sig（签名），以及 Tauri 更新清单 latest.json。
+  // 只列 dmg/exe/blockmap 会让本地补发漏掉 Tauri 侧文件，macOS 自动更新 404。
+  const uploads = assets.filter((a) => /\.(dmg|exe|blockmap|sig|app\.tar\.gz)$|^latest\.json$/.test(a.name))
   console.log(`\n请到 Gitee 创建 Release（标签 ${tag}）并上传以下 ${uploads.length} 个文件：`)
   for (const a of uploads) {
     console.log(`  · ${a.name}（${(a.size / 1e6).toFixed(1)}MB）`)
