@@ -240,7 +240,11 @@ jobs:
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
-          MAC_DMG=$(find release -name '*.dmg' | head -1 || true)
+          # 迁移目标是 Rust 架构包：Tauri 产物命名 TMD_<ver>_<arch>.dmg /
+          # TMD_<ver>_x64-setup.exe（下划线），Electron 线是 TMD-<ver>-arm64.dmg /
+          # TMD-<ver>-x64-Setup.exe（连字符）——按 TMD_ 前缀限定，避免
+          # `*.dmg` 通配首项抓到 Electron 包把 mac 用户引回旧架构（v0.2.1 实测）
+          MAC_DMG=$(find release -name 'TMD_*.dmg' | head -1 || true)
           WIN_SETUP=$(find release -name '*_x64-setup.exe' | head -1 || true)
           ARGS=""
           [ -n "$MAC_DMG" ] && ARGS="$ARGS --mac-dmg $(basename "$MAC_DMG")"
