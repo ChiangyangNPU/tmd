@@ -1,117 +1,51 @@
-# 发布工作流：push tag (v*) 触发，双平台打包并发布到 GitHub + Gitee 双 Release。
+# 发布工作流：push tag (v*) 触发，Tauri（Rust 架构）双平台打包并发布到
+# GitHub + Gitee 双 Release。
+#
+# Electron 壳已下线（2026-11，最后版本 0.1.8 随 v0.2.1 发布）：0.1.x 老用户
+# 的更新/迁移路径靠**冻结元数据**维持——仓库 releases/ 下的 latest*.yml
+# （指向 v0.2.1 的 Electron 0.1.8 附件）与 migration.json（指向 v0.2.1 的
+# Rust 安装包）不再更新；publish job 每次发版把冻结副本一并上传 GitHub
+# Release，保证 electron-updater 的 `releases/latest/download/latest*.yml`
+# 备用源永远可用。Gitee 配额清理以 MIGRATION_KEEP_TAG 锚点保护 v0.2.1
+# 附件不被清理。0.1.x 用户清零后：删除 Make migration.json 步骤、
+# MIGRATION_KEEP_TAG env 与冻结元数据续传步骤即可彻底收尾。
 #
 # 分工：publish job 先发 GitHub Release（分钟级），再自动上传 Gitee——
 # 创建/复用 Gitee Release、推 releases/ 元数据提交、传附件。Gitee 跨国
 # 链路慢（实测约 3.7 小时），步骤超时取 355 分钟（job 硬上限 6 小时）；
 # 失败/超时时用本地快速通道补发：npm run release:gitee（docs/打包发布.md §9）。
-# （2026-09-21 曾短暂改「CI 只发 GitHub、Gitee 本地手动」的方案 C，同日恢复
-# 自动上传——53e72d4；本头注释曾在那次恢复时漏改，2026-10-04 校正。）
 #
-# - macOS arm64 + Windows x64 并行构建（--publish never，只构建不发布）
-# - mac job 构建后把 dmg 转 ULMO 压缩（实测约 103MB → 85MB，
-#   scripts/patch-mac-dmg.mjs），连带重算 latest-mac.yml 的 sha512/size
-#   并删除过期 blockmap（差量索引与新文件不匹配，删除后更新器对 404 回退全量）
+# - build-tauri job：macOS arm64 + Windows x64 并行，带更新签名（NSIS/dmg +
+#   .sig），并生成 Tauri 更新器元数据 latest.json
 # - publish job：下载双平台 artifact，gh CLI 创建 GitHub Release（正文取当前
-#   版本小节）并上传全部产物——**直接发布，不用草稿**（草稿对 electron-updater
-#   不可见，会卡住 GitHub 源的自动更新）
-# - Tauri 双轨（2026-10-28 起）：build-tauri job 用带签名脚本出 NSIS/dmg +
-#   .sig，并生成 Tauri 更新器元数据 latest.json，与 Electron 产物**同 Release**
-#   并存上传——老用户（Electron 更新源 latest*.yml）与 Tauri 更新源
-#   （latest.json）互不干扰。双轨由 inputs.publish_tauri 控制：tag 推送默认
-#   开，workflow_dispatch 可关（只发 Electron）
+#   版本小节）并上传全部产物——**直接发布，不用草稿**
 #
 # 注意：
 # - 发版前把 CHANGELOG 的 [未发布] 转正（CI 以 --strict 强制校验，缺失即失败）
 # - Gitee 元数据经 CI 推到 Gitee master：远端会多出一个元数据提交，
 #   本地下次 pushall 前先 git pull gitee master --no-rebase 合并（§9）
 # - Tauri 签名私钥 Secret：TAURI_SIGNING_PRIVATE_KEY（tauri signer generate
-#   产物内容，见 docs/打包发布.md §11.2）。**未配置时 build-tauri 失败**：
-#   tag 推送下 publish 仍继续（Electron 发布不被拖死），但 Tauri 双轨无效；
-#   配好 Secret 后自动恢复
+#   产物内容，见 docs/打包发布.md §11.2）。**未配置时 build-tauri 失败**
 
 name: Release
 
-# 版本双轨：Rust/Tauri 转正线取 package.json 版本（0.2.0 起）；Electron 维护线
-# （老用户 0.1.x）用 ELECTRON_VERSION 覆写 electron-builder 的版本号——迁移
-# 开关打开时，Electron 通道转指 Rust 安装包，0.1.x 线随之终止。
 env:
-  ELECTRON_VERSION: 0.1.8
-  # 架构迁移开关：填目标版本（如 0.2.0）即生成 migration.json——Electron 老
-  # 用户手动检查更新时弹原生对话框引导下载 Rust 版；留空 = 关闭（不生成，
-  # Electron 端拉取 404 即静默跳过）。跨架构无法自动升级，只做引导。
-  MIGRATION_TARGET: 0.2.1
+  # 迁移锚点：老用户（Electron 0.1.x）更新/迁移链路依赖的 Release 附件
+  # （0.1.8 安装包 + 0.2.1 Rust 包），配额清理永远跳过该 tag 的 Release。
+  # 0.1.x 用户清零后删除本 env 与冻结元数据续传步骤，彻底收尾。
+  MIGRATION_KEEP_TAG: v0.2.1
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      publish_tauri:
-        description: '同时发布 Tauri 版（tag 推送时恒开；仅手动触发时可关）'
-        type: boolean
-        default: true
 
 permissions:
   contents: write
 
 jobs:
-  # Job 1：双平台打包（只构建不发布，发布统一在 publish job）
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-          - os: windows-latest
-            platform: win
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      # 发版前校验：CHANGELOG 必须有当前版本小节（[未发布] 未转正则直接失败）。
-      # electron-builder 的 releaseNotes 取自本步骤生成的 .release-notes.md，
-      # 只含当前版本一节，更新弹窗不再出现整份变更历史
-      - name: Extract release notes
-        run: node scripts/extract-release-notes.mjs --strict
-      # 仅 mac：dmg 安装窗口背景图（标题 + 当前版本号 + 拖拽箭头）
-      - name: Make dmg background
-        if: matrix.platform == 'mac'
-        run: node scripts/make-dmg-background.mjs
-      - name: Build & Package
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-        # Electron 维护线版本覆写：latest.yml 随之为 0.1.x，老用户停在
-        # Electron 维护线（Rust 转正线走 package.json 的 0.2.0）。
-        # 必须显式 bash：Windows runner 默认 PowerShell 不展开 $VAR，空值会
-        # 让 electron-builder 把 -c.extraMetadata.version= 当配置文件路径读
-        # （ENOENT，v0.2.0 首发实测；mac 默认 bash 故正常）
-        shell: bash
-        run: npm run build && npx electron-builder --publish never -c.extraMetadata.version=$ELECTRON_VERSION
-      # 仅 mac：dmg 转 ULMO 压缩 + 重算更新元数据（脚本内非 darwin 直接返回，
-      # win job 原样通过）
-      - name: Post-process dmg (ULMO)
-        if: matrix.platform == 'mac'
-        run: node scripts/patch-mac-dmg.mjs
-      # 上传产物 artifact 供 publish job 下载
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.platform }}
-          path: |
-            release/*.yml
-            release/*.dmg
-            release/*.exe
-            release/*.blockmap
-          retention-days: 7
-
-  # Job 1.5：Tauri 双轨打包（带更新签名；产物与 Electron 同 Release 并存）。
-  # tag 推送恒开；手动触发时可经 inputs.publish_tauri 关闭（只发 Electron）。
+  # Job 1：Tauri 双平台打包（带更新签名）。
   # 私钥来自 Secret TAURI_SIGNING_PRIVATE_KEY（minisign，生成方式见 §11.2）；
   # mac 侧 Tauri 更新产物为 TMD.app.tar.gz（.sig 对应它而非 dmg——dmg 只作
   # 首次手动安装），updater 工件在 bundle/macos/。
@@ -125,7 +59,6 @@ jobs:
           - os: windows-latest
             platform: win
     runs-on: ${{ matrix.os }}
-    if: github.event_name == 'push' || github.event.inputs.publish_tauri == 'true'
     env:
       TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
     steps:
@@ -182,8 +115,8 @@ jobs:
 
   # Job 2：统一发布（GitHub Release + Gitee）
   publish:
-    needs: [build, build-tauri]
-    if: always() && needs.build.result == 'success' && (github.event_name == 'push' || (needs.build-tauri.result == 'success' || needs.build-tauri.result == 'skipped'))
+    needs: [build-tauri]
+    if: always() && needs.build-tauri.result == 'success'
     runs-on: ubuntu-latest
     # GitHub-hosted runner 单 job 硬上限 6 小时（平台限制，设超过也会被掐断）：
     # 取满 6 小时以容纳 Gitee 跨国传输（实测 3.7 小时）；
@@ -196,27 +129,29 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      # 下载两个平台的产物（Electron：release-*；Tauri：tauri-release-*）
+      # 下载双平台 Tauri 产物 + 冻结的 Electron 元数据续传。
+      # Electron 壳已下线：latest*.yml 不再构建产出，但 0.1.x 老用户的
+      # electron-updater 备用源（releases/latest/download/latest*.yml）指向
+      # 「最新 Release」的附件——新 Release 若缺这两个文件，备用源 404。
+      # 故把仓库 releases/ 里的冻结副本（0.1.8，指向 v0.2.1 附件）cp 进
+      # release/ 一并上传，主源（Gitee raw releases/）同样由冻结副本覆盖。
       - uses: actions/download-artifact@v4
-        with:
-          path: release
-          pattern: release-*
-          merge-multiple: true
-      - uses: actions/download-artifact@v4
-        if: needs.build-tauri.result == 'success'
         with:
           path: release
           pattern: tauri-release-*
           merge-multiple: true
+      - name: Seed frozen Electron metadata
+        run: |
+          cp releases/latest.yml releases/latest-mac.yml release/
+          ls -la release/*.yml
       - name: List artifacts
         run: find release -type f | sort
       - name: Extract release notes
         run: node scripts/extract-release-notes.mjs --strict
 
       # ---------- Tauri 更新器元数据 latest.json（windows/mac 两平台条目；
-      # .sig 内容即 signature 字段。只在 Tauri job 实际跑过时生成） ----------
+      # .sig 内容即 signature 字段） ----------
       - name: Make Tauri latest.json
-        if: needs.build-tauri.result == 'success'
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
@@ -234,27 +169,29 @@ jobs:
           mkdir -p releases
           cp release/latest.json releases/latest.json
 
-      # ---------- 架构迁移提示（MIGRATION_TARGET 非空才生成 = 开关打开） ----------
+      # ---------- 架构迁移提示（Electron 0.1.x 老用户 → Rust 版） ----------
+      # 无条件生成，版本跟随当前发版：0.1.8 用户拉取后永远被引导到最新
+      # Rust 安装包。跨架构无法自动升级，只做引导。0.1.x 用户清零后删除
+      # 本步骤 + MIGRATION_KEEP_TAG env + 冻结元数据续传步骤即可收尾。
       - name: Make migration.json
-        if: needs.build-tauri.result == 'success' && env.MIGRATION_TARGET != ''
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           # 迁移目标是 Rust 架构包：Tauri 产物命名 TMD_<ver>_<arch>.dmg /
-          # TMD_<ver>_x64-setup.exe（下划线），Electron 线是 TMD-<ver>-arm64.dmg /
-          # TMD-<ver>-x64-Setup.exe（连字符）——按 TMD_ 前缀限定，避免
-          # `*.dmg` 通配首项抓到 Electron 包把 mac 用户引回旧架构（v0.2.1 实测）
+          # TMD_<ver>_x64-setup.exe（下划线）——按 TMD_ 前缀限定，避免
+          # `*.dmg` 通配抓到冻结的 Electron 包把 mac 用户引回旧架构（v0.2.1 实测）
           MAC_DMG=$(find release -name 'TMD_*.dmg' | head -1 || true)
           WIN_SETUP=$(find release -name '*_x64-setup.exe' | head -1 || true)
           ARGS=""
           [ -n "$MAC_DMG" ] && ARGS="$ARGS --mac-dmg $(basename "$MAC_DMG")"
           [ -n "$WIN_SETUP" ] && ARGS="$ARGS --win-setup $(basename "$WIN_SETUP")"
-          node scripts/make-migration-json.mjs --version "$MIGRATION_TARGET" $ARGS \
+          node scripts/make-migration-json.mjs \
+            --version "$(node -p "require('./package.json').version")" $ARGS \
             --out release/migration.json ${TAG:+--tag "$TAG"}
           mkdir -p releases
           cp release/migration.json releases/migration.json
 
-      # ---------- GitHub Release（直接发布；草稿对 electron-updater 不可见） ----------
+      # ---------- GitHub Release（直接发布，不用草稿） ----------
       - name: Publish to GitHub Release
         run: |
           TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
@@ -264,9 +201,10 @@ jobs:
           # 兜底转正：gh release view 只判断「存在」，不区分 draft；若已有同名
           # draft（更新器完全不可见，会卡死 GitHub 源自动更新）则强制发布
           gh release edit "$TAG" --draft=false
-          # Electron（dmg/exe/blockmap/latest*.yml）+ Tauri（exe.sig/dmg/app.tar.gz
-          # 及 .sig/latest.json）同 Release 并存；通配符按实际存在的文件工作
-          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml \
+          # Tauri（exe/+.sig、dmg、app.tar.gz/+.sig、latest.json）+ migration.json
+          # + 冻结的 Electron latest*.yml（0.1.x 老用户备用源续传）；
+          # 通配符按实际存在的文件工作
+          for f in release/*.dmg release/*.exe release/latest*.yml \
                    release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json \
                    release/migration.json; do
             [ -f "$f" ] || continue
@@ -277,10 +215,10 @@ jobs:
           gh release view "$TAG" --json isDraft,assets > /tmp/gh-release.json
           MISSING=0
           if node -e "process.exit(JSON.parse(require('fs').readFileSync('/tmp/gh-release.json','utf8')).isDraft ? 0 : 1)"; then
-            echo "::error::GitHub Release 仍为 draft 状态，electron-updater 不可见"
+            echo "::error::GitHub Release 仍为 draft 状态"
             MISSING=1
           fi
-          for f in release/*.dmg release/*.exe release/*.blockmap release/latest*.yml \
+          for f in release/*.dmg release/*.exe release/latest*.yml \
                    release/*.exe.sig release/*.app.tar.gz release/*.app.tar.gz.sig release/latest.json \
                    release/migration.json; do
             [ -f "$f" ] || continue
@@ -322,10 +260,11 @@ jobs:
           fi
           echo "Publishing to Gitee tag: $TAG"
 
-          # 1. 元数据 url 绝对化为 Gitee Release 附件地址。
-          #    应用的 generic 更新源只按 baseUrl 拼接相对路径，若是文件名会去 raw
-          #    目录找安装包而 404（安装包在 Release 附件区）；绝对 URL 直接生效
-          node scripts/prepare-gitee-release.mjs --local
+          # 1. 元数据来源：Tauri latest.json / migration.json 由上方步骤生成并
+          #    cp 进仓库 releases/（url 已绝对化为 Gitee Release 附件地址）；
+          #    Electron latest*.yml 为仓库内冻结副本（0.1.8，指向 v0.2.1 附件），
+          #    保持原样提交——generic 更新源只按 baseUrl 拼接相对路径，绝对
+          #    URL 会被直接使用，安装包在 Release 附件区不在 raw 目录。
 
           # 2. 元数据经 git 推到 Gitee releases/ 目录（Gitee 对海外 IP 的 contents
           #    API 写操作返回 405，git 协议可用；分支必须 master——仓库默认分支）
@@ -412,16 +351,19 @@ jobs:
           fi
 
           # 3.5 配额维护：Gitee 免费仓库的 Release 附件总容量 1GB，每个版本约
-          #     175MB（dmg 85 + exe 95），不清理则从第 6 个版本起上传必失败
-          #     （v0.1.5 实测：总量 1036MB 时 0.1MB 的 blockmap 被配额挡下、
-          #     step 红灯）。发版前保留最近 KEEP_GITEE_RELEASES 个版本的附件，
-          #     更早版本的附件逐个删除——Release 页面与说明保留，旧安装包仍可
-          #     从 GitHub Release 下载。删除失败只告警不中断：上传阶段的配额
-          #     错误才是最终裁判。
+          #     15MB（Tauri dmg 7 + exe 6），不清理则从第 60 个版本起上传必失败。
+          #     发版前保留最近 KEEP_GITEE_RELEASES 个版本的附件，更早版本的
+          #     附件逐个删除——Release 页面与说明保留，旧安装包仍可从 GitHub
+          #     Release 下载。删除失败只告警不中断：上传阶段的配额错误才是
+          #     最终裁判。
+          #     MIGRATION_KEEP_TAG 锚点（v0.2.1）例外：老用户（Electron 0.1.x）
+          #     的更新/迁移链路依赖该 Release 的附件（0.1.8 安装包 + 0.2.1
+          #     Rust 包），冻结的 latest*.yml 与 migration.json 都指向它，
+          #     被清理即断裂——清理循环永远跳过。
           KEEP_GITEE_RELEASES="${KEEP_GITEE_RELEASES:-2}"
           PRUNE_IDS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
             "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases?per_page=100&access_token=$GITEE_TOKEN" \
-            | KEEP="$KEEP_GITEE_RELEASES" CURRENT_ID="$RELEASE_ID" node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const list=JSON.parse(d);if(!Array.isArray(list))throw new Error('not array');const keep=Number(process.env.KEEP)||2;const sorted=[...list].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));const keepIds=new Set(sorted.slice(0,keep).map(r=>String(r.id)));keepIds.add(String(process.env.CURRENT_ID||''));for(const r of sorted){if(!keepIds.has(String(r.id))) console.log(r.id)}}catch(e){console.error('::warning::Gitee Release 列表解析失败，跳过配额清理')}})")
+            | KEEP="$KEEP_GITEE_RELEASES" CURRENT_ID="$RELEASE_ID" ANCHOR="$MIGRATION_KEEP_TAG" node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const list=JSON.parse(d);if(!Array.isArray(list))throw new Error('not array');const keep=Number(process.env.KEEP)||2;const sorted=[...list].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));const keepIds=new Set(sorted.slice(0,keep).map(r=>String(r.id)));keepIds.add(String(process.env.CURRENT_ID||''));for(const r of sorted){if(!keepIds.has(String(r.id)) && r.tag_name!==process.env.ANCHOR) console.log(r.id)}}catch(e){console.error('::warning::Gitee Release 列表解析失败，跳过配额清理')}})")
           for rid in $PRUNE_IDS; do
             ATTACH_IDS=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
               "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$rid/attach_files?access_token=$GITEE_TOKEN" \
@@ -434,7 +376,7 @@ jobs:
           done
 
           # 4. 上传附件——大文件（dmg/exe）并行，Gitee 对海外 IP 的限速若按单连接
-          #    计算则吞吐翻倍；小文件（blockmap）串行。
+          #    计算则吞吐翻倍；小文件串行。
           #    低速保护：15 分钟内平均速度低于 512B/s 才放弃（只拦死连接，
           #    实测约 13KB/s 的正常慢速传输不受影响）
           upload_asset() {
@@ -471,7 +413,7 @@ jobs:
           # 大文件并行上传：dmg 约 85MB、exe 约 96MB（Electron 与 Tauri 的 NSIS
           # 各一个 exe），均在 Gitee 附件单文件 100MB 上限内（不再产出 mac zip，
           # macOS 改走「下载 dmg 手动安装」；Tauri mac 更新件 app.tar.gz 较小，
-          # 与 sig/blockmap/latest.json 一并走串行通道）
+          # 与 sig/latest.json 一并走串行通道）
           BIG_FILES=""
           for f in release/*.dmg release/*.exe; do
             [ -f "$f" ] && BIG_FILES="$BIG_FILES $f"
@@ -480,20 +422,16 @@ jobs:
             upload_asset "$f" &
           done
           wait
-          for f in release/*.blockmap release/*.sig release/*.app.tar.gz \
+          for f in release/*.sig release/*.app.tar.gz \
                    release/latest.json; do
             [ -f "$f" ] || continue
-            # 排除 mac zip 的差量索引：zip 本身超 100MB 上限不在 Gitee，
-            # 孤儿 blockmap 无意义（差量更新会自然回退全量下载）
-            case "$f" in *-mac.zip.blockmap) continue ;; esac
             upload_asset "$f"
           done
 
           ATTACH_FAILED=0
-          for f in release/*.dmg release/*.exe release/*.blockmap release/*.sig \
+          for f in release/*.dmg release/*.exe release/*.sig \
                    release/*.app.tar.gz release/latest.json; do
             [ -f "$f" ] || continue
-            case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
             code_file="/tmp/attach-${name}.code"
             # code 文件缺失 = 上传子进程异常结束且未落状态：按失败处理，不静默
@@ -531,10 +469,9 @@ jobs:
             sleep 20
           done
           MISSING=0
-          for f in release/*.dmg release/*.exe release/*.blockmap release/*.sig \
+          for f in release/*.dmg release/*.exe release/*.sig \
                    release/*.app.tar.gz release/latest.json; do
             [ -f "$f" ] || continue
-            case "$f" in *-mac.zip.blockmap) continue ;; esac
             name=$(basename "$f")
             present=0
             if printf '%s\\n' "$REMOTE_ASSETS" | grep -qx "$name"; then

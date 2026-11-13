@@ -1,4 +1,4 @@
-//! 离线 HTML 导出的本地资源加载（electron/export-assets.cjs 的 Rust 移植）。
+//! 离线 HTML 导出的本地资源加载（移植自 Electron 壳 export-assets.cjs；该壳已下线，本模块为唯一实现）。
 //!
 //! dist/export-assets 由 scripts/copy-export-assets.mjs 在 build 后生成：
 //! mermaid/katex/auto-render 三个 JS + katex.min.css（woff2 字体内联成

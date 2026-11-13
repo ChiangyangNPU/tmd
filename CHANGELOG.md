@@ -4,7 +4,11 @@
 
 ## [Unreleased]
 
-（空）
+### 移除
+
+- **Electron 架构全面下线**：删除壳层源码（`electron/` 27 个模块、19 个对应单测、electron-builder 配置与打包脚本）与全部 Electron 系依赖（`electron` / `electron-builder` / `electron-updater` / `picgo` / `iconv-lite`），CI 停止构建 Electron 安装包——Rust + Tauri 壳自 v0.2.0 起为唯一桌面壳，此次从代码与发布链彻底移除旧架构。渲染层与全部文档功能不受影响
+- **0.1.x 老用户迁移路径保持冻结可用**：仓库 `releases/latest*.yml`（0.1.8）与 `migration.json`（指向最新 Rust 版）不再随版本更新，每次发版仍作为冻结副本上传 GitHub Release（保备用源可达）；Gitee 配额清理以 `MIGRATION_KEEP_TAG: v0.2.1` 锚点保护老用户下载链路指向的附件。0.1.x 用户清零后删除 CI 的迁移元数据步骤即彻底收尾
+- 配套删除 Electron 专属工具链：`make-dmg-background` / `patch-mac-dmg` / `trim-runtime` / `make-icon` 脚本、桌面 E2E（`test:desktop` / `bench`，驱动真实 Electron）与 `.npmrc` 镜像配置；`package.json` 发布源信息迁至顶层 `releasePublish` 字段（本地 Gitee 补发通道继续可用）
 
 ## [0.2.1] - 2026-11-12
 

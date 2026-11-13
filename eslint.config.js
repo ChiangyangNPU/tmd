@@ -48,23 +48,6 @@ export default [
     },
   },
 
-  // electron 壳层：JSDoc 标注的 .cjs，CommonJS 环境
-  {
-    files: ['electron/**/*.cjs'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.commonjs,
-      },
-    },
-    rules: {
-      // 壳层有合理错误日志
-      'no-console': 'off',
-      // CommonJS require 是合法用法，关闭 TS 的禁止规则
-      '@typescript-eslint/no-require-imports': 'off',
-    },
-  },
-
   // scripts：Node ESM 脚本
   {
     files: ['scripts/**/*.mjs', 'scripts/**/*.js'],
@@ -73,21 +56,6 @@ export default [
     },
     rules: {
       'no-console': 'off',
-    },
-  },
-
-  // scripts：Node CommonJS 脚本（与 electron/**/*.cjs 同环境）
-  {
-    files: ['scripts/**/*.cjs'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.commonjs,
-      },
-    },
-    rules: {
-      'no-console': 'off',
-      '@typescript-eslint/no-require-imports': 'off',
     },
   },
 

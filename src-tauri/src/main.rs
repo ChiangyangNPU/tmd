@@ -1,18 +1,18 @@
 // Windows release 不弹控制台窗口（GUI 子系统）；dev 保留控制台看 cargo 日志
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! TMD Tauri 壳层（spike 通过后的正式迁移起点，双壳共存——Electron 壳不受影响）。
+//! TMD Tauri 壳层（v0.2.0 起为唯一桌面壳；Electron 壳已于 2026-11 下线，
+//! 源码存 git 历史）。
 //!
 //! 架构：`window.tmdAPI` 契约（src/native.ts）由本壳经 initialization_script
-//! 注入 Proxy 门面实现；纯逻辑按 electron/ 的模块边界下沉到独立模块
+//! 注入 Proxy 门面实现；纯逻辑按原 electron/ 的模块边界下沉到独立模块
 //! （text_file / search / wikilinks / watcher / history / menu / shell / ai_* /
-//! fsops / themes / export_assets），与 JS 版逐语义对齐并可单测。
+//! fsops / themes / export_assets），与原 JS 版逐语义对齐并可单测。
 //!
 //! 通道进度：43 条 invoke + 7 条事件订阅已实现——**权威清单与各模块对齐说明、
 //! 已知缺口见 docs/spike-tauri.md**（此处不再枚举，避免两处清单漂移）。
 //! 未实现通道 no-op + console.warn，不阻塞启动（渲染层的 `!native` 降级判断
-//! 不受影响）。identifier 使用 com.chiangyang.tmd.spike，userData 与 Electron
-//! 版完全隔离。
+//! 不受影响）。identifier 使用 com.chiangyang.tmd，userData 为独立目录。
 //!
 //! @author chiangyang
 

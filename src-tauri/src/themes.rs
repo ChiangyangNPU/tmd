@@ -1,6 +1,6 @@
 //! 文件式主题（electron/themes.cjs 的 Rust 移植）。
 //!
-//! 与 JS 版逐项对齐（JS 版保留服务 Electron 壳，改动需两处同步）：
+//! 与 JS 版逐项对齐（Electron 壳已下线，JS 版仅存 git 历史，本模块为唯一实现）：
 //! - 目录 `<资产根>/.tmd/themes`（资产根 = tmdHome：默认用户主目录，
 //!   TMD_HOME_DIR 可重定位；主题是用户资产，跨安装保留）
 //! - 一个 *.css 文件 = 一个主题，文件名（去扩展名）即显示名

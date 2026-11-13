@@ -27,7 +27,7 @@ function themeFirstPaint(): Plugin {
 }
 
 export default defineConfig({
-  // Electron 生产模式用 file:// 加载，必须用相对路径引用资源
+  // Tauri 生产模式以 file:// 协议加载（与原 Electron 壳同语义），必须用相对路径引用资源
   base: './',
   plugins: [themeFirstPaint()],
   build: {

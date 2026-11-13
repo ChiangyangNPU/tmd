@@ -49,17 +49,18 @@ export function absolutizeYmlUrls(ymlText, toAbsolute) {
 }
 
 /**
- * 从 package.json 的发布源配置提取 Gitee 与 GitHub 的 owner/repo
- * @param {{ build: { publish: Array<{ provider: string, url?: string, owner?: string, repo?: string }> } }} pkg
+ * 从 package.json 顶层 releasePublish 提取 Gitee 与 GitHub 的 owner/repo
+ * （原 build.publish 随 electron-builder 一起移除，Electron 壳下线后本地
+ * 补发通道仍需要发布源信息，改为顶层显式字段）
+ * @param {{ releasePublish?: { gitee?: string, github?: { owner?: string, repo?: string } } }} pkg
  */
 function reposOf(pkg) {
-  const generic = pkg.build.publish.find((p) => p.provider === 'generic')
-  const github = pkg.build.publish.find((p) => p.provider === 'github')
-  const m = generic?.url?.match(/gitee\.com\/([^/]+)\/([^/]+)\//)
-  if (!m || !github?.owner || !github.repo) {
-    throw new Error('package.json 发布源配置不完整（需 generic.url 与 github.owner/repo）')
+  const rp = pkg.releasePublish
+  const m = rp?.gitee?.match(/gitee\.com\/([^/]+)\/([^/]+)/)
+  if (!m || !rp?.github?.owner || !rp.github.repo) {
+    throw new Error('package.json 发布源配置不完整（需 releasePublish.gitee 与 releasePublish.github.owner/repo）')
   }
-  return { gitee: { owner: m[1], repo: m[2] }, github: { owner: github.owner, repo: github.repo } }
+  return { gitee: { owner: m[1], repo: m[2] }, github: { owner: rp.github.owner, repo: rp.github.repo } }
 }
 
 /**

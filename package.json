@@ -4,27 +4,19 @@
   "version": "0.2.1",
   "author": "chiangyang",
   "type": "module",
-  "main": "electron/main.cjs",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
     "dev": "vite",
-    "dev:electron": "concurrently -k -s first \"vite\" \"wait-on tcp:127.0.0.1:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
     "tauri": "tauri",
     "build": "tsc && vite build && node scripts/copy-export-assets.mjs",
     "test": "vitest run",
-    "test:desktop": "node scripts/desktop-app-check.mjs && node scripts/desktop-export-check.mjs",
-    "bench": "node scripts/desktop-bench.mjs",
     "notes": "node scripts/extract-release-notes.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "icon": "node scripts/make-icon.mjs",
     "cleanup": "bash scripts/cleanup-old-app.sh",
     "preview": "vite preview",
-    "dist": "npm run notes && node scripts/make-dmg-background.mjs && npm run build && electron-builder --publish never && node scripts/patch-mac-dmg.mjs",
-    "dist:dir": "npm run notes && npm run build && electron-builder --dir --publish never",
-    "dist:install": "npm run dist:dir && rm -rf /Applications/TMD.app && cp -R release/mac-arm64/TMD.app /Applications/",
     "dist:tauri": "tauri build",
     "dist:tauri:dir": "tauri build --bundles app",
     "dist:tauri:install": "npm run dist:tauri:dir && rm -rf \"/Applications/TMD.app\" && cp -R src-tauri/target/release/bundle/macos/TMD.app \"/Applications/TMD.app\"",
@@ -37,6 +29,13 @@
     "smoke:mac": "node scripts/tauri-mac-check.mjs",
     "release:gitee": "node scripts/prepare-gitee-release.mjs"
   },
+  "releasePublish": {
+    "gitee": "https://gitee.com/chiangyangNPU/tmd",
+    "github": {
+      "owner": "ChiangyangNPU",
+      "repo": "tmd"
+    }
+  },
   "devDependencies": {
     "@codemirror/lang-markdown": "^6.5.2",
     "@codemirror/language": "^6.12.4",
@@ -46,12 +45,10 @@
     "@tauri-apps/cli": "^2.12.4",
     "@types/d3-force": "^3.0.10",
     "@types/markdown-it": "^14.2.0",
+    "@types/node": "^26.6.6",
     "@types/sanitize-html": "^2.16.2",
     "codemirror": "^6.0.2",
-    "concurrently": "^10.0.5",
     "dom-docx": "1.0.1",
-    "electron": "^44.2.0",
-    "electron-builder": "^26.15.3",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
@@ -70,117 +67,12 @@
     "typescript": "~5.6.0",
     "typescript-eslint": "^8.70.0",
     "vite": "^6.0.0",
-    "vitest": "^5.0.0",
-    "wait-on": "^9.1.0"
-  },
-  "build": {
-    "appId": "com.chiangyang.tmd",
-    "productName": "TMD",
-    "directories": {
-      "output": "release"
-    },
-    "compression": "maximum",
-    "electronDownload": {
-      "mirror": "https://npmmirror.com/mirrors/electron/"
-    },
-    "afterPack": "./scripts/trim-runtime.cjs",
-    "files": [
-      "dist/**",
-      "electron/**",
-      "!**/*.map",
-      "!**/*.md",
-      "!**/License",
-      "!**/LICENSE*",
-      "!**/docs/**",
-      "!**/*.d.ts",
-      "!**/vitest.config.*",
-      "!**/test/**",
-      "!**/tests/**",
-      "!**/*.test.js",
-      "!**/node_modules/rxjs/src/**",
-      "!**/node_modules/rxjs/_esm5/**",
-      "!**/node_modules/rxjs/_esm2015/**",
-      "!**/node_modules/rxjs/bundles/**",
-      "!**/node_modules/rxjs/migrations/**",
-      "!**/node_modules/lodash/fp/**",
-      "!**/node_modules/lodash/*.min.js"
-    ],
-    "fileAssociations": [
-      {
-        "ext": [
-          "md",
-          "markdown"
-        ],
-        "name": "Markdown 文档",
-        "role": "Editor"
-      }
-    ],
-    "dmg": {
-      "title": "TMD",
-      "background": "build/dmg-background.png",
-      "window": {
-        "width": 660,
-        "height": 400
-      },
-      "contents": [
-        {
-          "x": 190,
-          "y": 220
-        },
-        {
-          "x": 470,
-          "y": 220,
-          "type": "link",
-          "path": "/Applications"
-        }
-      ]
-    },
-    "mac": {
-      "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "arm64"
-          ]
-        }
-      ],
-      "category": "public.app-category.productivity",
-      "icon": "build/icon.icns",
-      "identity": "-"
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "build/icon.ico"
-    },
-    "nsis": {
-      "artifactName": "${productName}-${version}-${arch}-Setup.${ext}",
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": false,
-      "include": "build/installer.nsh"
-    },
-    "releaseInfo": {
-      "releaseNotesFile": ".release-notes.md"
-    },
-    "publish": [
-      {
-        "provider": "generic",
-        "url": "https://gitee.com/chiangyangNPU/tmd/raw/master/releases/",
-        "channel": "latest"
-      },
-      {
-        "provider": "github",
-        "owner": "ChiangyangNPU",
-        "repo": "tmd"
-      }
-    ]
+    "vitest": "^5.0.0"
   },
   "dependencies": {
     "d3-force": "^3.0.0",
-    "electron-updater": "^6.8.9",
     "fflate": "^0.8.3",
-    "iconv-lite": "^0.6.3",
     "mathml2omml": "^0.5.0",
-    "picgo": "^3.0.2",
     "sanitize-html": "^2.18.1"
   }
 }

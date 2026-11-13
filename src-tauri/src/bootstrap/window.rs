@@ -35,8 +35,7 @@ pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri:
     let restored = window_state::restore_win_state(&persisted, &display_rects);
 
     let mut builder = tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::default())
-        // 带版本号：双轨共存期与 Electron 线（0.1.7）窗口可区分；
-        // 版本随 Cargo 对齐流程自动跟进
+        // 带版本号：用户可直观确认当前运行版本；版本随 Cargo 对齐流程自动跟进
         .title(format!("TMD {}", app.package_info().version))
         .min_inner_size(940.0, 600.0)
         .initialization_script(TMD_API_SHIM);

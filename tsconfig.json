@@ -18,10 +18,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    // electron/*.cjs 用 JSDoc 标注参与类型检查：
-    // preload 按 NativeFileAPI、ipc 通道名按 IpcChannels 校验契约对齐
+    // Electron 壳已下线；仍开 allowJs：src/__tests__ 少数测试 import
+    // scripts/*.mjs 的纯函数（prepare-gitee-release），需要加载其 JSDoc 类型
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["src", "electron"]
+  "include": ["src"]
 }

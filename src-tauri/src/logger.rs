@@ -1,6 +1,6 @@
 //! 本地日志与崩溃线索（electron/logger.cjs 的 Rust 移植）。
 //!
-//! 与 JS 版逐项对齐（JS 版保留服务 Electron 壳，改动需两处同步）：
+//! 与 JS 版逐项对齐（Electron 壳已下线，JS 版仅存 git 历史，本模块为唯一实现）：
 //! - `~/.tmd/logs/app-YYYY-MM-DD.jsonl` 按天滚动（本地时区），双层保留清理：
 //!   mtime 超 7 天全删 + 超出 10 个文件的最旧一批删（每次写盘顺带轮转）
 //! - 同 source+message 在 60 秒固定窗口内重复仅计数不落盘；窗口期满后由下一条
