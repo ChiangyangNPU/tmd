@@ -1,41 +1,25 @@
-version: 0.1.7
+version: 0.1.8
 files:
-  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.0/TMD-0.1.7-arm64.dmg
-    sha512: 3lMbbFHRnkJcZDCC3MU1QuRA3l5xOMC/w3kIdvxfVfd/GOm3ek6y7qSrkZuk2CheFP9m+X7D9ec4zSSuawVyjw==
-    size: 85667176
-path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.0/TMD-0.1.7-arm64.dmg
-sha512: 3lMbbFHRnkJcZDCC3MU1QuRA3l5xOMC/w3kIdvxfVfd/GOm3ek6y7qSrkZuk2CheFP9m+X7D9ec4zSSuawVyjw==
+  - url: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD-0.1.8-arm64.dmg
+    sha512: KocRXWiGq3lHAUV1DU3L1Xvs2eipX9dVdej/jN8JeR9QnyPlY9KUnqMSibHANSDaG/5+MfvkOaRPM6YhSVWWUw==
+    size: 85666928
+path: https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD-0.1.8-arm64.dmg
+sha512: KocRXWiGq3lHAUV1DU3L1Xvs2eipX9dVdej/jN8JeR9QnyPlY9KUnqMSibHANSDaG/5+MfvkOaRPM6YhSVWWUw==
 releaseNotes: |
-  ## [0.2.0] - 2026-11-09
+  ## [0.2.1] - 2026-11-12
 
-  > **架构里程碑**：桌面壳层从 Electron 全面迁移至 **Rust + Tauri**。编辑器与全部文档功能保持一致，双轨发布——**推荐下载 Rust 架构安装包（0.2.0）**；Electron 架构以维护线 **0.1.7** 继续提供（老用户检查更新即得），供稳定过渡。
+  > 内部质量版本：Rust 壳层三大模块目录化重构（纯移动、行为零变化）。Electron 维护线同步升至 **0.1.8**——0.1.x 老用户检查更新即得；其内置的架构迁移提示（「下载 Rust 版 / 稍后 / 继续使用 0.1.x」）引导下载 Rust 版 **0.2.1**（跨架构无法自动升级，仅引导）。**推荐直接下载 Rust 架构安装包**。
 
   ### 新增
 
-  - **Rust + Tauri 原生壳层（Windows NSIS + macOS dmg）**：安装包体积约 290MB → **6MB**（Windows），安装与启动更快，空闲内存约降低 11%。渲染层（编辑器、导出、双链、图谱、AI 助手、主题等全部功能）与 0.1.6 一致——转正前经 41 项自动化验收（Windows 30 项 + 补充 11 项）与 macOS 桌面自动化逐项验证，并与 Electron 版同机性能对照：滚动 58~60 FPS 满帧、懒渲染契约一致、无功能回归
-  - **新自动更新机制**：更新器迁移至 Tauri 官方 updater——检查更新 → 原生对话框确认 → 全量下载安装 → 「保存并重启」握手 → 自动重启；更新包经 minisign 签名校验（公钥内置于应用，签名不符拒绝安装），更新源 Gitee（主）/ GitHub（备）双端点；启动 5 秒后自动检查（可在设置关闭），检查更新旁显示当前版本号
-  - **大文档打开不冻结（分帧挂载）**：超过 20 万字符的文档改为流式挂载——编辑器立即可用，内容分帧渐进补齐。1MB 文档实测：首屏内容约 0.5 秒可见（原为整篇一次性出现、期间界面冻结 1.2 秒以上），打开全程界面保持响应；巨型列表（数千项）结构与序列化逐项校验完整
-  - **启动与体积三连优化**：启动资源 1.94MB → 359KB（-82%）——CodeMirror（源码/分屏模式）、KaTeX 数学公式与 sanitize-html（原生 HTML）、代码高亮 refractor 全部改为按需懒加载，不含对应内容的文档永远不加载；编辑与滚动性能经 CPU 采样归因确认与文档大小无关
+  - **图床功能恢复（Rust 原生实现）**：不再依赖 PicGo-Core，重写 sm.ms / GitHub / 阿里云 OSS / 腾讯云 COS / 七牛 / 又拍云 / Imgur 共 7 家，签名算法（OSS V1、COS v5、七牛 upload token、又拍云 Basic Auth）经标准向量与独立实现交叉验证；零新增三方依赖。GitHub 已用真实 PAT 端到端实测通过，其余六家待按 `docs/picgo-acceptance.md` 补测
+  - **macOS 应用菜单与视图菜单**：补齐「关于 / 服务 / 隐藏 / 退出」应用菜单与「重新载入 / 全屏」视图菜单（此前文件菜单被系统顶成应用名、无应用菜单）；开发者工具仅 debug 构建出现
+  - **系统「最近文档」登记**：macOS 经 `NSDocumentController`、Windows 经 `SHAddToRecentDocs`，与 Electron 的 `app.addRecentDocument` 对齐——Dock 右键、跳转列表与资源管理器「最近使用的文件」可见
 
   ### 变更
 
-  - **图床功能暂不可用**：PicGo 图床上传未随本次迁移（设置面板「上传到图床」置灰并说明），图片粘贴/插入一律保存到本地或内联；已存的图床配置不受影响。Rust 重写或 sidecar 方案留待后续版本评估。顺带修复：此前打开设置面板时图床配置读取可触发一次崩溃
-  - **Windows 界面无菜单栏**：Tauri 版 Windows 侧不挂原生菜单（避免首帧闪烁），全部操作经窗口内「⋯」菜单、右键菜单与快捷键完成（快捷键与 0.1.6 一致，14 组已逐键自动化验证）；macOS 保留菜单栏（布局与 Electron 略有差异）
-
-  ### 兼容性说明（从 0.1.6 升级）
-
-  - **文档与数据全保留**：历史快照、崩溃恢复副本、日志、AI 配置等 `~/.tmd` 资产两代壳层共用，升级后无感知
-  - **界面个性化重置一次**：自定义快捷键、主题选择等浏览器本地偏好不随架构迁移，升级后为默认值，需重新设置
-  - **Windows**：安装向导支持简体中文；更新完成后应用会关闭，需手动重新打开一次（本次架构迁移的一次性行为）；旧版 0.1.6 可在「应用和功能」中卸载
-  - **macOS**：安装包未做 Apple 公证，首次打开需在「系统设置 → 隐私与安全性」点「仍要打开」放行（应用内「检查更新」下载的更新包自动清除隔离标记，不受影响），详见 docs/mac安装后启动报错解决方案.md；PDF 导出为连续版式，纸张/边距/页眉页脚选项暂不生效；文件名排序 zh-TW 注音序暂以拼音序代替；系统「最近文档」暂不注册
-
-  ### 修复
-
-  - **NSIS 安装向导中文系统显示英文**：安装器语言包补充简体中文，中文系统默认中文向导
-  - **macOS 剪贴板快捷键全部失效**：Cmd+C / Cmd+V / Cmd+X 在 Tauri 版无响应（复制不写剪贴板、粘贴无插入）。根因是 macOS 剪贴板快捷键经主菜单路由到 WKWebView——新壳层菜单缺「编辑」子菜单即断链（撤销/全选等 ProseMirror 键内绑定不受影响，故不易察觉）。补齐「编辑」菜单（撤销/重做/剪切/复制/粘贴/全选，系统本地化文案）后四键实测闭环
-  - **大文档打开期间的编辑保护**：超过 20 万字符的文档在分帧挂载尚未补齐时，用户的抢先编辑缺少脏标记与恢复副本（异常场景下可能无声丢失）。现在用户一编辑即原子补全剩余内容，置脏/恢复副本/字数回归正常链路；任何读取文档全文的操作（自动保存、切标签）也强制补全，不存在「半截文档落盘」的窗口
-  - **大文档首屏响应与无障碍**：超 20 万字符文档启用视口外渲染跳过（content-visibility），主线程不再为视口外内容付出布局成本；macOS 无障碍树遍历在纯编辑/纯源码模式下从超时降至约 3.5 秒可用（**分屏 + 超大文档组合下仍超时**——WebKit 对双编辑器无障碍遍历的平台限制，经四种剪枝手段实测无解，超大文档建议单栏使用）
-  - **双链锚点形态渲染**：`[[#标题]]`（仅锚点、无目标文件名）此前的显示文本为空，渲染成零宽空链接（视口里只剩一个悬空占位点）。现在回落显示标题名，与 `[[目标]]` / `[[目标|别名]]` 形态一致
-  - **macOS 导出期间占用键盘焦点**：导出 Word/长图/ePub 时离屏窗口会占用键盘焦点直到导出结束（期间打字全部丢失）。现在页面就绪即把焦点归还主窗口——1MB 文档导出 Word（34 秒）实测连打 8 键 7 键正常进入，仅窗口创建到就绪的约 0.3 秒为无损窗口期
-  - **0.1.6 已知问题随迁移一并修复**：见 0.1.6 及此前各节（编辑器功能两代壳层共用同一实现）
-releaseDate: '2026-11-09T14:24:06.307Z'
+  - 导出菜单去掉三项内部阶段标记前缀（「全文档 PDF 导出 / 视口截图 / 导窗形态矩阵」保留，仅去掉 `Spike:` 字样）
+  - `src-tauri/src/main.rs` 中 148 行注入脚本抽离为 `tmd-api-shim.js`（`include_str!` 引入），行为与字节完全一致
+  - **Rust 壳层三大模块目录化重构**（纯移动零语义变化，函数集合 / cfg 平台门控 / 字符串字面量逐一比对一致）：`exporter.rs` 925 行 → `exporter/` 8 文件、`bootstrap.rs` 770 行 → `bootstrap/` 4 文件（`run()` 444 行内联闭包全部提为具名函数）、设置面板 `settings.ts` 1171 行 → `settings/` 7 文件；`editor-core.ts` / `files.ts` 评估后保持原状——单域高内聚、状态密集，拆分需引入状态桥接层，收益不抵风险
+  - Vite chunk 大小警戒线 500 kB → 1024 kB：超限 chunk 均为按需加载（mermaid 图表运行时共享块 / 离屏导出窗口入口），桌面应用本地磁盘读取无网络级拆包收益，降噪保留真实膨胀捕获
+releaseDate: '2026-11-12T23:31:51.999Z'

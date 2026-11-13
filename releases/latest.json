@@ -1,15 +1,15 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "notes": "",
-  "pub_date": "2026-11-09T14:27:02.725Z",
+  "pub_date": "2026-11-12T23:36:21.847Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTbjhmRGhuTFNkcDBjcHBZWnBPQjFISWRVeWVMSTk4czNXVTBQRFhwM0Mvay95Sm9pMDFkZUlVcUN6TzRlaWhwTXEvSW1oMnhlQmtoUXpuZkpaVUs0YjliRjBzc0ZEbGdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjM0NDAwCWZpbGU6VE1EXzAuMi4wX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjIuMAoxQkV4MkZveGFzVVZ2MGNNVnROanhJaTg3Nmw4azFzRnl5ZUMyQmZScTFhOWJ3amU5aGZBSS9GdGdCU1ZYMDBUdFo4TlJIaVVHK2U4cUx0b3NMVm9CQT09Cg==",
-      "url": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.0/TMD_0.2.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTbjhmRGhuTFNkcHpjR2N3UGtKZHdxcE84L1Jqdmk1VDhSY0ZLTmhXblRpRzJteG1pRXdiZU55OFlzTENmMFVRMzd5TzR1VGc3ckRDeFNjVDZmMm0xWTFKS3FzY0JQZmdnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTI2NTI1CWZpbGU6VE1EXzAuMi4xX3g2NC1zZXR1cC5leGUJdmVyc2lvbjowLjIuMQpFcndqRTUvK21ZOVdjdGFEWlFZY1BLLyttVlNNRlowblNDNU40WVRvTUJSaDlUSE5RM2dvQmdhYXZLMGowN3Rod0QzaFpYYjF5akc2aFRRZE1ETVpBQT09Cg==",
+      "url": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD_0.2.1_x64-setup.exe"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTbjhmRGhuTFNkcDgxN1Q5MkxPWWRWcCt3cnlXU2llMzVtanl0RExIRCtaeUovN1BLR2N1N1BORlV1UVpuZlZtQ3BUaHdQOE4yNFIrQjgxWkhmQWU3RHozN3pmazNva0E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0MjM0MzM5CWZpbGU6VE1ELmFwcC50YXIuZ3oJdmVyc2lvbjowLjIuMApNeVpZU1dMdXkyWUcvWndxV0UzeERCSFFvVXZZNkFVSy9PdllxVWVwMEMyUytmV3dyU0lSVFU1NVZGWm9kd0RQdW8xdG56VUdmREdCdlNPVUdKQUVBZz09Cg==",
-      "url": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.0/TMD.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTbjhmRGhuTFNkcDJWdHh5ZC9LUnRodi9nQWkwTUFiRTd0YllYQ2Y5NEg5YnNoSnpKU2RQWURIMjdURHZ1Yy9qd1VNK0w5Y3Q5andWMWd2Ty81UWo3YmRKWWtzZ0Npa3dJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTI2MzU2CWZpbGU6VE1ELmFwcC50YXIuZ3oJdmVyc2lvbjowLjIuMQpuS1ljYWlSVVh6a1pkUzdqZlVKMlZkbVpucEltdndHWDRwemVGbU5MLzAwTUVOdmcrMlFaUG9nK251MXdTT3cySjRGcm1lbnQwV2NXRzlqTU1MU3NEQT09Cg==",
+      "url": "https://gitee.com/chiangyangNPU/tmd/releases/download/v0.2.1/TMD.app.tar.gz"
     }
   }
 }
