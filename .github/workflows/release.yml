@@ -396,7 +396,7 @@ jobs:
                 -F "tag_name=$TAG" \
                 -F "name=$TAG" \
                 --form-string "body=$RELEASE_BODY" \
-                -F "target_commitish=master")
+                -F "target_commitish=master" || true)
               RELEASE_ID=$(echo "$RELEASE_RESP" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{console.log(JSON.parse(d).id||'')}catch{console.log('')}})")
               if [ -n "$RELEASE_ID" ]; then
                 break
@@ -428,7 +428,7 @@ jobs:
               | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{try{const list=JSON.parse(d);if(Array.isArray(list)){for(const a of list) console.log(a.id)}}catch{}})")
             for aid in $ATTACH_IDS; do
               code=$(curl -s -o /dev/null -w "%{http_code}" -X DELETE \
-                "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$rid/attach_files/$aid?access_token=$GITEE_TOKEN")
+                "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$rid/attach_files/$aid?access_token=$GITEE_TOKEN" || true)
               echo "prune: release $rid attach $aid → HTTP $code"
             done
           done
@@ -443,15 +443,19 @@ jobs:
             size_mb=$(( $(stat -c%s "$f") / 1024 / 1024 ))
             # 失败重试三次：跨国链路偶发中断（v0.1.1 实测 dmg 整包未落库，
             # 故另有上传后 API 校验兜底，见步骤 5）。v0.1.0 实测 2 次重试
-            # 仍会双双失败（dmg 或 exe 各挂一轮），加到 4 次 + 拉长退避
+            # 仍会双双失败（dmg 或 exe 各挂一轮），加到 4 次 + 拉长退避。
+            # curl 末尾的 `|| true` 不能删：Actions 以 bash -e 执行，超时
+            # （exit 28）会让赋值直接终止整个步骤、重试循环形同虚设
+            # （v0.2.1 实测：串行通道 app.tar.gz 超时，整步带 28 退出）
             for attempt in 1 2 3 4; do
               echo "Uploading $name (${size_mb}MB) to Gitee Release (attempt $attempt)"
               code=$(curl -s -A "Mozilla/5.0 (compatible; tmd-release-bot/1.0)" \
+                --connect-timeout 60 \
                 --speed-limit 512 --speed-time 900 \
                 -o "/tmp/attach-${name}.json" -w "%{http_code}" -X POST \
                 "https://gitee.com/api/v5/repos/$GITEE_OWNER/$GITEE_REPO/releases/$RELEASE_ID/attach_files" \
                 -F "access_token=$GITEE_TOKEN" \
-                -F "file=@$f")
+                -F "file=@$f" || true)
               code="${code:-000}"
               if [ "$code" -ge 200 ] && [ "$code" -lt 300 ]; then
                 echo "$code" > "/tmp/attach-${name}.code"
