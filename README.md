@@ -11,28 +11,22 @@
 ## 快速开始
 
 ```bash
-npm install   # 首次安装依赖（国内网络 Electron 二进制下载失败时见下方说明）
-npm run dev            # 浏览器模式：http://localhost:5173
-npm run tauri dev      # 桌面模式（Tauri 壳，当前主壳）
-npm run dev:electron   # 桌面模式（Electron 壳，0.1.x 维护线兜底）
-npm run build          # 类型检查 + 生产构建
-npm run test:desktop   # Electron 壳端到端验证（需先 build；真实 Electron + 真实菜单，串行覆盖主链路与导出链路）
-npm run smoke:mac      # Tauri 壳冒烟（macOS 下对 release .app 跑 9 项页面断言）
-npm run bench          # 大文档性能基准（需先 build；MB 级纯文本 / 数十 Mermaid 图 / 图文混排，带回归门禁）
-npm run dist:tauri     # 打包 Tauri 安装包（mac: dmg / win: nsis）
-npm run dist:dir       # 打包 Electron 目录应用（维护线，不生成安装包）
-npm run dist           # 打包 Electron 安装包（维护线，mac: dmg / win: nsis）
+npm install                # 首次安装依赖
+npm run dev                # 浏览器模式：http://localhost:5173
+npm run tauri dev          # 桌面模式（Rust + Tauri 壳）
+npm run build              # 类型检查 + 生产构建
+npm run smoke:mac          # 壳层冒烟（macOS 下对 release .app 跑 9 项页面断言）
+npm run dist:tauri         # 打包安装包（mac: dmg / win: nsis）
+npm run dist:tauri:dir     # 只出 macOS 应用包（不生成 dmg）
+npm run dist:tauri:install # 打包并覆盖安装到 /Applications/TMD.app
 ```
-
-> Electron 二进制首次下载失败（GitHub 直连问题）时，改用镜像：
-> `ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" node node_modules/electron/install.js`
 
 ## 下载安装（普通用户）
 
 从 [GitHub Releases](https://github.com/ChiangyangNPU/tmd/releases/latest) 或 [Gitee Releases](https://gitee.com/chiangyangNPU/tmd/releases/latest) 下载安装包：
 
-- **macOS**：下载 `TMD-x.y.z-arm64.dmg`，打开后把 TMD 拖入「应用程序」
-- **Windows**：下载 `TMD-x.y.z-x64-Setup.exe`，双击安装
+- **macOS**：下载 `TMD_<版本>_aarch64.dmg`，打开后把 TMD 拖入「应用程序」
+- **Windows**：下载 `TMD_<版本>_x64-setup.exe`，双击安装
 
 > **macOS 首次打开被拦？** 从网页下载的安装包首次打开会被 Gatekeeper 拦截（提示「Apple 无法验证"TMD"…」），属正常现象，按 [docs/mac安装后启动报错解决方案.md](docs/mac安装后启动报错解决方案.md) 放行一次即可；通过应用内「检查更新」安装则不会有这一步。
 
@@ -84,11 +78,11 @@ npm run dist           # 打包 Electron 安装包（维护线，mac: dmg / win:
 - **窗口记忆**：窗口尺寸 / 位置 / 最大化状态持久化，重启原样恢复（显示器拔插时自动回落默认摆放）
 - 设置面板「关于」：软件名、版本（读 package.json）、版权、联系邮箱、主页（GitHub / Gitee），以及本软件与 15 个第三方组件的许可证声明与直达链接（默认折叠，点开展开）
 - 自动更新（Gitee / GitHub 双源，发现新版本弹窗询问，不静默下载）
-- **本地崩溃捕获与日志（零遥传）**：主/渲染进程 JS 异常统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；Electron 维护线额外把崩溃转储写入 `~/.tmd/crash-dumps`（Tauri 线暂不生成 minidump，仅保留崩溃线索扫描）。设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
+- **本地崩溃捕获与日志（零遥传）**：主/渲染进程 JS 异常统一写 `~/.tmd/logs` 本地 JSONL 日志（7 天/10 文件自动滚动），下次启动自动补记上次崩溃；壳层不生成 minidump，仅保留崩溃线索扫描。设置面板一键打开日志文件夹（支持 `TMD_HOME_DIR` 重定位目录）
 - **本地历史版本**：每次保存前自动留存被覆盖的旧内容到 `~/.tmd/history`（内容未变不重复留档，每文件 50 条 + 全局 200MB 自动清理）；主菜单「文件 → 历史版本…」可列出快照、预览并恢复到编辑器——恢复只改编辑器内容并置脏，是否覆盖磁盘由你显式保存决定
 - **外部修改检测与重载**：打开的文件在磁盘上被其他程序（编辑器 / git / 网盘）修改时自动感知——干净标签静默重载（内容未变不弹提示）；脏标签绝不静默覆盖，顶部提示条二选一：「重新加载」（采用磁盘内容并清脏）或「保留我的版本」（磁盘再变会再次提示）；文件被外部删除时提示且编辑器内容保留。内容指纹（sha1）过滤自身写入，不会误报；关闭标签即撤监视
 - **左右分屏**：源码与所见即所得并排（悬浮菜单（⋯）里的「分屏」/ `Ctrl/Cmd+Shift+E`），一侧编辑、另一侧只读跟随——点哪一侧即可编辑那一侧（双向实时同步会让 Markdown 往返转换改写你手写的源码，故不做）；两侧滚动近似同步，中间分隔条可拖拽调宽，宽度会记住
-- **主链路端到端测试**：真实构建产物 + Chrome DevTools 协议驱动（无额外测试框架），覆盖打开/编辑/脏标记/保存/另存为/外部修改检测（自动重载与脏态二选一）/历史版本/分屏双向跟随/未保存关闭拦截/异常落盘/渲染器与主进程崩溃恢复，共 49 项断言
+- **壳层冒烟测试**：对真实 release `.app` 断言编辑器挂载、壳层能力注入、文件读写通道与常用格式化快捷键，共 9 项（`npm run smoke:mac`）
 - **Tauri 桌面壳**（`src-tauri/`，0.2.x 起的主壳）：
   - 安装包约 6MB（Windows NSIS）/ macOS dmg，启动更快、空闲内存更低
   - 原生菜单：macOS 完整菜单栏（应用 / 文件 / 编辑 / 视图 / 导出 / 格式），Windows 走窗口内「⋯」菜单 + 右键菜单 + 快捷键
@@ -98,14 +92,10 @@ npm run dist           # 打包 Electron 安装包（维护线，mac: dmg / win:
   - 图床上传、导出（PDF / Word / 长图 / ePub / LaTeX）、历史版本、全文搜索等能力在 Rust 侧实现，渲染层经受控 shim 访问系统能力（无 Node 权限）
   - 自动更新：tauri-plugin-updater，Gitee（主）/ GitHub（备）双源，minisign 签名校验
   - 浏览器模式自动降级：文件选择用 `<input type=file>`，保存为下载
-- **Electron 桌面壳**（`electron/`，0.1.x 维护线，双轨兜底）：
-  - 自绘标题栏：Windows/Linux 单行工具栏 + `─ □ ✕` 窗口控制，Mac 红绿灯沉浸式；深浅色切换同帧变色
-  - 渲染层保持纯网页逻辑，Node 能力经 preload 受控暴露（contextIsolation）
-  - 安装包瘦身：打包时经 afterPack 钩子裁剪 Electron 的非中英文语言包与 WebGL/Vulkan 渲染组件，Windows 安装包约 93MB
 
 ## 技术栈
 
-Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate + sanitize-html + iconv-lite；双轨维护线仍保留 Electron 壳与 PicGo-Core。
+Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it（含 footnote / mark / sub / sup 插件） + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate + sanitize-html + iconv-lite。
 
 ## 目录结构
 
@@ -128,45 +118,20 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  ├─ src/tmd-api-shim.js        注入渲染层的受控 API（window.tmdAPI，替代 preload）
 │  └─ tauri.conf.json            窗口 / 打包 / 更新器配置
 │
-├─ electron/                     Electron 桌面壳（0.1.x 维护线，双轨兜底）
-│  ├─ main.cjs                   主进程入口（窗口 / 菜单生命周期、文件关联、各领域模块装配）
-│  ├─ app-state.cjs              跨模块共享状态 store（主窗口 / 脏标记 / 菜单文案 / 主题来源，纯 JS 可单测）
-│  ├─ updater.cjs                自动更新（Gitee / GitHub 双源、macOS dmg 自行下载安装）
-│  ├─ shell-state.cjs            壳层状态持久化（主题来源 + 窗口几何，随 userData 清理）
-│  ├─ recent.cjs                 最近文件镜像 + 系统最近文档注册（Jump List / Dock 菜单）
-│  ├─ ipc-files.cjs              文件 / 目录 / 搜索 / 双链 / 主题 / 日志 / 历史 / 导出 / 打印 IPC
-│  ├─ ipc-app.cjs                应用级 IPC（状态同步 / 窗口控制 / 图片落盘 / 链接跳转）
-│  ├─ picgo.cjs                  图床上传（PicGo-Core 实例懒加载 + 配置读写）
-│  ├─ menu.cjs                   应用菜单模板工厂（纯数据工厂，零 Electron 依赖，可独立单测）
-│  ├─ exporter.cjs               离屏导出服务（隐藏窗口、串行任务队列、截图与读图原语）
-│  ├─ preload.cjs                受控 API 暴露（contextBridge）
-│  ├─ exporter-preload.cjs       离屏导出页专用桥接（最小权限：4 个方法）
-│  ├─ ipc.cjs                    IPC 通道名常量（主进程与 preload 共用）
-│  └─ 子模块（纯 Node，可独立验证）：
-│     ├─ history.cjs              本地历史版本（写盘前快照、指纹去重、两层剪枝）
-│     ├─ logger.cjs               本地 JSONL 日志与崩溃转储扫描
-│     ├─ search.cjs               全文搜索的扫描与匹配
-│     ├─ wikilinks.cjs            双链索引扫描与解析（复用 search 枚举 + 围栏跳过）
-│     ├─ filewatcher.cjs          打开文件的外部修改监视（内容指纹过滤自身写入）
-│     ├─ dirwatcher.cjs           侧边栏已加载目录的外部变化监视（增删改名自动刷新树）
-│     ├─ fsops.cjs                侧边栏文件管理纯函数（新建 / 重命名的名称与路径安全）
-│     └─ themes.cjs               文件式主题目录扫描与安全校验
-│
 ├─ scripts/                      构建 / 测试 / 打包脚本
-│  ├─ trim-runtime.cjs           打包钩子：裁剪 Electron 运行时冗余文件（语言包、WebGL DLL）
+│  ├─ copy-export-assets.mjs     拷贝 Mermaid / KaTeX 运行时与字体到 dist/export-assets（离线导出内联）
 │  ├─ gen-lens-map.mjs           生成液态玻璃 Pro 的折射位移图（PNG data URI，改参数重跑后替换常量）
-│  ├─ make-icon.mjs              由 build/icon.svg 一键重建 png / icns / ico 图标
-│  ├─ make-dmg-background.mjs    生成 dmg 安装窗口背景图（当前版本号画进背景）
-│  ├─ patch-mac-dmg.mjs          dmg 后处理：转 ULMO 压缩 + 更新清单 sha512/size 重算
+│  ├─ tauri-build-signed.mjs     带更新签名的 Tauri 打包包装（读 updater 私钥）
+│  ├─ tauri-mac-check.mjs        macOS 壳层冒烟（真实 release .app，9 项页面断言）
+│  ├─ tauri-gui-check.mjs        Windows 壳层冒烟（WebView2 CDP，最小断言集）
+│  ├─ tauri-bench.mjs            大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
+│  ├─ tauri-acceptance.mjs       转正验收自动化（验收清单的机器可验子集）
+│  ├─ make-tauri-latest.mjs      生成 Tauri 更新器元数据 latest.json
+│  ├─ make-migration-json.mjs    生成 0.1.x → 当前 Rust 包的迁移元数据
 │  ├─ extract-release-notes.mjs  从 CHANGELOG 提取当前版本说明写入 .release-notes.md
-│  ├─ prepare-gitee-release.mjs  生成 / 重算 Gitee 自动更新清单与待上传清单
+│  ├─ prepare-gitee-release.mjs  校验并同步 Gitee 更新元数据、列出待上传产物
 │  ├─ cleanup-old-app.sh         清理本地旧应用构建
-│  ├─ desktop-app-check.mjs      主链路 + 可靠性 + 外部修改检测 + 历史版本 + 分屏 + 查找映射 桌面 E2E（49 断言）
-│  ├─ desktop-export-check.mjs   导出 Word / 长图 / ePub / LaTeX 桌面 E2E（39 断言）
-│  ├─ desktop-bench.mjs          大文档性能基准（打开、输入、滚动、长任务，带回归门禁）
-│  ├─ *-probe.mjs / ime-*.mjs    一次性真机诊断探针（输入法 / 双链 / 图谱对齐 / 思维导图 / 脏标记 / 输入剖析）
-│  └─ lib/
-│     └─ desktop-harness.mjs     桌面 E2E 共享驱动（CDP 客户端、隔离启动、进程组回收）
+│  └─ *-probe.mjs / ime-*.mjs    一次性真机诊断探针（输入法 / 双链 / 图谱对齐 / 思维导图 / 脏标记 / 输入剖析）
 │
 ├─ src/                          渲染层（Vite 构建产物）
 │  ├─ main.ts                    应用启动与全局装配（boot、hooks 注入、快捷键、菜单回调）
@@ -242,7 +207,7 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  ├─ templates/                 index.html 浮层 / 面板 HTML 分块（?raw 内联）
 │  ├─ styles/                    样式分块（01 设计令牌 → 15 打印，编号即级联顺序）
 │  ├─ style.css                  样式入口：仅按原级联顺序 @import styles/*.css
-│  └─ __tests__/                 vitest 纯函数单元测试（61 个测试文件 / 739 用例）
+│  └─ __tests__/                 vitest 纯函数单元测试（51 个测试文件 / 654 用例）
 │
 ├─ docs/                         项目文档
 │  ├─ 需求说明.md                功能清单与路线图
@@ -254,13 +219,12 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  ├─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
 │  └─ archive/                   历史开发计划归档（非现行文档，仅供追溯）
 │
-├─ build/                        打包资源（图标、dmg 背景图、NSIS 自定义脚本）
-├─ .github/workflows/            CI（build / release 工作流）
+├─ build/                        打包资源（dmg 安装窗口背景图）
+├─ .github/workflows/            CI（检查 / Rust 编译门禁 / 发布工作流）
 ├─ dist/                         渲染层构建产物（vite build 输出；本地生成，git 忽略，可随时删除重建）
-├─ release/                      本地打包产物（electron-builder 输出：dmg / nsis 安装包与应用目录；本地生成，git 忽略，可随时删除）
-└─ releases/                     自动更新清单（latest.yml / latest-mac.yml，git 跟踪）：Gitee 更新源指向本目录
-                                 的 raw 地址，electron-updater 据此发现新版本并校验安装包 sha512；每次发版后
-                                 由 CI / 本地发布脚本重新生成并提交——勿手改、勿删除，删掉 Gitee 渠道自动更新即失效
+├─ release/                      发布产物暂存（本地补发通道读取；本地生成，git 忽略，可随时删除）
+└─ releases/                     更新元数据（git 跟踪）：latest.json / migration.json 随发版更新，
+                                  latest.yml / latest-mac.yml 为 0.1.x 迁移链冻结副本，勿手改、勿删除
 ```
 
 > 完整模块职责说明见 [docs/架构设计.md](docs/架构设计.md)。
@@ -269,4 +233,4 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 
 本软件以 [MIT License](LICENSE) 发布，Copyright (c) 2026 chiangyang。
 
-第三方组件（Electron、Chromium、Node.js、Milkdown、CodeMirror、Markdown-It、Mermaid、KaTeX、Refractor、remark-frontmatter、PicGo-Core、electron-updater、dom-docx、mathml2omml、fflate）的许可证声明与链接见软件内设置面板「关于」区域。
+第三方组件（Milkdown、Mermaid、KaTeX 等）的许可证声明与链接见软件内设置面板「关于」区域。

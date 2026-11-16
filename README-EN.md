@@ -11,27 +11,22 @@ For the scope of requirements, see [docs/需求说明.md](docs/需求说明.md) 
 ## Quick Start
 
 ```bash
-npm install   # Install dependencies first (see note below if the Electron binary download fails)
-npm run dev            # Browser mode: http://localhost:5173
-npm run tauri dev      # Desktop mode (Tauri shell, primary)
-npm run dev:electron   # Desktop mode (Electron shell, 0.1.x maintenance line)
-npm run build          # Type check + production build
-npm run test:desktop   # Electron-shell end-to-end check (run build first; real Electron + real menus)
-npm run smoke:mac      # Tauri-shell smoke test (9 page assertions against the release .app on macOS)
-npm run bench          # Large-document performance benchmark (run build first; MB-scale text / dozens of Mermaid charts / mixed, with regression gates)
-npm run dist:tauri     # Build Tauri installers (mac: dmg / win: nsis)
-npm run dist           # Build Electron installers (maintenance line)
+npm install                # Install dependencies first
+npm run dev                # Browser mode: http://localhost:5173
+npm run tauri dev          # Desktop mode (Rust + Tauri shell)
+npm run build              # Type check + production build
+npm run smoke:mac          # Shell smoke test (9 page assertions against the release .app on macOS)
+npm run dist:tauri         # Build installers (mac: dmg / win: nsis)
+npm run dist:tauri:dir     # Build the macOS app bundle only (no dmg)
+npm run dist:tauri:install # Build and install over /Applications/TMD.app
 ```
-
-> If the Electron binary fails to download on first install (direct GitHub connection issues), use a mirror instead:
-> `ELECTRON_MIRROR="https://npmmirror.com/mirrors/electron/" node node_modules/electron/install.js`
 
 ## Download & Install (end users)
 
 Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/releases/latest) or [Gitee Releases](https://gitee.com/chiangyangNPU/tmd/releases/latest):
 
-- **macOS**: download `TMD-x.y.z-arm64.dmg`, open it and drag TMD into Applications
-- **Windows**: download `TMD-x.y.z-x64-Setup.exe` and run the installer
+- **macOS**: download `TMD_<version>_aarch64.dmg`, open it and drag TMD into Applications
+- **Windows**: download `TMD_<version>_x64-setup.exe` and run the installer
 
 > **Blocked on first launch on macOS?** Installers downloaded from the web trigger Gatekeeper on first open ("Apple cannot verify "TMD"…"). This is expected — follow [docs/mac安装后启动报错解决方案.md](docs/mac安装后启动报错解决方案.md) (in Chinese) to allow it once. Updates installed through the in-app updater clear the quarantine flag automatically and skip this entirely.
 
@@ -82,11 +77,11 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Window memory**: window size / position / maximized state persist and restore on restart (falls back to a default placement when monitors are plugged or unplugged)
 - Settings panel "About": app name, version (read from package.json), copyright, contact email, homepages (GitHub / Gitee), plus license declarations and direct links for the app itself and 15 third-party components (collapsed by default, expand to view)
 - Auto-update (dual Gitee / GitHub feeds; a dialog asks before downloading, never silent)
-- **Local crash capture & logs (zero telemetry)**: crashReporter writes minidumps only to `~/.tmd/crash-dumps` (no upload, no server, no crash dialog); JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
+- **Local crash capture & logs (zero telemetry)**: JS errors from main/renderer and renderer crashes go to local JSONL logs under `~/.tmd/logs` (auto-rotated: 7 days / 10 files), and the previous crash is logged on the next launch; the shell does not produce minidumps and only keeps crash-clue scanning; a settings-panel button opens the log folder (relocatable via `TMD_HOME_DIR`)
 - **Local version history**: the on-disk content is archived to `~/.tmd/history` before every save (identical content is not duplicated; auto-pruned at 50 versions per file plus a 200 MB global cap); "File → Version History…" lists, previews and restores a version into the editor — restoring only changes the editor and marks it dirty, so overwriting the file stays your explicit decision
-- **External change detection & reload**: files opened in the editor are watched on disk (content fingerprinting in `electron/filewatcher.cjs`, own writes filtered out) — clean tabs reload silently; dirty tabs are never overwritten silently and get a prompt bar to choose "Reload" (take disk content, clear dirty) or "Keep mine" (prompts again on further changes); externally deleted files show a notice and keep the editor content
+- **External change detection & reload**: files opened in the editor are watched on disk (content fingerprinting, own writes filtered out) — clean tabs reload silently; dirty tabs are never overwritten silently and get a prompt bar to choose "Reload" (take disk content, clear dirty) or "Keep mine" (prompts again on further changes); externally deleted files show a notice and keep the editor content
 - **Split view**: source and WYSIWYG side by side (the ⋯ menu → "Split" / `Ctrl/Cmd+Shift+E`) — one pane is editable, the other follows along read-only; click a pane to make it the editable one (two-way live sync is intentionally not offered: Markdown round-tripping would rewrite your hand-written source). Scrolling is approximately synced, the divider is draggable and its width is remembered
-- **Main-flow end-to-end tests**: driven against the real built app over the Chrome DevTools Protocol (no extra test framework), covering open / edit / dirty flag / save / save-as / external-change detection (auto reload & dirty-state prompt) / version history / split-view two-way follow / unsaved-close interception / error persistence / renderer & main process crash recovery — 49 assertions in total
+- **Shell smoke test**: asserts the editor mounts, shell capabilities are injected, the file channel works and common formatting shortcuts fire against the real release `.app` — 9 assertions (`npm run smoke:mac`)
 - **Tauri desktop shell** (`src-tauri/`, the primary shell since 0.2.x):
   - ~6MB installer (Windows NSIS) / macOS dmg, faster startup and lower idle memory
   - Native menus: full macOS menu bar (App / File / Edit / View / Export / Format); on Windows everything is reachable via the in-window "⋯" menu, context menus and shortcuts
@@ -96,14 +91,10 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
   - Image hosting, export (PDF / Word / long image / ePub / LaTeX), version history and full-text search are implemented in Rust; the renderer reaches system capabilities through a controlled shim (no Node privileges)
   - Auto-update via tauri-plugin-updater (Gitee primary / GitHub fallback) with minisign signature verification
   - Automatic degradation in browser mode: file picking uses `<input type=file>`, saving becomes a download
-- **Electron desktop shell** (`electron/`, 0.1.x maintenance line, kept as fallback):
-  - Custom-drawn title bar: single-row toolbar with `─ □ ✕` window controls on Windows/Linux, immersive traffic lights on macOS
-  - The renderer keeps pure web logic; Node capabilities are exposed in a controlled way via preload (contextIsolation)
-  - Slim installers: an afterPack hook trims Electron's non-Chinese/English locale packs and WebGL/Vulkan rendering components; the Windows installer is about 93MB
 
 ## Tech Stack
 
-Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it (with footnote / mark / sub / sup plugins) + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate; the fallback maintenance line keeps the Electron shell and PicGo-Core.
+Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirror 6 + KaTeX + refractor + markdown-it (with footnote / mark / sub / sup plugins) + dom-docx + mathml2omml + d3-force + remark-frontmatter + pinyin-pro + fflate + sanitize-html + iconv-lite.
 
 ## Directory Structure
 
@@ -123,45 +114,20 @@ Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirr
 │  ├─ src/updater.rs             Auto-update (tauri-plugin-updater + minisign verification)
 │  └─ src/tmd-api-shim.js        Injected controlled API (window.tmdAPI, replaces preload)
 │
-├─ electron/                     Electron desktop shell (0.1.x maintenance line, fallback)
-│  ├─ main.cjs                   Main process entry (window / menu lifecycle, file association, module wiring)
-│  ├─ app-state.cjs              Cross-module shared-state store (main window / dirty flag / menu labels / theme source, unit-testable)
-│  ├─ updater.cjs                Auto-update (Gitee / GitHub dual source, self-downloaded macOS dmg)
-│  ├─ shell-state.cjs            Shell state persistence (theme source + window geometry)
-│  ├─ recent.cjs                 Recent-files mirror + system recent-documents registration
-│  ├─ ipc-files.cjs              File / directory / search / wiki-link / theme / log / history / export / print IPC
-│  ├─ ipc-app.cjs                App-level IPC (state sync / window controls / image saving / link opening)
-│  ├─ picgo.cjs                  Image hosting (lazy PicGo-Core instance + config read/write)
-│  ├─ menu.cjs                   App menu template factory (pure data factory, zero Electron deps, unit-testable)
-│  ├─ exporter.cjs               Offscreen export service (hidden window, serial task queue, capture & read-image primitives)
-│  ├─ preload.cjs                Controlled API exposure (contextBridge)
-│  ├─ exporter-preload.cjs       Offscreen export page bridge (minimal privilege: 4 methods)
-│  ├─ ipc.cjs                    IPC channel name constants (shared by main and preload)
-│  └─ Submodules (pure Node, independently verifiable):
-│      ├─ history.cjs            Local version history (pre-write snapshots, hash dedup, two-tier pruning)
-│      ├─ logger.cjs              Local JSONL logging & minidump scanning
-│      ├─ search.cjs              Full-text search scanning & matching
-│      ├─ wikilinks.cjs           Wiki-link index scanning & resolution (reuses search enumeration + fence skip)
-│      ├─ filewatcher.cjs         External-change watcher for open files (content fingerprint filters self-writes)
-│      ├─ dirwatcher.cjs          External-change watcher for loaded sidebar folders (create/delete/rename auto-refresh)
-│      ├─ fsops.cjs               Sidebar file-management pure functions (name & path safety for new/rename)
-│      └─ themes.cjs              File-based theme folder scanning & safety checks
-│
 ├─ scripts/                      Build / test / pack scripts
-│  ├─ trim-runtime.cjs           Pack hook: trims redundant Electron runtime files (locales, WebGL DLLs)
+│  ├─ copy-export-assets.mjs     Copies Mermaid / KaTeX runtimes and fonts into dist/export-assets (offline export inlining)
 │  ├─ gen-lens-map.mjs           Generates the Liquid Glass Pro refraction displacement map (PNG data URI; tweak params, rerun, paste the constant)
-│  ├─ make-icon.mjs              Rebuilds png / icns / ico icons from build/icon.svg
-│  ├─ make-dmg-background.mjs    Renders the dmg installer background image (current version drawn in)
-│  ├─ patch-mac-dmg.mjs          dmg post-processing: recompress to ULMO + recompute manifest sha512/size
+│  ├─ tauri-build-signed.mjs     Signed Tauri build wrapper (reads the updater private key)
+│  ├─ tauri-mac-check.mjs        macOS shell smoke test (real release .app, 9 page assertions)
+│  ├─ tauri-gui-check.mjs        Windows shell smoke test (WebView2 CDP, minimal assertion set)
+│  ├─ tauri-bench.mjs            Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
+│  ├─ tauri-acceptance.mjs       Acceptance automation (the machine-checkable subset of the checklist)
+│  ├─ make-tauri-latest.mjs      Generates the Tauri updater manifest latest.json
+│  ├─ make-migration-json.mjs    Generates migration metadata from 0.1.x to the current Rust build
 │  ├─ extract-release-notes.mjs  Extracts the current version's notes from CHANGELOG into .release-notes.md
-│  ├─ prepare-gitee-release.mjs  Generates / recomputes the Gitee auto-update manifest and upload list
+│  ├─ prepare-gitee-release.mjs  Validates and syncs Gitee update metadata, lists assets to upload
 │  ├─ cleanup-old-app.sh         Cleans up old local app builds
-│  ├─ desktop-app-check.mjs      Main-flow, reliability, external-change, history, split-view & find-mapping desktop E2E (49 assertions)
-│  ├─ desktop-export-check.mjs   Word / long-image / ePub / LaTeX export desktop E2E (39 assertions)
-│  ├─ desktop-bench.mjs          Large-document performance benchmark (open / input / scroll / long tasks, with regression gates)
-│  ├─ *-probe.mjs / ime-*.mjs    One-off real-machine diagnostic probes (IME / wiki-links / graph alignment / mindmap / dirty marker / input profiling)
-│  └─ lib/
-│     └─ desktop-harness.mjs     Shared desktop E2E driver (CDP client / isolated launch / process-group cleanup)
+│  └─ *-probe.mjs / ime-*.mjs    One-off real-machine diagnostic probes (IME / wiki-links / graph alignment / mindmap / dirty marker / input profiling)
 │
 ├─ src/                          Renderer layer (Vite build output)
 │  ├─ main.ts                    App startup & global wiring (boot, hooks injection, shortcuts, menu callbacks)
@@ -237,7 +203,7 @@ Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirr
 │  ├─ templates/                 index.html overlay/panel HTML partials (?raw inlined)
 │  ├─ styles/                    Style chunks (01 design tokens → 15 print; number order = cascade order)
 │  ├─ style.css                  Style entry: only @import styles/*.css in original cascade order
-│  └─ __tests__/                 vitest pure-function unit tests (61 files / 739 cases)
+│  └─ __tests__/                 vitest pure-function unit tests (51 files / 654 cases)
 │
 ├─ docs/                         Project documentation (Chinese)
 │  ├─ 需求说明.md                Feature list & roadmap
@@ -249,14 +215,12 @@ Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirr
 │  ├─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
 │  └─ archive/                   Archived historical development plans (not current docs)
 │
-├─ build/                        Packaging assets (icons, dmg background, NSIS custom scripts)
-├─ .github/workflows/            CI (build / release workflows)
+├─ build/                        Packaging assets (dmg installer background)
+├─ .github/workflows/            CI (checks / Rust build gate / release workflow)
 ├─ dist/                         Renderer build output (vite build; generated locally, git-ignored, safe to delete)
-├─ release/                      Local pack output (electron-builder: dmg / nsis installers and app bundle; generated locally, git-ignored, safe to delete)
-└─ releases/                     Auto-update manifests (latest.yml / latest-mac.yml, git-tracked): the Gitee update feed points
-                                 at this directory's raw URL; electron-updater discovers new versions and verifies the installer
-                                 sha512 from these files. Regenerated & committed by CI / the local release script after each
-                                 release — never hand-edit or delete, or Gitee-channel auto-update breaks
+├─ release/                      Staging area for release assets (read by the local re-publish channel; git-ignored)
+└─ releases/                     Update metadata (git-tracked): latest.json / migration.json are refreshed per release,
+                                 while latest.yml / latest-mac.yml are frozen copies for the 0.1.x migration chain — never hand-edit or delete
 ```
 
 > For the full module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese).
@@ -265,4 +229,4 @@ Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirr
 
 This software is released under the [MIT License](LICENSE), Copyright (c) 2026 chiangyang.
 
-License declarations and links for third-party components (Electron, Chromium, Node.js, Milkdown, CodeMirror, Markdown-It, Mermaid, KaTeX, Refractor, remark-frontmatter, PicGo-Core, electron-updater, dom-docx, mathml2omml, fflate) are available in the app's Settings → About panel.
+License declarations and links for third-party components (Milkdown, Mermaid, KaTeX, etc.) are available in the app's Settings → About panel.
