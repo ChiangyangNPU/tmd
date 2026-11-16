@@ -7,7 +7,7 @@
  *   连续命中加分，得分相同偏向更短文件名
  * - 打开分发：已打开 → 跳转既有标签；未打开 → openPath 读盘新开
  * - 键盘：↑↓ 选择、回车打开、Esc 关闭（Esc 与点击遮罩关闭在 main.ts /
- *   wireQuickSwitch 各自处理）；Electron 下 Ctrl+P 菜单 accelerator 已让位
+ *   wireQuickSwitch 各自处理）；桌面壳下 Ctrl+P 菜单 accelerator 已让位
  *
  * @author chiangyang
  */

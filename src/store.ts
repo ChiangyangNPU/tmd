@@ -7,7 +7,7 @@
 import type { ImageStrategy } from './paste-image'
 import { normalizePdfOptions, parsePdfOptions, type PdfOptions } from './pdf-options'
 
-// 注意：electron/main.cjs「放弃修改并关闭」路径硬编码了此键名，改键时须同步
+// 注意：src-tauri/src/bootstrap/window.rs「放弃修改并关闭」的清副本逻辑硬编码了此键名，改键时须同步
 export const DOC_KEY = 'tmd:doc:v1'
 export const THEME_KEY = 'tmd:theme'
 export const RECENT_KEY = 'tmd:recent'

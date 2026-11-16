@@ -3,7 +3,7 @@
  * - HTML：独立文件（Mermaid/KaTeX 走 CDN，样式内联）
  * - PDF：系统打印对话框
  * - Word / 长图：把共享文档核心（export-doc.ts）组装为任务，
- *   交给离屏导出服务（electron/exporter.cjs 的隐藏窗口）完成渲染与转换
+ *   交给离屏导出服务（src-tauri/src/exporter/ 的探边窗口）完成渲染与转换
  *
  * Markdown 渲染规则与导出样式只有一份（export-doc.ts），本层只负责
  * "从当前窗口采集状态 + 组织外壳 + 反馈结果"。
@@ -112,7 +112,7 @@ export async function exportHtml(markdown: string, currentName: string) {
   )
 }
 
-/** 浏览器模式的下载兜底（Electron 模式走 native.exportAs 存盘） */
+/** 浏览器模式的下载兜底（桌面壳走 native.exportAs 存盘） */
 function triggerBrowserDownload(content: string, defaultName: string, mime: string) {
   const blob = new Blob([content], { type: mime })
   const url = URL.createObjectURL(blob)
@@ -124,7 +124,7 @@ function triggerBrowserDownload(content: string, defaultName: string, mime: stri
   setTimeout(() => URL.revokeObjectURL(url), 0)
 }
 
-/** 存盘统一入口：Electron 弹原生保存框写盘；浏览器模式退化为下载 */
+/** 存盘统一入口：桌面壳弹原生保存框写盘；浏览器模式退化为下载 */
 async function saveOrDownload(
   content: string,
   defaultName: string,

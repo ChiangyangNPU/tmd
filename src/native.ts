@@ -1,8 +1,8 @@
 /**
- * Electron 原生能力（preload 注入）的类型与引用
+ * 桌面壳原生能力的类型与引用（由 src-tauri 注入的 window.tmdAPI 承载）
  *
  * 渲染层与壳层之间的唯一契约：编辑器代码只依赖本接口，
- * 不直接接触任何 Electron API，保证壳层可替换（如未来迁移 Tauri）。
+ * 不直接接触任何壳层 API 原语，保证壳层实现可替换。
  * 浏览器环境下 window.tmdAPI 不存在，各功能模块据此降级。
  *
  * @author chiangyang
@@ -129,7 +129,7 @@ export interface ExportAssets {
 /**
  * 壳层能力声明：某些通道只在特定壳里实现（当前 Tauri 版没有图床与自动更新）。
  *
- * 字段缺省 = 支持（Electron preload 不声明本对象，历史行为不变）；
+ * 字段缺省 = 支持（旧壳未声明本对象，历史行为不变）；
  * 显式 false 表示该能力整块不可用，渲染层据此降级 UI 而不是等调用后拿到
  * undefined。Tauri 的 shim 里未实现通道是 no-op（返回 undefined），
  * 若不做前置探测，`getPicGoConfig()` 之类会在解构结果时直接抛错。
@@ -145,7 +145,7 @@ export interface NativeCapabilities {
  * 壳层是否具备某项能力。
  *
  * 浏览器模式（无 native）与壳层未声明的字段都按「支持」处理——
- * 前者各模块本就有 `!native` 降级分支，后者保证 Electron 版零行为变化。
+ * 前者各模块本就有 `!native` 降级分支，后者保证旧壳零行为变化。
  */
 export function hasNativeFeature(feature: keyof NativeCapabilities): boolean {
   if (!native) return false
@@ -198,9 +198,9 @@ export interface NativeFileAPI {
   openExternal(url: string): Promise<boolean>
   /** 链接点击：系统默认应用打开本地文件（绝对路径），返回错误串（空串为成功） */
   openLocalFile(filePath: string): Promise<string>
-  /** 拖入文件换绝对路径（Electron 32+ 移除了 File.path，经 preload webUtils 解析） */
+  /** 拖入文件换绝对路径（WebView 的 File 不携带路径，经壳层通道解析） */
   getPathForFile(file: File): string
-  /** Tauri 独有：订阅文件拖放的原生路径（dragDropEnabled 拦截下 HTML5 drop 不携带文件；Electron/浏览器无此通道） */
+  /** 桌面壳独有：订阅文件拖放的原生路径（dragDropEnabled 拦截下 HTML5 drop 不携带文件；浏览器无此通道） */
   onDropPaths?(callback: (paths: string[]) => void): void
   /** Tauri 独有：按路径读取拖入图片（扩展名白名单 + 32MB 上限），供构造 File 复用插入链；非法返回 null */
   readDroppedFile?(filePath: string): Promise<{ name: string; mime: string; base64: string } | null>
@@ -472,7 +472,7 @@ export const native = window.tmdAPI
 
 /**
  * IPC 通道名表：主进程与 preload 共用。
- * 实际常量在 electron/ipc.cjs（JS 模块，Electron 直接 require 无需编译），
+ * 通道实现在 src-tauri/src/tmd-api-shim.js 与 src-tauri/src/commands/ 各文件，
  * 该文件用 JSDoc 标注为本接口——tsc checkJs 保证两侧键名对齐，
  * 改通道名时只改这一处。
  */

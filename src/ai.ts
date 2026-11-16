@@ -69,7 +69,7 @@ const pending = new Map<string, AiChatHandlers>()
 /** 流式事件订阅是否已挂载（preload 只提供一次性 on，重复挂载会重复分发） */
 let wired = false
 
-/** 生成请求 id：优先用 crypto.randomUUID（Electron 渲染进程支持） */
+/** 生成请求 id：优先用 crypto.randomUUID（WebView 支持） */
 function newRequestId(): string {
   const cryptoApi = globalThis.crypto
   if (cryptoApi && typeof cryptoApi.randomUUID === 'function') return cryptoApi.randomUUID()

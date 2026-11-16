@@ -26,7 +26,7 @@ describe('hasNativeFeature 壳层能力探测', () => {
     expect(hasNativeFeature('updater')).toBe(false)
   })
 
-  it('壳层未声明 capabilities 时按支持处理（Electron 版行为不变）', async () => {
+  it('壳层未声明 capabilities 时按支持处理（旧壳行为不变）', async () => {
     const { hasNativeFeature } = await loadWith({ isNative: true })
     expect(hasNativeFeature('picgo')).toBe(true)
     expect(hasNativeFeature('updater')).toBe(true)

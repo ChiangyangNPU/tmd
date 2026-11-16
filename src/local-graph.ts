@@ -39,7 +39,7 @@ interface MiniEdge {
   target: MiniNode | string
 }
 
-/** 行内 wikilink 匹配（与 electron/wikilinks.cjs 同款正则） */
+/** 行内 wikilink 匹配（与 src-tauri/src/wikilinks.rs 同款正则） */
 const WIKI_LINE_RE = /\[\[([^[\\\]\n]+)\]\]/g
 
 /** [[..]] 内部 target 段（与 src/wikilink.ts 同构） */

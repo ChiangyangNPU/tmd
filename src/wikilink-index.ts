@@ -6,7 +6,7 @@
  * 触发装饰重算。失效不立即重扫——保存场景以「内容含 [[ 」为门槛 + 防抖
  * 调度（自动保存高频，无双链的文档零开销），改名/新建/文件夹变更直接调度。
  *
- * 解析规则与 electron/wikilinks.cjs 的 resolveTarget 同构（渲染层不能
+ * 解析规则与 src-tauri/src/wikilinks.rs 的 resolveTarget 同构（渲染层不能
  * require CJS，改动需两侧同步）：相对路径 → 同目录同名 → 全工作区唯一名。
  * 区别：键用 normalizePath 归一（渲染层无 path 模块，且 Windows 侧
  * 主进程给的是反斜杠原生路径，归一后与点击解析的拼接结果对齐）。

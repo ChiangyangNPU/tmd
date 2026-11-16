@@ -7,7 +7,7 @@
  * - 长图（export-image.ts：离屏页内整页截图）
  * - ePub（export-epub.ts：离屏页序列化 XHTML 后打包 EPUB 3）
  *
- * 本模块不依赖 Electron / DOM 副作用（collectThemeVars 除外，仅主窗口采集时调用），
+ * 本模块不依赖壳层 / DOM 副作用（collectThemeVars 除外，仅主窗口采集时调用），
  * 纯函数部分均可在 vitest（node 环境）下直接断言。
  *
  * @author chiangyang

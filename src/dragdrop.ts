@@ -1,14 +1,14 @@
 /**
  * 拖拽打开文件
  *
- * - 拖 .md / .markdown / .txt 进窗口：新标签打开（Electron 经磁盘读取，
+ * - 拖 .md / .markdown / .txt 进窗口：新标签打开（桌面壳经磁盘读取，
  *   享受同路径去重与最近列表；浏览器降级为直接读 File 内容）
  * - 拖图片进文档：按粘贴图片策略插入（inline / assets，见 paste-image.ts）
  * - 两者混合拖入时各自处理
  *
  * 监听挂 window 捕获阶段：仅拦截携带文件的拖放（types 含 "Files"），
- * 编辑器内部文本拖拽不受影响；preventDefault 同时阻止浏览器/Electron
- * 用文件触发页面导航。Electron 32+ 的 File 无 path 属性，绝对路径经
+ * 编辑器内部文本拖拽不受影响；preventDefault 同时阻止浏览器/壳层
+ * 用文件触发页面导航。WebView 的 File 无 path 属性，绝对路径经
  * preload 的 webUtils.getPathForFile 换取；Tauri 壳走 onDropPaths 原生
  * 路径事件（dragDropEnabled 拦截下 HTML5 drop 不携带文件）。
  *
@@ -66,7 +66,7 @@ async function handleDrop(files: File[]) {
 /**
  * Tauri 壳的拖放处理：文件拖放经原生拦截（dragDropEnabled 默认开启），
  * HTML5 drop 拿不到文件，路径经 onDropPaths 下发——md 按路径打开（与
- * Electron 的路径流同款：同路径去重、最近列表、编码保持），图片经
+ * 与打开文件同一套路径流：同路径去重、最近列表、编码保持），图片经
  * readDroppedFile 白名单读盘后构造 File 复用粘贴图片插入链。
  */
 async function handleDroppedPaths(paths: string[]): Promise<void> {

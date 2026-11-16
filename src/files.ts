@@ -1,5 +1,5 @@
 /**
- * 文件操作：打开 / 保存 / 文件夹树 / 最近列表（Electron 原生对话框 + 浏览器降级）。
+ * 文件操作：打开 / 保存 / 文件夹树 / 最近列表（桌面壳原生对话框 + 浏览器降级）。
  *
  * 依赖 tabs（访问器与激活/新建）、editor-core（重建编辑器）、store（最近列表
  * 与恢复副本）、filetree（纯渲染）。
@@ -115,7 +115,7 @@ export function initFileWatcherBridge() {
 
 /**
  * 识别主进程 readFileCapped 的超限错误并提取大小信息。
- * Electron 会把主进程错误包成
+ * 桌面壳会把错误包成
  * `Error invoking remote method '…': Error: file too large: 60.0 MB (limit 50 MB)`，
  * 故用非锚定匹配；其他错误返回 null（调用方回落通用「打开失败」）。
  */
@@ -127,7 +127,7 @@ export function parseTooLargeError(err: unknown): { size: string; limit: string 
 
 /**
  * 打开文档：
- * - Electron：原生文件选择对话框（自动去重已打开的同路径文件）
+ * - 桌面壳：原生文件选择对话框（自动去重已打开的同路径文件）
  * - 浏览器：降级为 <input type="file">
  */
 export async function openDocument() {
@@ -302,7 +302,7 @@ async function doSaveDocument(tab: DocTab, markdown: string, saveAs: boolean) {
   updateTitle()
 }
 
-/** 打开文件夹：追加到工作区列表并展开（同路径去重），第一层列表缓存到内存（仅 Electron） */
+/** 打开文件夹：追加到工作区列表并展开（同路径去重），第一层列表缓存到内存（仅桌面壳） */
 export async function openFolder() {
   if (!native) return
   const dir = await native.openFolder()

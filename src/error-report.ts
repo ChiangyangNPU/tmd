@@ -7,7 +7,7 @@
  *
  * 安全与隐私：
  * - 只提取 message/stack/代码位置（文件名、行列号），不触碰文档内容
- * - 仅 Electron 环境安装（无 tmdAPI 时静默降级，与其余 native 能力一致）
+ * - 仅桌面壳环境安装（无 tmdAPI 时静默降级，与其余 native 能力一致）
  * - 安装幂等（HMR / 重复调用不会重复注册）
  *
  * @author chiangyang

@@ -4,7 +4,7 @@
  * 架构位置与 export-word / export-image 同构（载体适配器）：解析权威在
  * export-doc（createExportMarkdownIt 工厂，与 HTML 共享插件集 / 公式保护 /
  * 图片还原），本模块只做「token 流 → LaTeX」的渲染与文档组装——纯函数、
- * 零 Electron / DOM 依赖，可整体被 vitest 覆盖（导出供单测）。
+ * 零壳层 / DOM 依赖，可整体被 vitest 覆盖（导出供单测）。
  *
  * 设计要点：
  * - **渲染白名单**：renderer.renderToken 兜底置空——未显式安装规则的 token

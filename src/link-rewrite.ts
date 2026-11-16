@@ -23,7 +23,7 @@ import { normalizePath } from './link-nav'
 import { native, type TextFileMeta, type WikiLinkRef, type WikiScanResult } from './native'
 import { activeTab, findByPath } from './tabs'
 
-/** 行内 wikilink 匹配（与 electron/wikilinks.cjs 同款正则） */
+/** 行内 wikilink 匹配（与 src-tauri/src/wikilinks.rs 同款正则） */
 const WIKI_LINE_RE = /\[\[([^[\\\]\n]+)\]\]/g
 
 /** 跨平台 basename（渲染层无 path 模块） */

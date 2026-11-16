@@ -185,7 +185,7 @@ export function openSettings() {
   if (langRadio) langRadio.checked = true
   // 主题列表高亮：内置预设 / 深色 / 文件主题三态统一由纯函数映射
   syncPresetRadio()
-  // 文件式主题：Electron 环境下扫描主题目录渲染外部 radio 项
+  // 文件式主题：桌面壳环境下扫描主题目录渲染外部 radio 项
   void renderFileThemes()
   const autosaveBox = document.getElementById('set-autosave') as HTMLInputElement | null
   if (autosaveBox) {

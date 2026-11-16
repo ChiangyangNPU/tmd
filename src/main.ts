@@ -6,7 +6,7 @@
  * store / findbar 等模块。
  *
  * 渲染层不含任何 Node/Electron API——系统能力统一经 src/native.ts 的
- * 受控接口访问，保证同一份代码可同时运行在 Electron 与浏览器中。
+ * 受控接口访问，保证同一份代码可同时运行在桌面壳与浏览器中。
  *
  * @author chiangyang
  */
@@ -431,7 +431,7 @@ async function boot() {
       runExport((m) => m.exportHtml(currentMarkdown(), activeTab()?.name ?? t('tab.untitled')))
       closeMoreMenu()
     })
-    // Word / 长图 / ePub：离屏渲染导出（仅 Electron 环境可用）
+    // Word / 长图 / ePub：离屏渲染导出（仅桌面壳环境可用）
     document.getElementById('menu-export-word-btn')?.addEventListener('click', () => {
       runExport((m) =>
         m.exportWord(currentMarkdown(), activeTab()?.name ?? t('tab.untitled'), getActiveBaseDir()),
@@ -619,7 +619,7 @@ async function boot() {
       }
       if (isSameAccelerator(acc, 'CmdOrCtrl+,')) {
         // 设置面板：平台惯例键位（macOS Cmd+, / Windows Ctrl+,）。
-        // 浏览器模式无菜单栏，这里是唯一入口；Electron 下菜单 accelerator
+        // 浏览器模式无菜单栏，这里是唯一入口；桌面壳下菜单 accelerator
         // 先消费按键，此分支不会重复触发
         e.preventDefault()
         openSettings()
@@ -665,7 +665,7 @@ async function boot() {
       } else {
         // 通用兜底：无原生菜单的壳（Windows Tauri / 浏览器）按 accelerator
         // 反查快捷键配置，走与菜单事件同一条分发路（打开/保存/导出/格式化）。
-        // 有原生菜单的壳（macOS / Electron）菜单 accelerator 先消费按键，
+        // 有原生菜单的桌面壳菜单 accelerator 先消费按键，
         // keydown 不会到达这里，不存在重复触发
         const hit = Object.entries(shortcuts).find(
           ([action, accelerator]) =>
@@ -687,7 +687,7 @@ async function boot() {
       void saveDocument().then(() => native?.reportSaveResult(!hasDirty()))
     })
 
-    // 菜单（Electron）
+    // 菜单（配置经 native 同步到壳层重建）
     // 动作处理表提升到 boot 作用域：菜单分发与命令面板共用同一批函数
     //（命令即菜单，不另建第二套语义——面板只是同一动作的另一个入口）
     const menuHandlers: Record<string, () => void> = {
@@ -742,7 +742,7 @@ async function boot() {
         ),
       'clear-recent': () => clearRecentDocuments(),
     }
-    // 菜单动作分发：原生菜单事件（macOS / Electron）与渲染层 keydown 兜底
+    // 菜单动作分发：原生菜单事件（桌面壳）与渲染层 keydown 兜底
     // （Windows Tauri / 浏览器，无原生菜单）共用同一条路
     const dispatchMenuAction = (action: string): void => {
       // 格式化命令：统一走 format 命令层；仅在所见即所得为可编辑侧时生效——

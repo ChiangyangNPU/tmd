@@ -5,7 +5,7 @@
  * 主进程菜单和渲染层 keydown 均从此处读取配置，保证两处一致。
  *
  * 存储键：localStorage 'tmd:shortcuts'，值为 Record<string, string>
- * （action → Electron accelerator 字符串，如 'CmdOrCtrl+B'）
+ * （action → accelerator 字符串，沿用 CmdOrCtrl 语法，如 'CmdOrCtrl+B'）
  *
  * @author chiangyang
  */
@@ -23,7 +23,7 @@ export interface ShortcutDef {
   action: string
   /** 显示名称的完整 i18n 路径（如 menu.bold） */
   labelKey: string
-  /** 默认 Electron accelerator 字符串 */
+  /** 默认 accelerator 字符串（CmdOrCtrl 语法） */
   default: string
   /** 分组（用于设置面板分组展示） */
   group: 'file' | 'export' | 'format' | 'editor'
@@ -31,7 +31,7 @@ export interface ShortcutDef {
 
 /**
  * 所有可自定义快捷键的默认定义。
- * 注意：accelerator 使用 Electron 格式（CmdOrCtrl 跨平台）。
+ * 注意：accelerator 使用 CmdOrCtrl 语法（跨平台，壳层 muda 菜单同款解析）。
  */
 export const SHORTCUT_DEFS: ShortcutDef[] = [
   // 文件操作
@@ -208,7 +208,7 @@ export function resetShortcuts(): void {
 }
 
 /**
- * 将键盘事件转为 Electron accelerator 字符串。
+ * 将键盘事件转为 accelerator 字符串。
  * 用于设置面板的按键捕获与渲染层快捷键匹配。
  *
  * 平台差异：macOS 上 Cmd（metaKey）映射为 CmdOrCtrl、Ctrl 映射为 Ctrl；
@@ -263,7 +263,7 @@ const KEY_FROM_CODE: Record<string, string> = {
 }
 
 /**
- * 将 KeyboardEvent.key 规范化为 Electron accelerator 可识别的形式。
+ * 将 KeyboardEvent.key 规范化为 accelerator 可识别的形式。
  * 修饰键本身返回空串（主键未按下，不参与组合）。
  */
 function normalizeKey(e: KeyboardEvent): string {
@@ -275,7 +275,7 @@ function normalizeKey(e: KeyboardEvent): string {
     if (fromCode) return fromCode
     return key.toUpperCase()
   }
-  // 方向键等功能键保留原名（Electron 支持 ArrowUp 等）
+  // 方向键等功能键保留原名（accelerator 支持 ArrowUp 等）
   return key
 }
 
@@ -355,7 +355,7 @@ export function isValidShortcut(acc: string): boolean {
 
 /**
  * 检查两个 accelerator 是否冲突（忽略修饰键顺序与大小写）。
- * 大小写需归一：Electron 的 accelerator 主键大小写不敏感，
+ * 大小写需归一：accelerator 主键大小写不敏感，
  * 'CmdOrCtrl+S' 与 'CmdOrCtrl+s' 是同一个键位。
  */
 export function isSameAccelerator(a: string, b: string): boolean {

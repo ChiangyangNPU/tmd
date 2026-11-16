@@ -41,7 +41,7 @@
     watchDirs: function (paths) { call('tmd_watch_dirs', { paths: paths }) },
     onFileChanged: function (cb) { tmdOn('tmd-file-changed', cb) },
     onDirsChanged: function (cb) { tmdOn('tmd-dirs-changed', cb) },
-    // 图床（Rust 重写，配置兼容 Electron 的 picgo-config.json）
+    // 图床（Rust 原生实现，配置兼容 PicGo 桌面版的 picgo-config.json）
     uploadImage: function (base64, ext) { return call('tmd_picgo_upload', { base64: base64, ext: ext }) },
     getPicGoConfig: function () { return call('tmd_picgo_get_config') },
     savePicGoConfig: function (config) { return call('tmd_picgo_save_config', { config: config }) },
@@ -82,7 +82,7 @@
     getAiConfig: function () { return call('tmd_ai_get_config') },
     saveAiConfig: function (patch) { return call('tmd_ai_save_config', { patch: patch || {} }) },
     testAiConnection: function (overrides) { return call('tmd_ai_test', { overrides: overrides || {} }) },
-    // Rust 侧命令参数是单个 request 对象（对应 electron ipc-ai.cjs 的 request 入参），
+    // Rust 侧命令参数是单个 request 对象（与渲染层 ai.ts 的 request 契约对齐），
     // 必须放进 request 键，平铺 requestId/messages 会因缺键被 invoke 直接拒绝
     chatAi: function (requestId, messages) { return call('tmd_ai_chat', { request: { requestId: requestId, messages: messages } }) },
     abortAi: function (requestId) { return call('tmd_ai_abort', { requestId: requestId }) },
@@ -116,7 +116,7 @@
     print: function (name, options) { return call('tmd_print', { name: name || null, options: options || null }) },
   }
   var listened = {}
-  // listen 注册是异步 IPC（Electron 的 ipcRenderer.on 是同步本地注册——移植
+  // listen 注册是异步事件订阅（浏览器事件模型为同步注册——移植
   // 竞态：ready 先到主进程、early-flush 的 emit 落在注册完成前=入真空，文件
   // 关联打不开文档）。ready 前必须等全部注册在主进程侧落地
   var listenPending = []
@@ -140,7 +140,7 @@
       }
     },
   })
-  // 自绘标题栏拖拽区：Electron 用 CSS -webkit-app-region（02-toolbar.css），
+  // 自绘标题栏拖拽区：早期 Electron 壳用 CSS -webkit-app-region（02-toolbar.css），
   // WebView2 / WKWebView 不解析该属性，这里按同款选择器语义复刻——
   // .toolbar / .toolbar-left 为拖拽区，.toolbar button / .toolbar .word-count 豁免；
   // 与 02-toolbar.css 双侧同步维护（同 wikilinks 的两侧同构约定）。
@@ -158,7 +158,7 @@
   // 双击工具栏空白 = 最大化/还原。Win/Linux 由 hidden 标题栏的系统行为提供；
   // mac 上扩大的标题栏容器实测完全穿透点击（单/双击都到不了原生层），原生
   // 缩放不会触发——三平台统一由此接管（mac 系统偏好「连按两下」的非默认
-  // 值不跟随，按 Electron 默认语义缩放；如需跟随后续读
+  // 值不跟随，按 WebView 默认语义缩放；如需跟随后续读
   // AppleActionOnDoubleClick 偏好再分流）
   document.addEventListener('dblclick', function (e) {
     if (dragHit(e.target)) call('tmd_win_max_toggle')

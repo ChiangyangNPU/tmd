@@ -3,11 +3,11 @@
  *
  * - 自绘 HTML 菜单：复用 ⋯ 溢出菜单的 .menu-item 样式与交互，主题 CSS 变量
  *   自动跟随深浅色，浏览器模式同样可用
- * - 剪切/复制/粘贴：目标侧聚焦后 document.execCommand——Electron 下粘贴会
+ * - 剪切/复制/粘贴：目标侧聚焦后 document.execCommand——桌面壳下粘贴会
  *   产生真实 paste 事件，ProseMirror 走完整粘贴管线（HTML/图片/markdown 全
  *   保真，粘贴图片策略自动生效），CodeMirror 由自身 paste 处理插入纯文本；
  *   浏览器模式 execCommand('paste') 被禁用，两侧均降级为剪贴板 API 插入纯文本
- *   （Electron 无默认右键菜单，源码侧此前右键无任何菜单，Windows 尤其反直觉）
+ *   （壳层无默认右键菜单，源码侧此前右键无任何菜单，Windows 尤其反直觉）
  * - 格式化项：复用 format.ts 的统一命令（fmt-* action），仅所见即所得侧显示；
  *   分屏只读跟随侧（不可编辑的一侧，两侧同款）退化为仅复制
  * - 显隐：按目标侧、选区与链接上下文动态裁剪（resolveMenuEntries 纯函数，可单测）
@@ -166,7 +166,7 @@ function runAction(action: MenuAction) {
       document.execCommand(action)
       break
     case 'paste':
-      // Electron：真实 paste 事件，全保真（含粘贴图片策略）；浏览器降级纯文本
+      // 桌面壳：真实 paste 事件，全保真（含粘贴图片策略）；浏览器降级纯文本
       if (!document.execCommand('paste')) void pasteViaClipboardApi(view)
       break
     case 'link':

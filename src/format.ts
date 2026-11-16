@@ -5,9 +5,9 @@
  *   ordered_list/code_block，标记名 strong/emphasis/code/link/strike_through），
  *   走标准事务，全部可撤销
  * - keymap 路径：编辑器内按键直接生效（浏览器模式无菜单栏，靠这条路径）
- * - 菜单路径：Electron 菜单 accelerator 消费按键 → IPC menu action
+ * - 菜单路径：壳层菜单 accelerator 消费按键 → tmd-menu 事件
  *   （fmt-*）→ main.ts 检查源码模式后调 applyFormatAction；
- *   Electron 下菜单已消费按键，keymap 不会重复触发，两路径互斥
+ *   桌面壳下菜单已消费按键，keymap 不会重复触发，两路径互斥
  * - 源码模式（CodeMirror）不挂 ProseMirror 编辑器，keymap 自然失效；
  *   菜单路径由 main.ts 显式拦截
  *

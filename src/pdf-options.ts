@@ -1,9 +1,8 @@
 /**
- * PDF 导出选项：设置面板持久化与导出时传给主进程的纯数据。
+ * PDF 导出选项：设置面板持久化与导出时传给壳层的纯数据。
  *
- * 主进程侧有一份同构的 electron/pdf-options.cjs（负责最终校验 + 转成
- * Electron printToPDF 参数）；这里只做渲染层默认值与读存储时的收窄，
- * 两边枚举保持一致。
+ * 壳层侧由 print 通道（src-tauri/src/exporter/pdf.rs）负责最终校验与
+ * 参数收窄；这里只做渲染层默认值与读存储时的收窄，两边枚举保持一致。
  */
 
 export type PdfPageSize = 'A4' | 'A3' | 'A5' | 'Letter' | 'Legal'

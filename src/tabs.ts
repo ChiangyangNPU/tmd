@@ -139,7 +139,7 @@ export function updateTitle() {
   setImageBaseDir(getActiveBaseDir())
 }
 
-/** 把任一标签页的未保存状态同步给 Electron 主进程（关闭确认用） */
+/** 把任一标签页的未保存状态同步给壳层（关闭确认用） */
 function notifyDirty() {
   native?.setDirty(hasDirty())
 }

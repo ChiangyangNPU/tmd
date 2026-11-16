@@ -73,7 +73,7 @@ export function t(path: string, params?: Record<string, string | number>): strin
   return text
 }
 
-/** 当前语言的菜单栏文案（发给 Electron 主进程重建菜单） */
+/** 当前语言的菜单栏文案（发给壳层重建菜单） */
 export function menuLabels(): Record<string, string> {
   return {
     edit: t('menu.edit'),

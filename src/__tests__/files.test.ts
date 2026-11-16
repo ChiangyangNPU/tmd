@@ -210,7 +210,7 @@ describe('saveDocument 捕获与队列语义', () => {
 })
 
 describe('parseTooLargeError', () => {
-  it('从 Electron 包装的超限错误中提取大小与上限，其他错误返回 null', () => {
+  it('从壳层包装的超限错误中提取大小与上限，其他错误返回 null', () => {
     expect(
       parseTooLargeError(
         new Error(

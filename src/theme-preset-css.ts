@@ -92,7 +92,7 @@ export const GREEN_CSS = presetCss(
 /**
  * 液态玻璃（Liquid Glass）预设的完整样式表。
  *
- * 视觉近似路线（运行于 Electron/Chromium，无需 SVG 折射等重型管线）：
+ * 视觉近似路线（运行于系统 WebView/Chromium，无需 SVG 折射等重型管线）：
  * 半透明表面 + backdrop-filter 强模糊与高饱和 + 1px 亮边缘 + 顶部内高光
  * + 柔和投影；窗口底层铺淡彩光晕壁纸（--glass-wallpaper），玻璃折射出的
  * 彩色即「液态感」来源。浅色/深色各自一套变量，组件规则两态共用。

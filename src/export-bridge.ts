@@ -2,7 +2,7 @@
  * 离屏导出页（export-renderer.html）与主进程 exporter 服务之间的桥接契约。
  *
  * 分工（命令模式）：主窗口只发起 exportRun（见 native.ts）；真正的导出任务在
- * 隐藏窗口内完成——主进程仅提供 Electron 独有原语（视口截图、本地图片读盘），
+ * 探边窗口内完成——壳层仅提供原生原语（视口截图、本地图片读盘），
  * 渲染、等待、分段、拼接、OOXML 转换等编排全部留在离屏页 TS 侧，可被 vitest 覆盖。
  *
  * @author chiangyang
