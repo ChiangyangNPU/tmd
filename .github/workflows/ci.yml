@@ -10,8 +10,8 @@
 #   侧漏改 macOS cfg 调用点所致）。双平台各自 cargo fmt + test 堵住该缺口。
 #
 # 其他注意：
-# - 桌面 E2E（test:desktop）与性能基准（bench）依赖真实 Electron 窗口，仍走本地
-#   执行（见 README），不进 CI；
+# - macOS release .app 的真实窗口冒烟（smoke:mac）仍以本地为准；release.yml 会在
+#   mac 构建后做观察性运行，Windows 安装 / 更新仍需 Windows 环境实测；
 # - 构建步骤用 npx vite build：tsc 已在「类型检查」步骤通过，避免重复跑一遍
 #   （npm run build = tsc && vite build）；
 # - rust job 不跑 vite：tauri::generate_context! 编译期只要求 frontendDist 存在，

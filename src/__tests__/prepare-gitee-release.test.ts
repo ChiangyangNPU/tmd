@@ -1,66 +1,63 @@
 /**
- * prepare-gitee-release.mjs 纯函数单测：元数据 url 绝对化
+ * prepare-gitee-release.mjs 单测：当前 Tauri 元数据校验与冻结迁移文件保护。
  * （GitHub Release 拉取与网络部分留在手动流程中验证）。
  *
  * @author chiangyang
  */
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { absolutizeYmlUrls } from '../../scripts/prepare-gitee-release.mjs'
+import { parseMetadata, writeMetadataFiles } from '../../scripts/prepare-gitee-release.mjs'
 
-const toAbsolute = (name: string) =>
-  `https://gitee.com/ChiangyangNPU/tmd/releases/download/v0.1.0/${name}`
+const VERSION = '0.2.2'
+const LATEST = JSON.stringify({
+  version: VERSION,
+  platforms: {
+    'windows-x86_64': { url: 'https://gitee.com/tmd.exe', signature: 'win-sig' },
+    'darwin-aarch64': { url: 'https://gitee.com/TMD.app.tar.gz', signature: 'mac-sig' },
+  },
+})
+const MIGRATION = JSON.stringify({ version: VERSION, downloads: {} })
 
-const WIN_YML = `version: 0.1.0
-files:
-  - url: TMD-0.1.0-x64-Setup.exe
-    sha512: AAAA==
-    size: 94208000
-  - url: TMD-0.1.0-x64-Setup.exe.blockmap
-    sha512: BBBB==
-    size: 102400
-path: TMD-0.1.0-x64-Setup.exe
-sha512: AAAA==
-releaseNotes: |
-  ## [0.1.0]
-
-  首个正式发布版本。
-releaseDate: '2026-09-19T10:57:35.726Z'
-`
-
-describe('absolutizeYmlUrls', () => {
-  it('files 条目的 url 与顶层 path 都改为绝对 URL', () => {
-    const out = absolutizeYmlUrls(WIN_YML, toAbsolute)
-    expect(out).toContain(
-      '- url: https://gitee.com/ChiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe\n',
-    )
-    expect(out).toContain(
-      'path: https://gitee.com/ChiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe',
-    )
-    // blockmap 同样被处理
-    expect(out).toContain(
-      '- url: https://gitee.com/ChiangyangNPU/tmd/releases/download/v0.1.0/TMD-0.1.0-x64-Setup.exe.blockmap',
-    )
+describe('parseMetadata', () => {
+  it('接受当前版本的 latest.json 与 migration.json', () => {
+    expect(parseMetadata('latest.json', LATEST, VERSION).version).toBe(VERSION)
+    expect(parseMetadata('migration.json', MIGRATION, VERSION).version).toBe(VERSION)
   })
 
-  it('sha512/size/releaseNotes 等内容不受影响', () => {
-    const out = absolutizeYmlUrls(WIN_YML, toAbsolute)
-    expect(out).toContain('sha512: AAAA==')
-    expect(out).toContain('size: 94208000')
-    expect(out).toContain('releaseNotes: |\n  ## [0.1.0]\n\n  首个正式发布版本。')
+  it('拒绝上一版元数据，防止补发时覆盖成旧版本', () => {
+    expect(() => parseMetadata('migration.json', MIGRATION, '0.2.3')).toThrow('不一致')
   })
 
-  it('releaseNotes 正文里形如 url/path 的普通文本不被误替换（无行首锚点不匹配）', () => {
-    const withText = WIN_YML.replace(
-      '  首个正式发布版本。',
-      '  修复了 url: 解析问题与 path: 拼接问题',
-    )
-    const out = absolutizeYmlUrls(withText, toAbsolute)
-    expect(out).toContain('修复了 url: 解析问题与 path: 拼接问题')
+  it('latest.json 缺平台签名时拒绝发布', () => {
+    const incomplete = JSON.stringify({
+      version: VERSION,
+      platforms: { 'windows-x86_64': { url: 'https://gitee.com/tmd.exe' } },
+    })
+    expect(() => parseMetadata('latest.json', incomplete, VERSION)).toThrow('下载地址或签名')
   })
+})
 
-  it('幂等：已是绝对 URL 时重复运行不重复包装', () => {
-    const once = absolutizeYmlUrls(WIN_YML, toAbsolute)
-    const twice = absolutizeYmlUrls(once, toAbsolute)
-    expect(twice).toBe(once)
+describe('writeMetadataFiles', () => {
+  it('只更新 Tauri JSON，冻结的 Electron YML 逐字节不变', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'tmd-release-meta-'))
+    try {
+      const frozen = {
+        'latest.yml': 'version: 0.1.8\npath: https://gitee.com/v0.2.1/TMD.exe\n',
+        'latest-mac.yml': 'version: 0.1.8\npath: https://gitee.com/v0.2.1/TMD.dmg\n',
+      }
+      for (const [name, text] of Object.entries(frozen)) writeFileSync(path.join(dir, name), text)
+
+      writeMetadataFiles(dir, { 'latest.json': LATEST, 'migration.json': MIGRATION })
+
+      expect(readFileSync(path.join(dir, 'latest.json'), 'utf8')).toBe(LATEST)
+      expect(readFileSync(path.join(dir, 'migration.json'), 'utf8')).toBe(MIGRATION)
+      for (const [name, text] of Object.entries(frozen)) {
+        expect(readFileSync(path.join(dir, name), 'utf8')).toBe(text)
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

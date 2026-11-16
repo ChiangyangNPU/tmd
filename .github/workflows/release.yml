@@ -2,13 +2,13 @@
 # GitHub + Gitee 双 Release。
 #
 # Electron 壳已下线（2026-11，最后版本 0.1.8 随 v0.2.1 发布）：0.1.x 老用户
-# 的更新/迁移路径靠**冻结元数据**维持——仓库 releases/ 下的 latest*.yml
-# （指向 v0.2.1 的 Electron 0.1.8 附件）与 migration.json（指向 v0.2.1 的
-# Rust 安装包）不再更新；publish job 每次发版把冻结副本一并上传 GitHub
-# Release，保证 electron-updater 的 `releases/latest/download/latest*.yml`
-# 备用源永远可用。Gitee 配额清理以 MIGRATION_KEEP_TAG 锚点保护 v0.2.1
-# 附件不被清理。0.1.x 用户清零后：删除 Make migration.json 步骤、
-# MIGRATION_KEEP_TAG env 与冻结元数据续传步骤即可彻底收尾。
+# 的更新/迁移路径分两部分维持——仓库 releases/ 下的 latest*.yml
+# （指向 v0.2.1 的 Electron 0.1.8 附件）保持冻结，publish job 每次发版把
+# 冻结副本一并上传 GitHub Release，保证 electron-updater 的
+# `releases/latest/download/latest*.yml` 备用源永远可用；migration.json
+# 则随每次发版指向最新 Rust 安装包。Gitee 配额清理以 MIGRATION_KEEP_TAG
+# 锚点保护 v0.2.1 附件不被清理。0.1.x 用户清零后：删除 Make migration.json
+# 步骤、MIGRATION_KEEP_TAG env 与冻结元数据续传步骤即可彻底收尾。
 #
 # 分工：publish job 先发 GitHub Release（分钟级），再自动上传 Gitee——
 # 创建/复用 Gitee Release、推 releases/ 元数据提交、传附件。Gitee 跨国
@@ -67,6 +67,25 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Validate release version
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAURI_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG="v$VERSION"
+          if [ "$TAURI_VERSION" != "$VERSION" ]; then
+            echo "::error::package.json ($VERSION) 与 tauri.conf.json ($TAURI_VERSION) 版本不一致"
+            exit 1
+          fi
+          if [ "$REF_TYPE" = "tag" ] && [ "$REF_NAME" != "$TAG" ]; then
+            echo "::error::推送标签 $REF_NAME 与 package.json 版本标签 $TAG 不一致"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Release tag: $TAG"
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
@@ -129,6 +148,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Validate release version
+        shell: bash
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          TAURI_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          TAG="v$VERSION"
+          if [ "$TAURI_VERSION" != "$VERSION" ]; then
+            echo "::error::package.json ($VERSION) 与 tauri.conf.json ($TAURI_VERSION) 版本不一致"
+            exit 1
+          fi
+          if [ "$REF_TYPE" = "tag" ] && [ "$REF_NAME" != "$TAG" ]; then
+            echo "::error::推送标签 $REF_NAME 与 package.json 版本标签 $TAG 不一致"
+            exit 1
+          fi
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          echo "Release tag: $TAG"
       # 下载双平台 Tauri 产物 + 冻结的 Electron 元数据续传。
       # Electron 壳已下线：latest*.yml 不再构建产出，但 0.1.x 老用户的
       # electron-updater 备用源（releases/latest/download/latest*.yml）指向
@@ -146,14 +184,35 @@ jobs:
           ls -la release/*.yml
       - name: List artifacts
         run: find release -type f | sort
+      - name: Verify required Tauri artifacts
+        shell: bash
+        run: |
+          VERSION="${TAG#v}"
+          REQUIRED=(
+            "release/TMD_${VERSION}_x64-setup.exe"
+            "release/TMD_${VERSION}_x64-setup.exe.sig"
+            "release/TMD_${VERSION}_aarch64.dmg"
+            "release/TMD.app.tar.gz"
+            "release/TMD.app.tar.gz.sig"
+          )
+          MISSING=0
+          for f in "${REQUIRED[@]}"; do
+            if [ -s "$f" ]; then
+              echo "OK: $f"
+            else
+              echo "::error::缺少必需的发布产物或文件为空: $f"
+              MISSING=1
+            fi
+          done
+          if [ "$MISSING" -ne 0 ]; then
+            exit 1
+          fi
       - name: Extract release notes
         run: node scripts/extract-release-notes.mjs --strict
 
       # ---------- Tauri 更新器元数据 latest.json（windows/mac 两平台条目；
       # .sig 内容即 signature 字段） ----------
       - name: Make Tauri latest.json
-        env:
-          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           WIN_SETUP=$(find release -name '*_x64-setup.exe' | head -1 || true)
           MAC_TARGZ=$(find release -name '*.app.tar.gz' | head -1 || true)
@@ -164,7 +223,7 @@ jobs:
           if [ -n "$MAC_TARGZ" ]; then
             ARGS="$ARGS --mac-sig ${MAC_TARGZ}.sig --mac-url-name $(basename "$MAC_TARGZ")"
           fi
-          node scripts/make-tauri-latest.mjs $ARGS --out release/latest.json ${TAG:+--tag "$TAG"}
+          node scripts/make-tauri-latest.mjs $ARGS --out release/latest.json --tag "$TAG"
           # 元数据同写入仓库 releases/ 供 Gitee raw 端点（与 Electron yml 同目录）
           mkdir -p releases
           cp release/latest.json releases/latest.json
@@ -174,8 +233,6 @@ jobs:
       # Rust 安装包。跨架构无法自动升级，只做引导。0.1.x 用户清零后删除
       # 本步骤 + MIGRATION_KEEP_TAG env + 冻结元数据续传步骤即可收尾。
       - name: Make migration.json
-        env:
-          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
           # 迁移目标是 Rust 架构包：Tauri 产物命名 TMD_<ver>_<arch>.dmg /
           # TMD_<ver>_x64-setup.exe（下划线）——按 TMD_ 前缀限定，避免
@@ -187,14 +244,13 @@ jobs:
           [ -n "$WIN_SETUP" ] && ARGS="$ARGS --win-setup $(basename "$WIN_SETUP")"
           node scripts/make-migration-json.mjs \
             --version "$(node -p "require('./package.json').version")" $ARGS \
-            --out release/migration.json ${TAG:+--tag "$TAG"}
+            --out release/migration.json --tag "$TAG"
           mkdir -p releases
           cp release/migration.json releases/migration.json
 
       # ---------- GitHub Release（直接发布，不用草稿） ----------
       - name: Publish to GitHub Release
         run: |
-          TAG=${GITHUB_REF_NAME:-$(node -p "require('./package.json').version")}
           echo "Publishing to GitHub Release: $TAG"
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" --title "$TAG" --notes-file .release-notes.md
@@ -252,11 +308,6 @@ jobs:
           if [ -z "$GITEE_TOKEN" ]; then
             echo "::error::GITEE_TOKEN is not set (GitHub 仓库 Settings → Secrets 配置)"
             exit 1
-          fi
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            TAG="$GITHUB_REF_NAME"
-          else
-            TAG="v$(node -p "require('./package.json').version")"
           fi
           echo "Publishing to Gitee tag: $TAG"
 
