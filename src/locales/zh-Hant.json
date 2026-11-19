@@ -5,7 +5,7 @@
   "toolbar": {
     "outline": "大綱",
     "outlineTitle": "大綱面板",
-    "files": "檔案",
+    "files": "檔案欄",
     "filesTitle": "檔案樹 / 最近檔案",
     "sourceMode": "原始碼",
     "sourceModeOn": "編輯",

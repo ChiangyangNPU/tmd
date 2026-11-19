@@ -395,7 +395,9 @@ async function boot() {
     if (outlineList && view) renderOutline(outlineList, collectOutline(view.state.doc), view)
 
     // 工具栏
-    document.getElementById('import-btn')?.addEventListener('click', () => void openDocument())
+    document
+      .getElementById('sidebar-files-btn')
+      ?.addEventListener('click', () => toggleSidebar('files'))
     document.getElementById('export-btn')?.addEventListener('click', () => void saveDocument())
     document
       .getElementById('source-mode-btn')
@@ -405,9 +407,9 @@ async function boot() {
       ?.addEventListener('click', () => toggleSidebar('outline'))
 
     // ⋯ 溢出菜单
-    document.getElementById('menu-files-btn')?.addEventListener('click', () => {
-      toggleSidebar('files')
+    document.getElementById('menu-open-btn')?.addEventListener('click', () => {
       closeMoreMenu()
+      void openDocument()
     })
     // 局部图谱：侧边栏「关系」面板，当前笔记的邻域迷你力导向图
     document.getElementById('menu-localgraph-btn')?.addEventListener('click', () => {

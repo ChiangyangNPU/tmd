@@ -5,7 +5,7 @@
   "toolbar": {
     "outline": "大纲",
     "outlineTitle": "大纲面板",
-    "files": "文件",
+    "files": "文件栏",
     "filesTitle": "文件树 / 最近文件",
     "sourceMode": "源码",
     "sourceModeOn": "编辑",
