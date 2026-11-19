@@ -183,8 +183,8 @@ pub(crate) fn run() {
         .expect("TMD (tauri spike) 启动失败");
     app.run(|_app, _event| {
         // 文件关联：Finder 双击 / 系统打开方式。
-        // RunEvent::Opened 仅存在于 Apple 平台；Windows 的关联启动与二次双击
-        // 都经单实例插件的 second-instance argv 转交（上方注册处已处理）。
+        // RunEvent::Opened 仅存在于 Apple 平台；Windows 首次关联启动由 setup
+        // 读取 argv，二次双击经单实例插件的 second-instance argv 转交。
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         events::handle_opened_event(_app, &_event);
         // macOS：关掉主窗口后点 Dock 图标（applicationShouldHandleReopen）
@@ -217,6 +217,10 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         queue: std::sync::Mutex::new(Vec::new()),
         ready: AtomicBool::new(false),
     });
+    // Windows 首次启动不会触发 single-instance 回调，文件关联路径只在 argv 中；
+    // 主动入队并等待渲染层 ready 后补发，避免首次双击只打开空窗口。
+    #[cfg(windows)]
+    relay_paths_to_renderer(app.handle().clone(), std::env::args().collect());
     // AI 配置存 userData（identifier 隔离，与 Electron 安装版互不相通）；
     // TMD_DATA_DIR 供验收/多实例调试做数据隔离，避免污染真实 userData
     let data_dir = match std::env::var("TMD_DATA_DIR") {
