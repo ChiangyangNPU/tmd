@@ -22,7 +22,7 @@ pub(super) const TMD_API_SHIM: &str = include_str!("../tmd-api-shim.js");
 ///
 /// 窗口形态（尺寸/位置/最大化）与主题都从 `shell-state.json` 现读——首次启动
 /// 走 restore_win_state，重建时 `Destroyed` 已把关闭前几何同步落盘，因此两条
-/// 路径恢复语义完全一致，不存在「重建后回到默认 1280×820」的偏差。
+/// 路径恢复语义完全一致，不存在「重建后回到默认 980×800」的偏差。
 pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     let shell_file = app.state::<WinStateTracker>().path.clone();
     let persisted = window_state::read_shell_state(&shell_file);
@@ -96,7 +96,7 @@ pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri:
             }
         }
         None => {
-            builder = builder.inner_size(1280.0, 820.0);
+            builder = builder.inner_size(980.0, 800.0);
         }
     }
     let window = builder.build()?;
