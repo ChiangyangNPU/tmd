@@ -55,6 +55,7 @@
     winMinimize: function () { call('tmd_win_minimize') },
     winMaximizeToggle: function () { call('tmd_win_max_toggle') },
     winClose: function () { call('tmd_win_close') },
+    quitApp: function () { call('tmd_quit') },
     recentSync: function (entries) { call('tmd_recent_sync', { entries: entries || [] }) },
     recentAdd: function (entry) { call('tmd_recent_add', { entry: entry }) },
     recentClear: function () { call('tmd_recent_clear') },

@@ -226,6 +226,8 @@ export interface NativeFileAPI {
   winMaximizeToggle(): void
   /** 自绘标题栏（Windows/Linux）：关闭窗口（仍走未保存关闭确认流程） */
   winClose(): void
+  /** 关闭最后一个标签时直接退出应用（桌面壳双平台一致；确认由渲染层关标签时完成） */
+  quitApp(): void
   /** 订阅窗口最大化状态变化（自绘 □/❐ 图标切换用） */
   onWindowMaximize(callback: (isMax: boolean) => void): void
   /** 启动时全量同步最近文件列表给主进程构建「打开最近」子菜单 */
@@ -509,6 +511,8 @@ export interface IpcChannels {
   winMinimize: string
   winMaximizeToggle: string
   winClose: string
+  /** 关闭最后一个标签时直接退出应用 */
+  quit: string
   winMaxChanged: string
   recentSync: string
   recentAdd: string

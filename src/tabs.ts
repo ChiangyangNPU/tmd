@@ -294,7 +294,7 @@ export function createNewTab() {
 
 /**
  * 关闭标签页。有未保存修改时弹确认；
- * 关闭最后一个标签时直接关闭窗口（Mac 惯例，应用留在后台）。
+ * 关闭最后一个标签时直接退出应用（桌面壳双平台一致）。
  */
 export async function closeTab(id: string) {
   const tab = tabs.find((t) => t.id === id)
@@ -321,14 +321,13 @@ export async function closeTab(id: string) {
     if (next) {
       await activateTab(next.id)
     } else if (native) {
-      // 最后一个标签页已关闭：直接关窗口（Mac 惯例，应用留在后台）。
-      // 先重绘标签栏并同步脏标记：renderTabs 里的 notifyDirty 会把
-      // hasDirty()=false 发给主进程，否则主进程的 rendererDirty 仍为 true，
-      // 会再弹一次"未保存"确认；取消后窗口停留在编辑器已销毁的坏状态
+      // 最后一个标签页已关闭：直接退出应用。
+      // 先重绘标签栏并同步脏标记：原生退出不再走窗口关闭的脏确认，
+      // 避免残留的 dirty 状态在退出链路上造成口径不一致
       await destroyEditor()
       renderTabs()
       updateTitle()
-      window.close()
+      native.quitApp()
       return
     } else {
       // 浏览器模式：window.close 无效，退回新建空白页
@@ -348,7 +347,7 @@ export async function closeTab(id: string) {
  *   直接丢弃，不再逐个弹窗；单标签的确认文案见 closeTab（带文件名，用于"关闭"项）
  * - 激活链路：当前激活标签被关闭时优先激活幸存的锚点标签（右键对象，如
  *   "关闭其他"语义上应留在原地），否则激活紧邻被关区域的标签；全部关完时
- *   走 closeTab 同款的"关最后一个标签"链路（桌面关窗口 / 浏览器回空白页）
+ *   走 closeTab 同款的"关最后一个标签"链路（桌面退出应用 / 浏览器回空白页）
  * @param ids 待关闭的标签 id 列表
  * @param anchorId 右键锚点标签 id（幸存时优先激活；可省略）
  */
@@ -376,9 +375,9 @@ export async function closeTabsBulk(ids: string[], anchorId?: string) {
       if (next) {
         await activateTab(next.id)
       } else if (native) {
-        // 全部关闭：与 closeTab 的最后一个标签同款（Mac 惯例，应用留在后台）
+        // 全部关闭：与 closeTab 的最后一个标签同款（直接退出应用）
         await destroyEditor()
-        window.close()
+        native.quitApp()
         return
       } else {
         await destroyEditor()

@@ -111,6 +111,19 @@ pub(crate) fn tmd_win_close(window: tauri::WebviewWindow) {
     let _ = window.close();
 }
 
+/// 对应 native.ts quitApp：关闭最后一个标签时直接退出应用（双平台一致）。
+///
+/// 与「关窗」不同，这里显式 `app.exit(0)`（带退出码）——macOS 的
+/// 「关窗≠退出」拦截只对 `ExitRequested { code: None }` 生效（见
+/// `bootstrap::events::handle_exit_requested_event`），带退出码会放行。
+/// 脏文档确认已由渲染层在关标签时完成，此处不再二次弹窗。
+/// 退出前同步落盘窗口几何：退出路径不保证 Destroyed 事件与防抖写入执行完。
+#[tauri::command]
+pub(crate) fn tmd_quit(app: tauri::AppHandle) {
+    app.state::<WinStateTracker>().save_now(&app);
+    app.exit(0);
+}
+
 /// 对应 native.ts recentSync：启动全量同步最近列表（仅重建菜单）。
 #[tauri::command]
 pub(crate) fn tmd_recent_sync(

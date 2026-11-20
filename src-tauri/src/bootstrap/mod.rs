@@ -135,6 +135,7 @@ pub(crate) fn run() {
             commands::shell::tmd_win_minimize,
             commands::shell::tmd_win_max_toggle,
             commands::shell::tmd_win_close,
+            commands::shell::tmd_quit,
             commands::shell::tmd_recent_sync,
             commands::shell::tmd_recent_add,
             commands::shell::tmd_recent_clear,
