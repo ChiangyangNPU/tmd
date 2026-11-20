@@ -17,10 +17,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
+use semver::Version;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{RemoteRelease, UpdaterExt};
 
 use crate::error::CmdError;
 use crate::window_state;
@@ -77,8 +78,58 @@ fn configured_pubkey(app: &AppHandle) -> Option<String> {
 
 /// 公钥缺配置时的统一文案（含修复指引，避免用户以为功能坏了）
 const NO_PUBKEY_HINT: &str =
-    "未配置更新签名公钥：在 tauri.conf.json 的 plugins.updater.pubkey 填入公钥，\
+    "未配置更新公钥：在 tauri.conf.json 的 plugins.updater.pubkey 填入公钥，\
      并用 TAURI_SIGNING_PRIVATE_KEY 打包含签名的安装包（见 docs/打包发布.md §11）";
+
+/// 自定义「是否有更新」比较器：让同一 base（major.minor.patch）上的
+/// `-Fix-N` 热修复被识别为比正式版更新，且 Fix 链内按数字递增。
+///
+/// 为什么需要：tauri-plugin-updater 默认用纯 semver 比较，而 semver 规定
+/// 预发布版本优先级**低于**对应正式版——`0.2.3-Fix-1 < 0.2.3`，导致在已发
+/// 正式版上叠的热修复永远不会被自动更新拉到。本比较器只对 `Fix` 标记的
+/// 预发布放宽这条规则，其余预发布（beta / rc 等）仍遵循标准 semver，避免
+/// 把测试版误推给正式版用户。
+///
+/// 语义（`current` = 当前安装版本，`release` = 远端版本）：
+/// - base 不同 → 高 base 胜出（标准 semver，如 0.2.4 > 0.2.3-Fix-1）
+/// - base 相同且远端是 Fix-N、当前是正式版 → 是更新（核心诉求）
+/// - base 相同且两边都是 Fix → 比数字 N（Fix-2 > Fix-1，数字比较避开
+///   `Fix-10` 字典序小于 `Fix-2` 的坑）
+/// - base 相同且当前是 Fix-N、远端是正式版 → 标准 semver（正式版 > Fix）
+/// - 其余预发布 → 标准 semver
+pub(crate) fn tmd_is_update(current: &Version, release: &RemoteRelease) -> bool {
+    version_is_newer(current, &release.version)
+}
+
+/// 纯版本比较（拆出以便单测，无需构造 RemoteRelease）
+fn version_is_newer(current: &Version, remote: &Version) -> bool {
+    // base 不同：高 base 胜出（标准 semver）
+    if remote.major != current.major
+        || remote.minor != current.minor
+        || remote.patch != current.patch
+    {
+        return remote > current;
+    }
+    // base 相同：在 Fix 标记上做自定义序
+    match (fix_num(remote), fix_num(current)) {
+        (Some(rn), Some(cn)) => rn > cn,
+        (Some(_), None) => true,
+        (None, Some(_)) | (None, None) => remote > current,
+    }
+}
+
+/// 从版本的预发布段解析 Fix 序号：`Fix-1` / `fix.2` / `FIX-10` → Some(N)；
+/// 非 Fix 标记的预发布（beta / rc）或正式版返回 None，交由标准 semver 处理。
+fn fix_num(v: &Version) -> Option<u64> {
+    let pre = v.pre.as_str();
+    if pre.is_empty() {
+        return None;
+    }
+    let lower = pre.to_ascii_lowercase();
+    let stem = lower.strip_prefix("fix")?;
+    let num_part = stem.trim_start_matches(|c: char| c == '-' || c == '.');
+    num_part.parse().ok()
+}
 
 /// 手动检查：检查 → 有新版本则弹原生对话框询问 → 同意后下载安装
 #[tauri::command]
@@ -317,4 +368,65 @@ async fn wait_renderer_saved(app: &AppHandle) {
     }
     let _ = app.emit(SAVE_REQUEST_EVENT, ());
     let _ = tokio::time::timeout(Duration::from_secs(5), rx).await;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn v(s: &str) -> Version {
+        Version::parse(s).unwrap_or_else(|e| panic!("解析版本 {s} 失败: {e}"))
+    }
+
+    /// (当前版本, 远端版本, 期望是否有更新)
+    const CASES: &[(&str, &str, bool)] = &[
+        // 核心诉求：正式版上叠 Fix 热修复 → 有更新
+        ("0.2.3", "0.2.3-Fix-1", true),
+        ("0.2.3", "0.2.3-Fix-10", true),
+        // Fix 链内数字递增
+        ("0.2.3-Fix-1", "0.2.3-Fix-2", true),
+        ("0.2.3-Fix-1", "0.2.3-Fix-10", true),
+        // 数字比较（非字典序）：Fix-10 > Fix-2
+        ("0.2.3-Fix-2", "0.2.3-Fix-10", true),
+        // 倒退 / 相等 → 无更新
+        ("0.2.3-Fix-2", "0.2.3-Fix-1", false),
+        ("0.2.3-Fix-10", "0.2.3-Fix-2", false),
+        ("0.2.3-Fix-1", "0.2.3-Fix-1", false),
+        ("0.2.3", "0.2.3", false),
+        // 当前是 Fix、远端是正式版 → 正式版更高，算更新
+        ("0.2.3-Fix-1", "0.2.3", true),
+        // base 不同：标准 semver
+        ("0.2.3", "0.2.4", true),
+        ("0.1.8", "0.2.0", true),
+        ("0.2.4", "0.2.3-Fix-5", false), // 高 base 不会被低 base 的 Fix 拉低
+        // 非 Fix 预发布：不推给正式版用户（标准 semver，beta < 正式版）
+        ("0.2.3", "0.2.3-beta", false),
+        ("0.2.3", "0.2.3-rc.1", false),
+        // 大小写 / 分隔符兼容
+        ("0.2.3", "0.2.3-fix.1", true),
+        ("0.2.3", "0.2.3-FIX-1", true),
+        // 远端带 v 前缀不会出现（插件解析时已剥离），这里只验不带 v 的路径
+    ];
+
+    #[test]
+    fn version_is_newer_matrix() {
+        for (current, remote, expected) in CASES {
+            assert_eq!(
+                version_is_newer(&v(current), &v(remote)),
+                *expected,
+                "current={current} remote={remote} 期望 {expected}",
+            );
+        }
+    }
+
+    #[test]
+    fn fix_num_parsing() {
+        assert_eq!(fix_num(&v("0.2.3")), None);
+        assert_eq!(fix_num(&v("0.2.3-Fix-1")), Some(1));
+        assert_eq!(fix_num(&v("0.2.3-fix.2")), Some(2));
+        assert_eq!(fix_num(&v("0.2.3-FIX-10")), Some(10));
+        assert_eq!(fix_num(&v("0.2.3-beta")), None);
+        assert_eq!(fix_num(&v("0.2.3-fix")), None); // 无数字
+        assert_eq!(fix_num(&v("0.2.3-fix-abc")), None); // 非数字
+    }
 }

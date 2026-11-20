@@ -112,8 +112,15 @@ pub(crate) fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         // 自动更新：原语由插件承载（签名校验/下载/安装），
-        // 端点与公钥在 tauri.conf.json 的 plugins.updater 配置
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        // 端点与公钥在 tauri.conf.json 的 plugins.updater 配置；
+        // 自定义版本比较器让 -Fix-N 热修复能在正式版之上被识别为更新
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .default_version_comparator(|current, release| {
+                    crate::updater::tmd_is_update(&current, &release)
+                })
+                .build(),
+        )
         .setup(setup_app)
         .on_menu_event(events::handle_menu_event)
         .on_window_event(events::handle_window_event)
