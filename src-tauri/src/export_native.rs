@@ -1,6 +1,6 @@
 //! 导出链平台原语原型（阶段 B go/no-go 验证，macOS）。
 //!
-//! 评估文档（Tauri迁移评估.md §3.3）判定 wry 无 printToPDF/capturePage 等价物
+//! 迁移评估判定 wry 无 printToPDF/capturePage 等价物（评估记录存 git 历史）
 //! ——本模块验证绕过 wry、经 objc2 直调 WKWebView 原生 API 的替代路径：
 //!
 //! - **PDF**：`createPDFWithConfiguration`（macOS 11+）。WKPDFConfiguration.rect
@@ -95,7 +95,7 @@ pub(crate) fn read_content_metrics(window: &WebviewWindow) -> Result<(f64, f64),
 ///
 /// `_options`：Windows 侧消费 PdfOptions（PrintToPdf 分页管线）；mac 的
 /// createPDF 是矩形直出，页尺寸/边距/页眉页脚/大纲均无对应项，保持忽略
-/// （已入档 docs/Tauri迁移评估.md §3.3 的平台差异）。
+/// （mac 平台差异，评估记录存 git 历史）。
 pub(crate) fn capture_full_pdf(
     window: &WebviewWindow,
     content_width: f64,

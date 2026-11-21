@@ -9,7 +9,7 @@
 //! 注入脚本）/ worker（专职 worker + 探边窗口生命周期 + 任务执行）/
 //! commands（四条 tauri 命令）/ pdf（print 通道）/ verify（端到端管线验证）。
 //!
-//! 与 Electron 的差异点（形态矩阵结论，见 docs/spike-tauri.md）：
+//! 与 Electron 的差异点（形态矩阵结论，评估记录存 git 历史）：
 //! - **窗口形态**：Electron 隐藏 + backgroundThrottling:false；WKWebView
 //!   隐藏窗 rAF 冻结（页面编排会挂死）→ 屏边探出窗口，任务结束即销毁
 //! - **字节回传**：离屏页 shim 统一 base64（4/3）回传，本模块解码后经

@@ -212,8 +212,7 @@ Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirr
 │  ├─ 路线图.md                  Version plan & capability-gap analysis
 │  ├─ 打包发布.md                Local packaging & CI release workflow
 │  ├─ mac安装后启动报错解决方案.md  Gatekeeper allow-through guide
-│  ├─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
-│  └─ archive/                   Archived historical development plans (not current docs)
+│  └─ git-multi-remote.md        Dual-remote (Gitee + GitHub) sync guide
 │
 ├─ build/                        Packaging assets (dmg installer background)
 ├─ .github/workflows/            CI (checks / Rust build gate / release workflow)

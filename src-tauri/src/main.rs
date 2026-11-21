@@ -9,8 +9,8 @@
 //! （text_file / search / wikilinks / watcher / history / menu / shell / ai_* /
 //! fsops / themes / export_assets），与原 JS 版逐语义对齐并可单测。
 //!
-//! 通道进度：43 条 invoke + 7 条事件订阅已实现——**权威清单与各模块对齐说明、
-//! 已知缺口见 docs/spike-tauri.md**（此处不再枚举，避免两处清单漂移）。
+//! 通道进度：43 条 invoke + 7 条事件订阅已实现——**权威清单见
+//! docs/架构设计.md**（此处不再枚举，避免两处清单漂移）。
 //! 未实现通道 no-op + console.warn，不阻塞启动（渲染层的 `!native` 降级判断
 //! 不受影响）。identifier 使用 com.chiangyang.tmd，userData 为独立目录。
 //!

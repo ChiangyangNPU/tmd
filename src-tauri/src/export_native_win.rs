@@ -11,7 +11,7 @@
 //! - **PDF**：`ICoreWebView2_16::PrintToPdf`（直写临时文件后读回）。走
 //!   Chromium 打印管线：@media print / @page 生效，页尺寸/朝向/页边距/
 //!   页眉页脚均可用——比 mac 的 createPDF 矩形直出更接近 Electron；
-//!   仅「大纲书签」（outline）无对应项，见 docs/Tauri迁移评估.md
+//!   仅「大纲书签」（outline）无对应项
 //!
 //! 线程模型与 mac 完全一致：with_webview 的闭包在主线程执行（COM 对象
 //! 不跨线程），异步 completion 回调经 mpsc 交回调用线程阻塞等待，

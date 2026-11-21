@@ -216,8 +216,7 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  ├─ 路线图.md                  版本规划与能力差距分析
 │  ├─ 打包发布.md                本地打包与 CI 发布流程
 │  ├─ mac安装后启动报错解决方案.md  Gatekeeper 拦截放行说明
-│  ├─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
-│  └─ archive/                   历史开发计划归档（非现行文档，仅供追溯）
+│  └─ git-multi-remote.md        双远程仓库（Gitee + GitHub）同步指南
 │
 ├─ build/                        打包资源（dmg 安装窗口背景图）
 ├─ .github/workflows/            CI（检查 / Rust 编译门禁 / 发布工作流）

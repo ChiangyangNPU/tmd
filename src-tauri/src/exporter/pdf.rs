@@ -6,7 +6,7 @@ use tauri_plugin_dialog::DialogExt;
 
 /// print：全文档 createPDF + 保存框落盘（对应 ipc-files.cjs 的 IPC.print）。
 ///
-/// macOS 降级说明（已入档 docs/spike-tauri.md）：WKWebView 无 printToPDF
+/// macOS 降级说明：WKWebView 无 printToPDF
 /// 等价物，createPDF 是 web page 矩形直出——**页尺寸/页边距/页眉页脚/
 /// 大纲选项暂不生效**（Electron 版走 Chromium 打印管线支持全部选项）。
 /// 文档尺寸量自 `.ProseMirror` 内容底缘（编辑器为定高容器，

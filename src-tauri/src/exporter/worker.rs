@@ -1,5 +1,5 @@
 //! 导出服务：专职 worker 线程 + 屏边探出窗口生命周期。
-//! 窗口属性要点（形态矩阵结论，见 docs/spike-tauri.md）：visible + 探边
+//! 窗口属性要点（形态矩阵结论，评估记录存 git 历史）：visible + 探边
 //! 定位维持 occlusion visible（rAF 正常、可捕获）；focused(true) 是渲染
 //! 循环的必要条件（focused(false) 时 rAF 非确定性挂死）。
 

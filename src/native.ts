@@ -458,8 +458,8 @@ export type UpdateStatus =
   | { status: 'downloading'; percent: number }
   /**
    * 下载完成。path 为「手动安装模式」的安装包落盘路径（macOS 下载 dmg 后
-   * 提示用户自行拖入「应用程序」）；缺省表示自动安装模式（Windows，走
-   * electron-updater） */
+   * 提示用户自行拖入「应用程序」）；缺省表示自动安装模式（Windows，由
+   * Tauri 更新器自动安装） */
   | { status: 'downloaded'; path?: string }
   | { status: 'error'; message: string }
 

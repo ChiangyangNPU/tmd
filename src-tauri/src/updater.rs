@@ -1,6 +1,6 @@
 //! 自动更新（对齐 electron/updater.cjs 的渲染层契约）。
 //!
-//! 与 Electron 版的差异（均为有意取舍，见 docs/spike-tauri.md 缺口清单）：
+//! 与 Electron 版的差异（均为有意取舍）：
 //! - **不再自研双源/差量**：原语用 tauri-plugin-updater 承载——校验签名、
 //!   下载、安装由插件负责；端点仍配双源（Gitee 优先、GitHub 备用，插件按序回退）
 //! - **全量下载**：Electron 走 blockmap 差量，这里每次拉完整安装包（体积换简单）

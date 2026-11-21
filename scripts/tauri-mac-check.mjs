@@ -11,7 +11,7 @@
  *
  * 覆盖范围：DOM 状态、壳层注入契约、JS→invoke→Rust→磁盘 全链路。
  * **不覆盖**：真实 OS 级按键、NSOpenPanel 等原生面板、拖拽移窗、首帧白闪
- * ——这几项仍需人工或外部 AX/CGEvent 方案（见 docs/验收-tauri-转正.md）。
+ * ——这几项仍需人工或外部 AX/CGEvent 方案。
  *
  * 用法：
  *   node scripts/tauri-mac-check.mjs
