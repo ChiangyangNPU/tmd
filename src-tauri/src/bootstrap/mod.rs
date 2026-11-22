@@ -49,33 +49,93 @@ pub(crate) fn queue_open_path(app: &tauri::AppHandle, path: String) {
     }
     {
         let pending = app.state::<PendingOpenPaths>();
+        let ready_now = pending.ready.load(Ordering::SeqCst);
         pending
             .queue
             .lock()
             .expect("pending open 锁中毒")
             .push(path);
-        if !pending.ready.load(Ordering::SeqCst) {
+        if !ready_now {
             return; // 渲染层未就绪：留在队列，等 ready 冲刷
         }
     }
     flush_pending_open_paths(app);
 }
 
-/// 把排队中的待打开文件发给渲染层，并把窗口带到前台
+/// 把排队中的待打开文件发给渲染层，并把窗口带到前台。
+///
+/// **至少一次投递**：emit **不清空队列**——渲染层 shim 收到事件即回执
+/// `tmd_open_path_confirmed`，回执才移除。原因：ready 时渲染层 listen 注册
+/// 确认与 shell 侧 emit 存在跨线程竞态（注册的 IPC 响应先回 JS，核心侧监
+/// 听表落地可能晚 1ms+，emit 恰好抢跑 = 事件丢失；v0.2.4 关窗重建轮次实
+/// 测「成功/失败交替」）。未确认路径由 `spawn_flush_retry` 周期补发。
+///
+/// **emit 门卫**：`MainPageLoaded`（当前页面加载完成）+ 主窗口存在才发；
+/// 否则原地保留——页面未加载完的 webview 没有 JS，发了也白发。
 pub(crate) fn flush_pending_open_paths(app: &tauri::AppHandle) {
+    let page_loaded = app
+        .try_state::<MainPageLoaded>()
+        .is_some_and(|p| p.0.load(Ordering::SeqCst));
+    let has_win = app.get_webview_window("main").is_some();
+    if !page_loaded || !has_win {
+        return;
+    }
     let paths = {
         let pending = app.state::<PendingOpenPaths>();
-        let mut g = pending.queue.lock().expect("pending open 锁中毒");
-        std::mem::take(&mut *g)
+        let g = pending.queue.lock().expect("pending open 锁中毒");
+        g.clone()
     };
-    for path in paths {
-        let _ = app.emit("tmd-open-path", &path);
+    for path in &paths {
+        let _ = app.emit("tmd-open-path", path);
     }
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }
+    // 未确认路径的补发兜底（至少一次投递，见函数头注释）
+    spawn_flush_retry(app);
+}
+
+/// flush 的补发线程：队列仍有未回执路径时周期性重发（300ms × 最多 10 次 ≈
+/// 3s，覆盖注册落地慢/页面加载慢的一切竞态窗口）；回执移除后队列清空即提前
+/// 退出。多线程并发补发无害：渲染层 openPath 对已打开文档跳转既有标签。
+fn spawn_flush_retry(app: &tauri::AppHandle) {
+    let pending_non_empty = {
+        let pending = app.state::<PendingOpenPaths>();
+        let g = pending.queue.lock().expect("pending open 锁中毒");
+        !g.is_empty()
+    };
+    if !pending_non_empty {
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        for _ in 0..10 {
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let remaining = {
+                let pending = app.state::<PendingOpenPaths>();
+                let g = pending.queue.lock().expect("pending open 锁中毒");
+                g.len()
+            };
+            if remaining == 0 {
+                return;
+            }
+            flush_pending_open_paths(&app);
+        }
+    });
+}
+
+/// 渲染层回执：shim 收到 tmd-open-path 即调用，从待打开队列移除该路径
+#[tauri::command]
+pub(crate) fn tmd_open_path_confirmed(
+    app: tauri::AppHandle,
+    pending: tauri::State<'_, PendingOpenPaths>,
+    path: String,
+) {
+    let mut g = pending.queue.lock().expect("pending open 锁中毒");
+    g.retain(|p| p != &path);
+    let _ = app;
 }
 
 /// 专职线程：等 PendingOpenPaths 就位（state 尚未 manage 时轮询等待）后
@@ -101,8 +161,23 @@ fn relay_paths_to_renderer(app: tauri::AppHandle, paths: Vec<String>) {
 /// 最大化状态去重标记（Resized 事件高频，只在状态翻转时推送）
 pub(crate) struct MaximizedFlag(pub(crate) AtomicBool);
 
+/// setup 完成标记：tauri 在事件循环的 Ready 内才执行 setup（app.rs Ready 分支），
+/// 冷启动带文档时 odoc 先于 Ready 到达——Opened 处理器若立即建窗口会撞上
+/// 「state() called before manage()」（WinStateTracker 等尚未注册，v0.2.4 实测
+/// SIGABRT 即此）。ensure_main_window 经本标记等待 setup 落地后再行动。
+pub(crate) struct SetupDone(pub(crate) AtomicBool);
+
+/// 主窗口页面加载完成标记（PageLoadEvent::Finished 置真、Started 置假）：
+/// flush_pending 的 emit 只在页面加载完成后才发——监听器（shim ready 已等
+/// listen 注册落地）此时才存在；否则 emit 落进尚无 JS 的 webview = 文档丢失
+/// （v0.2.4 关窗重建场景实测：emit 早于新页面 Finished，未命名空文档）。
+pub(crate) struct MainPageLoaded(pub(crate) AtomicBool);
+
 /// 应用入口：构建 Tauri 应用（插件/状态/setup/菜单/窗口事件/dispatch）并进入事件循环。
-pub(crate) fn run() {
+/// 日志器与 panic hook 由 main() 先行初始化（覆盖 Builder 构建期）。
+pub(crate) fn run(logger: std::sync::Arc<logger::Logger>) {
+    // 启动扫描崩溃目录补记上次运行留下的 minidump 线索（与 Electron 版共享资产根）
+    logger::scan_new_dumps(&logger, &history::tmd_home());
     let app = tauri::Builder::default()
         // 单实例锁：二次启动的 argv 转交主实例（官方要求该插件最先注册）
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
@@ -176,6 +251,7 @@ pub(crate) fn run() {
             exporter::pdf::tmd_print,
             commands::system::tmd_report_error,
             commands::shell::tmd_ready,
+            tmd_open_path_confirmed,
             commands::system::tmd_open_logs_dir,
             commands::files::tmd_open_file,
             commands::files::tmd_open_folder,
@@ -189,6 +265,9 @@ pub(crate) fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("TMD (tauri spike) 启动失败");
+    // 日志器注册为 managed state（main() 已 init + 安装 panic hook；setup 内
+    // 无 State 依赖，build 后立即注册即可）
+    app.manage(logger);
     app.run(|_app, _event| {
         // 文件关联：Finder 双击 / 系统打开方式。
         // RunEvent::Opened 仅存在于 Apple 平台；Windows 首次关联启动由 setup
@@ -210,12 +289,10 @@ pub(crate) fn run() {
 /// 状态注册顺序即启动依赖顺序：logger → watcher → 导出服务 → 壳状态 →
 /// 数据目录（AI/图床/更新器/窗口几何）→ 菜单 → 主窗口 → spike 探针 → 更新检查。
 fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    // 本地日志（~/.tmd/logs）：panic hook 与渲染层异常上报都写这里；
-    // 启动扫描崩溃目录补记上次运行留下的 minidump 线索（与 Electron 版共享资产根）
-    let logger = logger::init_global(history::tmd_home());
-    logger::install_panic_hook();
-    logger::scan_new_dumps(&logger, &history::tmd_home());
-    app.manage(logger);
+    // setup 完成标记先行注册（ensure_main_window 在等待期间轮询它）
+    app.manage(SetupDone(AtomicBool::new(false)));
+    // 主窗口页面加载标记（flush_pending 的 emit 门卫，见结构体注释）
+    app.manage(MainPageLoaded(AtomicBool::new(false)));
     app.manage(WatchState::new(app.handle().clone()));
     // 离屏导出服务（Word/长图/ePub 专职 worker + 探边窗口）
     exporter::init(app.handle());
@@ -261,6 +338,8 @@ fn setup_app(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // 主窗口：首次创建与 macOS Reopen 重建共用同一工厂（几何/主题/
     // 最大化状态在工厂内从 shell-state 现读，重建语义与首次启动一致）
     window::create_main_window(app.handle())?;
+    // 全部状态注册 + 主窗口就绪：放开 ensure_main_window 的等待
+    app.state::<SetupDone>().0.store(true, Ordering::SeqCst);
     // spike 探针：环境变量触发的验收工具（TMD_SPIKE_*），见 probe 模块
     probe::spawn_env_probes(app.handle());
     // 自动更新：启动 5s 后按持久化开关自动检查（对应 Electron scheduleAutoCheck）

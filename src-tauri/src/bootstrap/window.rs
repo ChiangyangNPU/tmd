@@ -38,7 +38,23 @@ pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri:
         // 带版本号：用户可直观确认当前运行版本；版本随 Cargo 对齐流程自动跟进
         .title(format!("TMD {}", app.package_info().version))
         .min_inner_size(940.0, 600.0)
-        .initialization_script(TMD_API_SHIM);
+        .initialization_script(TMD_API_SHIM)
+        // 页面加载事件（Option 覆盖语义——全平台唯一注册点）：维护
+        // MainPageLoaded 标记（flush_pending 的 emit 门卫，见其注释）——
+        // Started 置假、Finished 置真；Win/Linux 顺带承担「Finished 即上屏」
+        // （上屏通道一，见下方首帧防闪注释）；留 warn 日志便于诊断
+        // 「渲染层未 boot」类问题
+        .on_page_load(|window, payload| {
+            let finished = payload.event() == tauri::webview::PageLoadEvent::Finished;
+            let app = window.app_handle();
+            if let Some(flag) = app.try_state::<crate::bootstrap::MainPageLoaded>() {
+                flag.0.store(finished, std::sync::atomic::Ordering::SeqCst);
+            }
+            #[cfg(not(target_os = "macos"))]
+            if finished {
+                let _ = window.show();
+            }
+        });
     if let Some(theme) = restored_theme {
         builder = builder.theme(Some(theme));
     }
@@ -73,14 +89,9 @@ pub(crate) fn create_main_window(app: &tauri::AppHandle) -> tauri::Result<tauri:
     //   Finished 时可能未注入，提前上屏会闪内置配色）
     // - 兜底：8s 看门狗强制上屏（页面加载失败/渲染层崩溃时窗口不能永久隐藏）
     builder = builder.visible(false);
-    #[cfg(not(target_os = "macos"))]
-    {
-        builder = builder.on_page_load(|window, payload| {
-            if payload.event() == tauri::webview::PageLoadEvent::Finished {
-                let _ = window.show();
-            }
-        });
-    }
+    // 注意：on_page_load_handler 是 Option（第二次注册覆盖第一次），Windows 的
+    // 「Finished 即上屏」已合并进上方统一处理器，不能再注册第二次
+
     // 底色跟随持久化主题（#1e2127 / #ffffff，与 Electron SHELL_BG 同值）：
     // 兜底「已上屏但首帧未合成」的瞬间——即便露出窗口底色也是主题色而非白
     let shell_bg = match restored_theme {

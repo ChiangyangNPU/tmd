@@ -446,7 +446,14 @@ pub(crate) fn install_panic_hook() {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         if let Some(logger) = global() {
-            let message = format!("panic: {}", info);
+            // 线程名 + backtrace：定位非主线程/构建期 panic（如 state() 早于 manage）
+            let thread = std::thread::current();
+            let thread_name = thread.name().unwrap_or("<unnamed>").to_string();
+            let bt = std::backtrace::Backtrace::force_capture().to_string();
+            let message = format!(
+                "panic[thread={}]: {}\nbacktrace:\n{}",
+                thread_name, info, bt
+            );
             logger.log("error", "main", &message, None, &LogMeta::default());
         }
         default_hook(info);

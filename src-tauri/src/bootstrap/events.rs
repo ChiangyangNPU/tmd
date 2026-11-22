@@ -27,6 +27,11 @@ use super::{MaximizedFlag, PendingOpenPaths};
 /// panic/unwind 穿越 ObjC 帧直接 terminate（SIGABRT，odoc 晚于 ready
 /// 到达时必现；早到则入队、由 ready 命令线程冲刷而幸免——竞态由此而来）。
 /// 挪到专职线程后：入队与冲刷都在非主线程，窗口操作经 Tauri 正常派发。
+///
+/// **无主窗口时先重建**（macOS）：关窗≠退出期间双击文档，odoc 只到
+/// Opened 分支——Reopen（Dock 点击）不会派发，若不在此建窗口，路径入队后
+/// 永远等不到渲染层 ready 冲刷，表现即「双击文档无反应」（v0.2.4 实测）。
+/// 与 Reopen 共用同一工厂；新渲染层 ready 时冲刷队列打开文档并上屏。
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 pub(crate) fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
     if let tauri::RunEvent::Opened { urls } = event {
@@ -38,6 +43,10 @@ pub(crate) fn handle_opened_event(app: &tauri::AppHandle, event: &tauri::RunEven
                     .unwrap_or_else(|_| url.to_string())
             })
             .collect();
+        #[cfg(target_os = "macos")]
+        if app.get_webview_window("main").is_none() {
+            ensure_main_window(app);
+        }
         super::relay_paths_to_renderer(app.clone(), paths);
     }
 }
@@ -61,8 +70,10 @@ pub(crate) fn handle_exit_requested_event(event: &tauri::RunEvent) {
 /// 关掉主窗口后点 Dock 图标时重建主窗口（Electron 版靠 app 'activate' 同款行为）。
 ///
 /// 已有窗口（关窗前先最小化/隐藏的情况）只做前置，不重复创建。
-/// 窗口创建必须离开事件派发主线程——与 handle_opened_event 同因：run 回调
-/// 跑在主线程的事件派发栈内，窗口操作同步回主线程会自等/panic。
+/// show/unminimize/focus 一律经 run_on_main_thread 排队：Reopen 不仅来自
+/// Dock 点击——launch-with-doc 时 NSApp finishLaunching 的
+/// _reopenWindowsAsNecessary 也会派发（v0.2.4 冷启动双击文档 SIGABRT 的
+/// 崩溃点即在主线程派发栈内同步做窗口操作，与 handle_opened_event 同因）。
 #[cfg(target_os = "macos")]
 pub(crate) fn handle_reopen_event(app: &tauri::AppHandle, event: &tauri::RunEvent) {
     // 变体带 #[non_exhaustive]，外部匹配必须带 ..
@@ -75,30 +86,70 @@ pub(crate) fn handle_reopen_event(app: &tauri::AppHandle, event: &tauri::RunEven
     };
     let has_visible_windows = *has_visible_windows;
     if let Some(window) = app.get_webview_window("main") {
-        if !has_visible_windows {
-            let _ = window.show();
-            let _ = window.unminimize();
-        }
-        let _ = window.set_focus();
+        let win = window.clone();
+        let app = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if !has_visible_windows {
+                let _ = win.show();
+                let _ = win.unminimize();
+            }
+            let _ = win.set_focus();
+        });
         return;
     }
-    let app = app.clone();
+    ensure_main_window(app);
+}
+
+/// 无主窗口时重建主窗口（Reopen 与 Opened 共用的同一工厂）。
+///
+/// 两段式等待与派发，均不可省略：
+/// 1. **后台线程等待 setup 完成**（SetupDone 标记，10s 兜底）：tauri 在事件
+///    循环的 Ready 内才跑 setup（app.rs Ready 分支），冷启动带文档时 odoc
+///    先于 Ready 到达，此刻各 state 尚未 manage、主窗口也未创建——立即建窗
+///    必 panic（v0.2.4 冷启动双击文档 SIGABRT 实测）。等待绝不能放主线程：
+///    主线程睡眠会阻塞事件循环，Ready 无法派发 → setup 永不完成 → 死锁。
+/// 2. **回主线程创建**（run_on_main_thread）：窗口创建须在主线程，且排队后
+///    在派发间隙执行，不阻塞当前事件派发栈（run 回调内同步做窗口操作会
+///    自等/panic）。等待结束后 setup 已建好主窗口，二次确认通常直接返回；
+///    仅「运行中窗口被关」场景才真正走到 create_main_window。
+#[cfg(target_os = "macos")]
+fn ensure_main_window(app: &tauri::AppHandle) {
+    let handle = app.clone();
     std::thread::spawn(move || {
-        // 连点 Dock 图标可能派发多次 Reopen：线程内二次确认避免建出两个主窗口
-        if app.get_webview_window("main").is_some() {
-            return;
-        }
-        if let Err(err) = create_main_window(&app) {
-            if let Some(logger) = logger::global() {
-                logger.log(
-                    "error",
-                    "main",
-                    &format!("重建主窗口失败: {}", err),
-                    None,
-                    &logger::LogMeta::default(),
-                );
+        let mut waited_ms = 0u32;
+        loop {
+            if handle
+                .try_state::<super::SetupDone>()
+                .is_some_and(|s| s.0.load(Ordering::SeqCst))
+            {
+                break;
             }
+            if waited_ms >= 10_000 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            waited_ms += 50;
         }
+        let _ = handle.run_on_main_thread({
+            let handle = handle.clone();
+            move || {
+                // 连点 Dock 图标/连发 odoc 可能排队多次：执行时二次确认避免重复建
+                if handle.get_webview_window("main").is_some() {
+                    return;
+                }
+                if let Err(err) = create_main_window(&handle) {
+                    if let Some(logger) = logger::global() {
+                        logger.log(
+                            "error",
+                            "main",
+                            &format!("重建主窗口失败: {}", err),
+                            None,
+                            &logger::LogMeta::default(),
+                        );
+                    }
+                }
+            }
+        });
     });
 }
 
@@ -169,6 +220,12 @@ pub(crate) fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::Menu
 /// 窗口事件处理（Builder.on_window_event 挂接）：几何防抖落盘 /
 /// 销毁时状态复位 / 关闭确认。
 pub(crate) fn handle_window_event(window: &tauri::Window, event: &tauri::WindowEvent) {
+    // setup 未完成（WinStateTracker 等状态未注册）时到达的窗口事件：
+    // launch-with-doc 时序下 odoc 先于状态注册触达，此时几何/脏标记无意义，
+    // 一律忽略——否则 state() panic（v0.2.4 冷启动双击文档 SIGABRT 根因）
+    if window.app_handle().try_state::<WinStateTracker>().is_none() {
+        return;
+    }
     match event {
         tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
             // 最大化状态推送（仅状态变化时发，对应 Electron maximize/unmaximize），
@@ -233,6 +290,20 @@ pub(crate) fn handle_window_event(window: &tauri::Window, event: &tauri::WindowE
             // 未保存标记随窗口一起作废：否则「放弃修改并关闭」后经 Dock
             // 重建的干净文档，下次关闭仍会弹未保存确认
             window.app_handle().state::<ShellState>().set_dirty(false);
+            // 队列非空 = odoc 恰落在旧窗口存活期（Opened 看到 window 存在
+            // 而未触发 ensure，路径入队后窗口随即销毁）→ 再无人建窗冲刷，
+            // 文档滞留队列、下轮必失败。此处补建窗口，新渲染层 ready 时
+            // 冲刷队列打开文档
+            let queue_non_empty = {
+                let pending = window.app_handle().state::<PendingOpenPaths>();
+                let queue = pending.queue.lock().expect("pending open 锁中毒");
+                let non_empty = !queue.is_empty();
+                drop(queue);
+                non_empty
+            };
+            if queue_non_empty {
+                ensure_main_window(window.app_handle());
+            }
         }
         tauri::WindowEvent::CloseRequested { api, .. } => {
             // 未保存关闭确认：原生对话框拦截（渲染层 window.confirm 不可靠，

@@ -19,10 +19,17 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis"],
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
     "windows": {
       "nsis": {
-        "languages": ["SimpChinese", "English"],
+        "languages": [
+          "SimpChinese",
+          "English"
+        ],
         "displayLanguageSelector": false
       }
     },
@@ -32,6 +39,50 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown 文档",
+        "description": "Markdown 文档（TMD - Type Markdown, Done.）",
+        "role": "Editor",
+        "rank": "Default",
+        "contentTypes": [
+          "net.daringfireball.markdown"
+        ]
+      },
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown 源文档",
+        "description": "Markdown 源文档（TMD - Type Markdown, Done.）",
+        "role": "Editor",
+        "rank": "Default",
+        "mimeType": "text/markdown",
+        "exportedType": {
+          "identifier": "com.chiangyang.tmd.markdown",
+          "conformsTo": [
+            "public.plain-text"
+          ]
+        }
+      },
+      {
+        "ext": [
+          "txt"
+        ],
+        "name": "文本文件",
+        "description": "纯文本文件（TMD - Type Markdown, Done.）",
+        "role": "Editor",
+        "rank": "Default",
+        "contentTypes": [
+          "public.plain-text"
+        ]
+      }
     ]
   },
   "plugins": {

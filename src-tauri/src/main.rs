@@ -63,5 +63,10 @@ mod window_state;
 mod win_anim;
 
 fn main() {
-    bootstrap::run()
+    // panic hook 覆盖整个生命周期：Builder 构建期（EventLoop/插件初始化，
+    // 早于 setup）的 panic 也要落盘——hook 在 setup 内才安装的话，
+    // launch-with-doc 这类崩溃前于 setup 完成的 SIGABRT 将无日志可查
+    let logger = logger::init_global(history::tmd_home());
+    logger::install_panic_hook();
+    bootstrap::run(logger)
 }
