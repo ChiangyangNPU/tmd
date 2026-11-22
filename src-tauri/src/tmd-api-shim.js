@@ -128,11 +128,11 @@
         if (event === 'tmd-open-path') {
           // 回执确认：shell 的待打开队列按回执移除（至少一次投递），未回执
           // 路径由 shell 补发线程重投
-          try {
-            window.__TAURI__.core.invoke('tmd_open_path_confirmed', {
+          window.__TAURI__.core
+            .invoke('tmd_open_path_confirmed', {
               path: typeof e.payload === 'string' ? e.payload : String(e.payload),
             })
-          } catch (err) {}
+            .catch(function () {})
         }
         var cbs = listened[event]
         for (var i = 0; i < cbs.length; i++) cbs[i](e.payload)

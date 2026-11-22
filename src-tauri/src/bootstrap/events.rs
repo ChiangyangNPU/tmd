@@ -293,16 +293,20 @@ pub(crate) fn handle_window_event(window: &tauri::Window, event: &tauri::WindowE
             // 队列非空 = odoc 恰落在旧窗口存活期（Opened 看到 window 存在
             // 而未触发 ensure，路径入队后窗口随即销毁）→ 再无人建窗冲刷，
             // 文档滞留队列、下轮必失败。此处补建窗口，新渲染层 ready 时
-            // 冲刷队列打开文档
-            let queue_non_empty = {
-                let pending = window.app_handle().state::<PendingOpenPaths>();
-                let queue = pending.queue.lock().expect("pending open 锁中毒");
-                let non_empty = !queue.is_empty();
-                drop(queue);
-                non_empty
-            };
-            if queue_non_empty {
-                ensure_main_window(window.app_handle());
+            // 冲刷队列打开文档。Windows/Linux 关窗即退出（进程随窗口终结，
+            // 不存在该竞态），补建逻辑 macOS 专属
+            #[cfg(target_os = "macos")]
+            {
+                let queue_non_empty = {
+                    let pending = window.app_handle().state::<PendingOpenPaths>();
+                    let queue = pending.queue.lock().expect("pending open 锁中毒");
+                    let non_empty = !queue.is_empty();
+                    drop(queue);
+                    non_empty
+                };
+                if queue_non_empty {
+                    ensure_main_window(window.app_handle());
+                }
             }
         }
         tauri::WindowEvent::CloseRequested { api, .. } => {
