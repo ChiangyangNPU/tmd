@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.2.4-Fix-1] - 2026-11-22
+
+### 修复
+
+- **macOS 双击文档打不开（文件关联三层修复）**：三类场景失效——① 软件未运行时 Finder 双击 / 系统打开方式：`Info.plist` 缺 `CFBundleDocumentTypes`，Launch Services 解析到已删除的旧 Electron 版残留注册记录（DMG 卷 / 旧工作区路径）静默失败，现声明 `.md` / `.markdown` / `.txt` 文件关联，Markdown 用系统 UTI 与自有 UTI 双条目覆盖两种解析来源；② 应用运行中关窗（红按钮，关窗≠退出）后双击文档：`RunEvent::Opened` 分支只入队路径不建窗口，现无主窗口时经 `ensure_main_window` 重建（与 Dock 点击 Reopen 分支共用同一工厂），窗口销毁但待打开队列非空时同样补建；③ 冷启动带文档的建窗轮次：渲染层事件监听注册确认与 shell 侧 emit 跨线程竞态（约 1ms 窗口），emit 抢跑即事件丢失、表现为「成功 / 失败交替」——待打开队列改至少一次投递（渲染层收到事件即回执确认后移除，未确认路径由补发线程重投），emit 前要求页面加载完成，panic hook 提前至 `main()` 安装（此前冷启动文档事件先于 setup 到达会 `state()` panic → SIGABRT 且无日志）
+
+### 工程与质量
+
+- **CI 修复**：窗口补建调用 macOS 专属的 `ensure_main_window` 未加 `cfg` 导致 Windows 编译失败——Windows/Linux 关窗即退出（进程随窗口终结）不存在该竞态，补建逻辑限 macOS；`tmd-api-shim.js` 回执确认的空 catch 改为与既有吞错风格一致
+- 运维注意：ad-hoc 签名的包会被 Launch Services 排除出文档打开候选列表，安装包需用 Apple Development 证书签名
+
 ## [0.2.4] - 2026-11-20
 
 ### 新增
