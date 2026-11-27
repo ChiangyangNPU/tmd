@@ -7,7 +7,7 @@
  *    这样光标可以进入源码编辑）
  * 3. 节点视图：光标不在块内时渲染 SVG；点击图表进入源码编辑；渲染失败清空旧图并显示错误信息
  * 4. 输入规则：直接输入 ```mermaid 回车即可创建图表块
- * 5. 编辑态装饰：光标位于块内时显示源码、隐藏图表（Typora 行为）
+ * 5. 编辑态装饰：光标位于块内时显示源码、隐藏图表
  *
  * @author chiangyang
  */
@@ -334,8 +334,8 @@ class MermaidView implements NodeView {
         )
         return
       }
-      // 语法错误时清空旧图并显示错误信息（与 Typora/Obsidian 行为一致，
-      // 避免用户误以为旧图是当前语法的渲染结果）
+      // 语法错误时清空旧图并显示错误信息，
+      // 避免用户误以为旧图是当前语法的渲染结果
       this.renderArea.innerHTML = ''
       this.errorTip.textContent = t('mermaid.syntaxError', { message })
       this.errorTip.hidden = false

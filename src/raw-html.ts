@@ -1,7 +1,7 @@
 /**
  * 原生 HTML 安全渲染（块级）。
  *
- * Typora 兼容点：Markdown 中独立成块的 `<details>` / `<div>` / `<table>` 等
+ * 块级 HTML 支持：Markdown 中独立成块的 `<details>` / `<div>` / `<table>` 等
  * HTML 会被渲染；本模块用 remark 转换把根/引用/列表中的 `html` 节点换成
  * 原子块 `html_block`，NodeView 用白名单 sanitizer 渲染，源码原样保留并可
  * 在源码模式编辑。行内 HTML（`<kbd>` 等）仍按文本显示——标签对通常被

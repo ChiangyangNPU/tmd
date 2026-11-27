@@ -4,7 +4,7 @@
 
 **Type Markdown, Done.**
 
-跨平台（macOS / Windows）的 Markdown 所见即所得编辑器，交互对标 Typora，核心特性是 Mermaid 图表的实时渲染。
+跨平台（macOS / Windows）的 Markdown 所见即所得编辑器，核心特性是 Mermaid 图表的实时渲染。
 
 需求范围见 [docs/需求说明.md](docs/需求说明.md)，架构与模块职责见 [docs/架构设计.md](docs/架构设计.md)，关键实现细节见 [docs/详细设计.md](docs/详细设计.md)，版本规划见 [docs/路线图.md](docs/路线图.md)，打包发布见 [docs/打包发布.md](docs/打包发布.md)。
 
@@ -36,10 +36,10 @@ npm run dist:tauri:install # 打包并覆盖安装到 /Applications/TMD.app
 - **Mermaid 实时渲染**（`src/mermaid.ts`，自研插件）：
   - 输入 ` ```mermaid ` 回车即创建图表块
   - 光标在块外：渲染 SVG；点击图表：进入源码编辑；光标离开：重新渲染
-  - 输入防抖 400ms；语法错误时清空旧图并显示错误提示（与 Typora/Obsidian 一致）
+  - 输入防抖 400ms；语法错误时清空旧图并显示错误提示
   - 过期渲染请求丢弃（序号守卫），连续快速输入不闪旧图
 - 数学公式（KaTeX：`$...$` 行内 / `$$...$$` 块级实时渲染）
-- 代码块语法高亮（`@milkdown/plugin-prism` + refractor，光标进入即编辑源码，与 Typora 一致）
+- 代码块语法高亮（`@milkdown/plugin-prism` + refractor，光标进入即编辑源码）
 - 多标签页：同路径去重、未保存标记 `•`、每标签滚动位置记忆；标签右键菜单支持关闭当前/其他/左侧/右侧/已保存/全部（批量关闭含未保存内容时整批确认一次）
 - 源码模式（CodeMirror 6 整篇编辑，自带搜索面板）
 - 查找替换（所见即所得模式下装饰器高亮，支持单个/全部替换）
@@ -184,7 +184,7 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  │  ├─ paste-image.ts          粘贴图片插件（inline / assets / 图床 三策略）
 │  │  ├─ paste-html.ts           HTML 粘贴转换（白名单清洗 → schema 解析）
 │  │  ├─ paste-tsv.ts            TSV 粘贴转表格
-│  │  ├─ table-input.ts          Typora 式表格输入（管道行 + 回车即时成表）
+│  │  ├─ table-input.ts          表格快速输入（管道行 + 回车即时成表）
 │  │  ├─ table-toolbar.ts        表格悬浮工具栏（行列增删 / 对齐 / 删除整表）
 │  │  ├─ table-markdown.ts       表格 Markdown 规范化（空单元格占位清理）
 │  │  ├─ text-escaping.ts        文本转义补丁（恢复表格单元格内标点转义）

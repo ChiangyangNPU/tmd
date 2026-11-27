@@ -134,7 +134,7 @@ html.win .win-controls {
   pointer-events: none;
 }
 
-/* 窗口过窄时隐藏居中文件名，避免与两侧控件重叠（Typora 同策略） */
+/* 窗口过窄时隐藏居中文件名，避免与两侧控件重叠 */
 @media (max-width: 860px) {
   .win-title {
     display: none;

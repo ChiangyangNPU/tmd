@@ -131,7 +131,7 @@ function sanitizeElement(el: Element): void {
     el.remove()
     return
   }
-  // img 的 style 提纯：只保留 zoom 声明（Typora 缩放比），其余样式一律丢弃
+  // img 的 style 提纯：只保留 zoom 缩放比声明，其余样式一律丢弃
   if (tag === 'img' && el.hasAttribute('style')) {
     const zoom = parseZoom(el.getAttribute('style') ?? '')
     if (zoom != null) el.setAttribute('style', `zoom:${zoom}%`)

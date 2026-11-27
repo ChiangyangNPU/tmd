@@ -41,7 +41,7 @@ type MdNode = {
 
 const TOC_OPEN_RE = /<!--\s*TOC\s*-->/i
 const TOC_CLOSE_RE = /<!--\s*\/TOC\s*-->/i
-/** Typora 风格目录占位：独占一个顶层段落（不区分大小写） */
+/** [TOC] 目录占位：独占一个顶层段落（不区分大小写） */
 const TOC_LITERAL_RE = /^\[toc\]$/i
 
 /** 取 mdast 节点的纯文本（html 节点取 value，段落等容器递归拼接 text 子节点） */
@@ -67,7 +67,7 @@ export function convertTocBlocks(node: MdNode, depth = 0): void {
       continue
     }
     const text = nodeText(child).trim()
-    // Typora 兼容：顶层独立一段 [TOC] 直接转目录块（与输入规则同语义；
+    // [TOC] 占位：顶层独立一段直接转目录块（与输入规则同语义；
     // 嵌套在引用/列表里的 [TOC] 保持原样，避免误吞正文）
     if (depth === 0 && TOC_LITERAL_RE.test(text)) {
       children.splice(i, 1, { type: 'toc', position: child.position })

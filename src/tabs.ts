@@ -164,7 +164,7 @@ export function markDirty() {
  *
  * 由 main.ts 的 onMarkdownChange 防抖回调（800ms 节拍）调用，零额外
  * 序列化成本——复用该回调已算好的 markdown 串。因此清脏有约 800ms
- * 延迟（与 Typora 同样异步，可接受）。
+ * 延迟（异步保存的固有节拍，可接受）。
  */
 /**
  * 脏比对用规范化：空表格占位归一 + 尾随换行剥离。

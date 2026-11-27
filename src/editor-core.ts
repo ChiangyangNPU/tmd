@@ -331,7 +331,7 @@ const selectionWordCount = $prose(
  * frontmatter（YAML 元信息块 schema/视图，须晚于 commonmark 注册）、
  * imageSrcResolver（相对路径图片）、linkNav（链接点击跳转）、
  * tableToolbar（表格悬浮工具栏）、
- * tableInput（Typora 式管道行回车自动成表；Mod-Enter 表格内下方插行，
+ * tableInput（管道行回车自动成表；Mod-Enter 表格内下方插行，
  * 晚于 gfm）、
  * formatKeymap（格式化快捷键）、
  * focusPlugin（专注模式变暗装饰器）、imageAttrs（图片缩放/对齐）。
@@ -407,7 +407,7 @@ async function createEditor(markdown: string): Promise<Editor> {
       .use(tableToolbar)
       // AI 选区气泡：随事务同步显隐，流式结果只在浮层预览、确认后才替换正文
       .use(aiBubblePlugin)
-      // Typora 式表格按键：段落管道行回车即转真表格；
+      // 表格快捷按键：段落管道行回车即转真表格；
       // Mod-Enter（Ctrl/Cmd+Enter）在表格内当前行下方插入空行
       .use(tableInputPlugin)
       .use(formatKeymap)

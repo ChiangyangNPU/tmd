@@ -113,7 +113,7 @@ describe('convertTocBlocks', () => {
     expect((tree.children![0] as MdNode).position).toBe(pos)
   })
 
-  it('Typora 风格独立 [TOC] 段落转为目录块（仅顶层，大小写不敏感）', () => {
+  it('独立 [TOC] 段落转为目录块（仅顶层，大小写不敏感）', () => {
     const tree: MdNode = {
       type: 'root',
       children: [para('[TOC]'), para('正文'), para('[toc] 附带文字')],

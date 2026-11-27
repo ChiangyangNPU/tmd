@@ -27,7 +27,7 @@
  *    物理换行，而 mdast-util-gfm-table 序列化单元格时会把物理换行压扁成空格
  *    （`a␊b` → `a b`）。注意 milkdown 序列化器走的是 processor.stringify(tree)，
  *    不执行 remark transformer，故只能覆盖 handler：state.stack 命中
- *    'tableCell' 时直接返回 `<br />`（GitHub/Typora 通用的格内换行写法，
+ *    'tableCell' 时直接返回 `<br />`（GFM 通用的格内换行写法，
  *    不含物理换行，表格行结构不被破坏）；表格外保持「反斜杠 + 换行」原行为。
  *
  * 2. 解析方向（tableHardbreakPlugin remark 插件）：外部 markdown 中格内的

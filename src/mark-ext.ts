@@ -442,7 +442,7 @@ const footnoteDefInputRule = $inputRule(
 
 /**
  * 脚注定义退出：dl 内最后一个块的段尾按 Enter → 在 dl 之后新建正文段落，
- * 光标随之移出（与 Typora 的脚注定义回车退出一致）。dl 内非段尾位置
+ * 光标随之移出。dl 内非段尾位置
  * Enter 返回 false 走默认分段，保留脚注体内多段落编辑能力。
  * 注意：commonmark 仅在 list_item 内绑定 Enter（dl 内不命中），
  * 本规则注册在其后即可生效。

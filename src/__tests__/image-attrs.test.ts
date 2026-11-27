@@ -39,7 +39,7 @@ describe('serializeImgHtml', () => {
     )
   })
 
-  it('zoom 走 style 声明（Typora 同款）', () => {
+  it('zoom 走 style 声明', () => {
     expect(serializeImgHtml({ ...FULL, width: null, align: '', zoom: 50 })).toBe(
       '<img src="assets/a.png" alt="图 A" style="zoom:50%">',
     )
@@ -71,7 +71,7 @@ describe('parseImgHtml', () => {
     expect(parseImgHtml(html as string)).toEqual({ ...FULL, title: '' })
   })
 
-  it('解析 Typora 的 zoom style', () => {
+  it('解析 style 中的 zoom 声明', () => {
     expect(parseImgHtml('<img src="a.png" style="zoom: 50%">')).toEqual({
       src: 'a.png',
       alt: '',

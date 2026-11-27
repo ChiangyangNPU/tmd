@@ -1,13 +1,13 @@
 /**
  * 图片缩放 / 对齐插件
  *
- * 功能：为 image 节点扩展 width（像素宽）、align（对齐）、zoom（Typora 缩放比）
+ * 功能：为 image 节点扩展 width（像素宽）、align（对齐）、zoom（缩放比）
  * 三个属性；编辑器内点击图片出现右下角拖拽缩放手柄与对齐浮层（左/中/右/重置）。
  *
- * 存储格式（Markdown 文本，Typora 同款）：
+ * 存储格式（Markdown 文本，跨编辑器可读）：
  *   无属性：![alt](src "title") —— 与原生语法零差异，旧文档无损
  *   有属性：<img src="..." alt="..." width="300" align="center">
- *   Typora 缩放：<img src="..." style="zoom:50%"> —— 原样往返（zoom 不折算，
+ *   zoom 缩放：<img src="..." style="zoom:50%"> —— 原样往返（zoom 不折算，
  *   折算需要异步取 naturalWidth 且不可逆）
  *
  * 设计要点：
@@ -120,7 +120,7 @@ const ATTR_RE = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s
 /** img 标签整体预检：限制为单标签、属性值不含 `>`，不达标的串不进解析 */
 const IMG_TAG_RE = /^\s*<img\s[^<>]*\/?>\s*$/i
 
-/** 反解常用 HTML 实体（Typora 写出的属性值可能含 &amp; 等转义） */
+/** 反解常用 HTML 实体（外部编辑器写出的属性值可能含 &amp; 等转义） */
 function decodeAttr(s: string): string {
   return s
     .replaceAll('&lt;', '<')
@@ -420,7 +420,7 @@ class ImageView implements NodeView {
     if (attrs.align) {
       this.dom.classList.add(`pm-image--${attrs.align}`)
     } else {
-      // Typora 同款默认：独占段落（无文本兄弟节点）的单图自动居中
+      // 默认行为：独占段落（无文本兄弟节点）的单图自动居中
       const pos = this.getPos()
       const parent = pos != null ? this.view.state.doc.resolve(pos).parent : null
       const solo = parent?.type.name === 'paragraph' && parent.childCount === 1

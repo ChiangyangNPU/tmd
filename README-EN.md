@@ -4,7 +4,7 @@
 
 **Type Markdown, Done.**
 
-A cross-platform (macOS / Windows) WYSIWYG Markdown editor with Typora-like interactions. Its core feature is real-time rendering of Mermaid diagrams.
+A cross-platform (macOS / Windows) WYSIWYG Markdown editor. Its core feature is real-time rendering of Mermaid diagrams.
 
 For the scope of requirements, see [docs/需求说明.md](docs/需求说明.md) (Chinese). For architecture and module responsibilities, see [docs/架构设计.md](docs/架构设计.md) (Chinese). For key implementation details, see [docs/详细设计.md](docs/详细设计.md) (Chinese). For the version plan, see [docs/路线图.md](docs/路线图.md) (Chinese). For packaging and release, see [docs/打包发布.md](docs/打包发布.md) (Chinese).
 
@@ -36,10 +36,10 @@ Grab an installer from [GitHub Releases](https://github.com/ChiangyangNPU/tmd/re
 - **Real-time Mermaid rendering** (`src/mermaid.ts`, custom plugin):
   - Type ` ```mermaid ` and press Enter to create a diagram block
   - Cursor outside the block: renders SVG; click the diagram: enters source editing; cursor leaves: re-renders
-  - 400ms input debounce; on syntax errors the stale diagram is cleared and an error hint is shown (consistent with Typora/Obsidian)
+  - 400ms input debounce; on syntax errors the stale diagram is cleared and an error hint is shown
   - Stale render requests are discarded (sequence guard), so fast continuous typing never flashes old diagrams
 - Math formulas (KaTeX: `$...$` inline / `$$...$$` block, rendered in real time)
-- Code block syntax highlighting (`@milkdown/plugin-prism` + refractor; entering the block edits the source code, consistent with Typora)
+- Code block syntax highlighting (`@milkdown/plugin-prism` + refractor; entering the block edits the source code)
 - Multi-tab: same-path dedup, unsaved marker (`•`), per-tab scroll position memory; tab context menu to close current/other/left/right/saved/all tabs (one batch confirmation when unsaved tabs are involved)
 - Source mode (CodeMirror 6 full-document editing with built-in search panel)
 - Find & replace (decorator-based highlighting in WYSIWYG mode, replace current / replace all)
@@ -180,7 +180,7 @@ Rust (Tauri 2) + TypeScript + Vite + Milkdown (ProseMirror) + Mermaid + CodeMirr
 │  │  ├─ paste-image.ts          Pasted-image plugin (inline / assets / image host — triple strategy)
 │  │  ├─ paste-html.ts           HTML paste conversion (whitelist sanitize → schema parsing)
 │  │  ├─ paste-tsv.ts            TSV paste → table
-│  │  ├─ table-input.ts          Typora-style table input (pipe row + Enter builds the table)
+│  │  ├─ table-input.ts          quick table input (pipe row + Enter builds the table)
 │  │  ├─ table-toolbar.ts        Floating table toolbar (row/col add-remove / alignment / delete table)
 │  │  ├─ table-markdown.ts       Table Markdown normalization (empty placeholder cell cleanup)
 │  │  ├─ text-escaping.ts        Text-escaping patch (restores punctuation escaping inside table cells)

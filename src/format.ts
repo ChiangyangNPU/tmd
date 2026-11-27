@@ -78,11 +78,11 @@ export const toggleBlockquote: Command = (state, dispatch) => {
 
 /**
  * 块级类型 toggle：当前光标所在块就是目标类型 + 目标属性时变回段落，
- * 否则变成目标类型（setBlockType 单向设为 → Typora 式 toggle）。
+ * 否则变成目标类型（把 setBlockType 的单向设为扩展为双向 toggle）。
  *
  * - 普通段落按 Ctrl+1 → h1；h1 再按 Ctrl+1 → 段落（toggle off）
  * - h2 按 Ctrl+1 → h1（切换 level，不 toggle off）
- * - 选区跨多块时按光标所在块判定（与 Typora 一致）
+ * - 选区跨多块时按光标所在块判定
  */
 function toggleBlockType(
   nodeType: import('@milkdown/kit/prose/model').NodeType,

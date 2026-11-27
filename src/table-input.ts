@@ -1,9 +1,9 @@
 /**
- * Typora 式表格输入：所见即所得里用「管道行 + 回车」即时建表。
+ * 表格快速输入：所见即所得里用「管道行 + 回车」即时建表。
  *
  * 背景：milkdown gfm 预设只提供 `|3x4| ` 快速建表规则与 InsertTable 命令，
  * 不存在「敲管道线文本自动成表」的输入规则——在段落里输入
- * `| a | b |` 永远只是普通段落。本插件补齐 Typora 的核心输入路径：
+ * `| a | b |` 永远只是普通段落。本插件补齐这一核心输入路径：
  *
  *   | 姓名 | 年龄 |      ← 普通段落输入表头，按回车
  *   ⏎                  → 即时转为真表格（表头 + 一行空数据行），
@@ -13,12 +13,12 @@
  * 全空表格——与 gfm 预设 `|3x5|␣`（空格触发）同语义的建表结果；
  * gfm 原生规则只认空格结尾，Enter 路径由本插件补齐。
  *
- * 与 Typora 一致：不需要手动输入分隔行 `| -- | -- |`，表头行回车即成表，
+ * 不需要手动输入分隔行 `| -- | -- |`：表头行回车即成表，
  * 分隔行在序列化时由 mdast 自动生成。
  *
  * 为什么用 Enter 键规则而非文本 InputRule：管道行在输入过程中的每一帧
  * 几乎都是「合法前缀」（如刚敲完 `| a` 尚未打第 2 列时），文本规则
- * 会在用户继续输入途中提前成表；Typora 均以回车作为完成信号。
+ * 会在用户继续输入途中提前成表；本插件同样以回车作为完成信号。
  *
  * 触发条件：
  * - 当前段落含至少一个未转义 |（排除普通文本与水平线 `---`）；
@@ -28,7 +28,7 @@
  * - 段落不含硬换行（一段多物理行时不转换）。
  *
  * 同一插件还处理 Mod-Enter（Windows/Linux 为 Ctrl+Enter，macOS 为 Cmd+Enter）：
- * 光标在表格内时在当前行下方插入一空行（对齐 Typora 的 Command/Ctrl+Enter）；
+ * 光标在表格内时在当前行下方插入一空行（对齐常见编辑器的 Command/Ctrl+Enter）；
  * 表格外直接放行，保持原行为。裸 Enter 仍按 gfm 预设语义跳出表格，
  * 单元格内换行统一走 Shift+Enter（插入 <br />）。
  *
@@ -135,7 +135,7 @@ const N = {
 } as const
 
 /**
- * 按表头文本与对齐构造 gfm 表格节点（表头行 + 一行空数据行，与 Typora 一致）。
+ * 按表头文本与对齐构造 gfm 表格节点（表头行 + 一行空数据行）。
  */
 function buildTableNode(state: EditorState, headers: string[], aligns: CellAlign[]) {
   const { schema } = state
@@ -157,7 +157,7 @@ function buildTableNode(state: EditorState, headers: string[], aligns: CellAlign
 
 /**
  * 按行列数构造全空网格表（表头行 + rows-1 行空数据行，与 gfm 预设的
- * createTable 结构一致，空表头对齐 Typora 的 |NxM| 行为）。
+ * createTable 结构一致，空表头自动补空段落）。
  */
 function buildGridTableNode(state: EditorState, rows: number, cols: number) {
   const { schema } = state
