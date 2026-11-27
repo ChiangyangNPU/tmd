@@ -49,6 +49,7 @@ npm run dist:tauri:install # 打包并覆盖安装到 /Applications/TMD.app
 - **命令面板**（Ctrl/Cmd+Shift+A，可在设置中改键）：模糊搜索并执行全部菜单动作（文件 / 导出 / 历史版本 / 设置）、格式化命令与视图切换（源码 / 分屏 / 自动保存）——命令与菜单共用同一批处理函数，中英文关键词均可检索
 - **跨文件全文搜索**（Ctrl/Cmd+Shift+F）：在侧边栏已挂载的文件夹中逐行检索，结果按文件分组显示行号与上下文（关键词高亮），↑↓ 选择、回车打开并定位到匹配处；自动跳过依赖目录、限制单文件大小与结果数量，大型工作区也不会卡住界面
 - **双链生态**：`[[目标]]` / `[[目标|别名]]` / `[[目标#标题]]` 三件套（所见即所得与源码双模式渲染，未解析目标弱化提示、点击跳转）；**反向链接面板**（Cmd/Ctrl+Shift+B）列出全工作区引用当前笔记的链接；**关系图谱**（canvas + d3-force 力导向，悬停高亮邻居、点击打开）与**局部图谱**（侧边栏当前笔记邻域迷你图，1/2 层）；重命名笔记时自动重写全工作区引用；快捷键均可在设置中改键
+- **AI 助手**（默认关闭、显式触发，OpenAI 兼容协议；内置 OpenAI / DeepSeek（默认）/ Moonshot (Kimi) / 智谱 GLM / Ollama（本地）/ 自定义端点六种服务商预设）：**选区动作**——选中文本浮出气泡，润色 / 改写 / 精简 / 扩写 / 翻译 / 纠错 / 规范 Markdown 七个动作流式预览，确认后单事务替换（Cmd+Z 一步撤销）；**工作区问答**——侧边栏多轮对话，按三档开关装配选区 / 当前文档 / 已挂载文件夹片段作上下文（关键词预筛 + 可选向量重排），每次发送前明示实际发送范围。隐私边界：API Key 经系统 safeStorage 加密存储本机，网络请求只发生在主进程，渲染层不接触明文。入口 `Cmd/Ctrl+J`（可改键）与编辑区右键菜单「AI 助手…」
 - 文件侧边栏：可同时挂载多个文件夹（独立展开、重启恢复、展开懒加载）与最近打开列表；两者均支持行内 hover × 单条移除与一键清空（二次确认；文件夹只取消挂载，不删除磁盘文件）。**当前打开的文件**在树与最近列表中用与文件夹一致的强调色高亮，随标签切换即时移动；系统文件管理器等外部途径**新增 / 删除 / 改名**文件与文件夹后，已展开的树自动刷新（无需重新挂载）
 - **编码与换行兼容**：打开时自动检测 UTF-8（含 BOM）/ UTF-16LE/BE / GBK，保存时按原编码与原换行（LF/CRLF）写回；Windows 仓库不再因换行归一产生整文件 diff，全文搜索 / 双链扫描 / 外部修改监视使用同一解码器
 - **侧边栏文件管理**（桌面端）：文件夹根行 hover 出现「＋文 / ＋夹」行内新建（自动补 .md、重名拒绝、新建文件直接打开）；任意行右键菜单支持「新建 / 重命名 / 在系统中显示 / 复制相对（绝对）路径 / 移到回收站」（按类别分组、破坏性操作独立末组）——重命名同步更新已打开标签的关联路径，后续保存写回新路径；「移到回收站」经确认后移入系统回收站（可恢复，不做永久删除，文件夹提示含全部内容）。挂载根行另有「从列表中移除文件夹（不删除磁盘文件）」，最近列表行另有「从最近文件中移除」——两个「移除」都只取消引用、不碰磁盘
@@ -112,8 +113,8 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  ├─ src/recent.rs              系统最近文档（macOS NSDocumentController / Windows SHAddToRecentDocs）
 │  ├─ src/picgo.rs               图床上传（7 家图床，手写签名算法，零额外依赖）
 │  ├─ src/exporter.rs            导出编排 + export_native*.rs 平台原语（WKWebView / WebView2）
-│  ├─ src/fsops.rs / search.rs / history.rs / themes.rs / logger.rs / wikilinks.rs
-│  │                             文件操作 / 全文搜索 / 历史版本 / 主题 / 日志 / 双链索引
+│  ├─ src/fsops.rs / search.rs / history.rs / themes.rs / logger.rs / wikilinks.rs / ai*.rs
+│  │                             文件操作 / 全文搜索 / 历史版本 / 主题 / 日志 / 双链索引 / AI（配置·对话·嵌入）
 │  ├─ src/updater.rs             自动更新（tauri-plugin-updater + minisign 校验）
 │  ├─ src/tmd-api-shim.js        注入渲染层的受控 API（window.tmdAPI，替代 preload）
 │  └─ tauri.conf.json            窗口 / 打包 / 更新器配置
@@ -142,7 +143,7 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  ├─ store.ts                   localStorage 键与读写统一入口
 │  ├─ native.ts                  壳层契约接口（NativeFileAPI，浏览器模式自动降级）
 │  ├─ autosave.ts                自动保存（5 秒写回定时器）
-│  ├─ settings.ts                设置面板装配（语言 / 主题 / CSS / 图床 / 快捷键 / 更新 / 关于）
+│  ├─ settings.ts                设置面板装配（语言 / 主题 / CSS / AI 助手 / 图床 / 快捷键 / 更新 / 关于）
 │  ├─ shortcuts.ts               快捷键配置（定义 / 读写 / 校验 / 显示格式化，单一数据源）
 │  ├─ i18n.ts                    多语言运行时（语言包加载 / t() / DOM 批量替换）
 │  ├─ theme.ts                   深浅模式切换（图表原地重渲，不重建编辑器）
@@ -169,6 +170,12 @@ Rust（Tauri 2）+ TypeScript + Vite + Milkdown（ProseMirror） + Mermaid + Cod
 │  │  ├─ link-rewrite.ts         改名自动重写全工作区引用
 │  │  ├─ graph.ts                关系图谱（canvas + d3-force，设置弹层）
 │  │  └─ local-graph.ts          局部图谱侧边栏面板（当前笔记邻域，1/2 层）
+│  ├─ AI 助手：
+│  │  ├─ ai.ts                   AI 客户端（配置读写 / 流式会话封装 / 错误码文案映射）
+│  │  ├─ ai-actions.ts           选区动作（提示词纯函数 / 选区捕获 / 单事务落地）
+│  │  ├─ ai-popover.ts           选区气泡（动作按钮 / 流式预览 / 确认替换）
+│  │  ├─ ai-chat.ts              问答侧边栏面板（多轮对话 / 上下文装配）
+│  │  └─ ai-retrieval.ts         工作区检索（关键词预筛 + 可选 embedding 重排）
 │  ├─ 导出：
 │  │  ├─ export.ts               导出动作层（HTML / PDF / Word / 长图 / ePub / LaTeX）
 │  │  ├─ export-doc.ts           载体无关的导出文档核心（解析管线 / 样式 / 图片引用分类，六载体共用）
