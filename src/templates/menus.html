@@ -1,5 +1,5 @@
 <div id="more-menu" class="more-menu" hidden>
-  <!-- 文件与视图 -->
+  <!-- 文件与编辑 -->
   <button
     id="menu-open-btn"
     class="menu-item"
@@ -9,8 +9,10 @@
     打开
   </button>
   <button id="menu-find-btn" class="menu-item" data-i18n="toolbar.find">查找</button>
-  <!-- AI 问答：侧边栏面板（仅桌面 + AI 启用，浏览器下由 main.ts 隐藏） -->
-  <button id="menu-ai-chat-btn" class="menu-item" data-i18n="menu.aiChat">AI 问答</button>
+  <button id="menu-insert-toc-btn" class="menu-item" data-i18n="menu.insertToc">插入目录</button>
+  <div class="menu-sep"></div>
+  <!-- 视图与面板：分屏为编辑区模式；AI 问答 / 反向链接 / 局部图谱为侧边栏面板，
+       关系图谱为独立弹层。AI 问答仅桌面 + AI 启用，浏览器下由 main.ts 隐藏 -->
   <button
     id="menu-split-view-btn"
     class="menu-item"
@@ -19,6 +21,10 @@
   >
     分屏
   </button>
+  <button id="menu-ai-chat-btn" class="menu-item" data-i18n="menu.aiChat">AI 问答</button>
+  <button id="menu-backlinks-btn" class="menu-item" data-i18n="menu.backlinks">反向链接</button>
+  <button id="menu-localgraph-btn" class="menu-item" data-i18n="menu.localGraph">局部图谱</button>
+  <button id="menu-graph-btn" class="menu-item" data-i18n="menu.graph">关系图谱</button>
   <div class="menu-sep"></div>
   <!-- 导出 -->
   <button id="menu-export-pdf-btn" class="menu-item" data-i18n="menu.exportPdf">
@@ -34,12 +40,6 @@
   <button id="menu-export-latex-btn" class="menu-item" data-i18n="menu.exportLatex">
     导出 LaTeX
   </button>
-  <div class="menu-sep"></div>
-  <!-- 文档工具：插入与双链 -->
-  <button id="menu-insert-toc-btn" class="menu-item" data-i18n="menu.insertToc">插入目录</button>
-  <button id="menu-backlinks-btn" class="menu-item" data-i18n="menu.backlinks">反向链接</button>
-  <button id="menu-graph-btn" class="menu-item" data-i18n="menu.graph">关系图谱</button>
-  <button id="menu-localgraph-btn" class="menu-item" data-i18n="menu.localGraph">局部图谱</button>
   <div class="menu-sep"></div>
   <button id="menu-settings-btn" class="menu-item" data-i18n="toolbar.settings">设置</button>
 </div>
